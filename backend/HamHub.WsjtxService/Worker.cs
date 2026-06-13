@@ -105,6 +105,8 @@ public class Worker : BackgroundService
         var qsoChannel = Channel.CreateUnbounded<ParsedQsoLogged>(
             new UnboundedChannelOptions { SingleReader = true });
 
+        stoppingToken.Register(() => qsoChannel.Writer.TryComplete());
+
         parser.QsoLoggedReceived += (_, qso) =>
         {
             qsoChannel.Writer.TryWrite(qso);
@@ -114,16 +116,20 @@ public class Worker : BackgroundService
 
         decodeBuffer.Start(stoppingToken);
         udpListener.Start(stoppingToken);
-        _ = DrainQsoChannelAsync(qsoChannel, stoppingToken);
+        var drainTask = DrainQsoChannelAsync(qsoChannel, stoppingToken);
 
         _logger.LogInformation("WSJT-X agent running. Press Ctrl+C to stop.");
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+        // stoppingToken fired → writer was completed via Register → ReadAllAsync finishes draining remaining items
+        await drainTask;
     }
 
     private async Task DrainQsoChannelAsync(
         Channel<ParsedQsoLogged> channel, CancellationToken ct)
     {
-        await foreach (var qso in channel.Reader.ReadAllAsync(ct))
+        // ReadAllAsync with CancellationToken.None — exits when writer is completed (not when ct fires)
+        await foreach (var qso in channel.Reader.ReadAllAsync(CancellationToken.None))
         {
             try
             {
@@ -140,7 +146,11 @@ public class Worker : BackgroundService
                 ), ct);
                 _logger.LogInformation("Auto-logged QSO with {DxCall}", qso.DxCall);
             }
-            catch (OperationCanceledException) { break; }
+            catch (OperationCanceledException)
+            {
+                // ct fired (shutdown) — stop making HTTP calls; remaining items in channel are lost but that's acceptable
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to log QSO with {DxCall}", qso.DxCall);
