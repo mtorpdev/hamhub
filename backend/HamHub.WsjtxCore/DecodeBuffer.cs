@@ -68,13 +68,16 @@ public class DecodeBuffer : IDisposable
         {
             try
             {
-                _drainTask.Wait(TimeSpan.FromSeconds(5));
+                bool completed = _drainTask.Wait(TimeSpan.FromSeconds(5));
+                if (!completed)
+                    _logger.LogWarning("DecodeBuffer drain task did not complete within 5 s timeout; final batch may not have been flushed");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Drain task did not complete within timeout");
             }
         }
+        // Dispose timer only after drain task finishes (or times out); drain task does not use _timer after CTS is cancelled
         _timer?.Dispose();
         _cts?.Dispose();
     }
