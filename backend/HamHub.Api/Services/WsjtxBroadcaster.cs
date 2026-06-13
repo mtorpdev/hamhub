@@ -8,14 +8,19 @@ namespace HamHub.Api.Services;
 
 public class WsjtxBroadcaster
 {
+    private const int ChannelCapacity = 200;
     private readonly ConcurrentDictionary<Guid, Channel<WsjtxDecodeDto>> _clients = new();
 
     public async IAsyncEnumerable<WsjtxDecodeDto> Subscribe(
         [EnumeratorCancellation] CancellationToken ct)
     {
         var id = Guid.NewGuid();
-        var channel = Channel.CreateUnbounded<WsjtxDecodeDto>(
-            new UnboundedChannelOptions { SingleReader = true });
+        var channel = Channel.CreateBounded<WsjtxDecodeDto>(
+            new BoundedChannelOptions(ChannelCapacity)
+            {
+                SingleReader = true,
+                FullMode = BoundedChannelFullMode.DropOldest
+            });
         _clients[id] = channel;
         try
         {
@@ -25,6 +30,7 @@ public class WsjtxBroadcaster
         finally
         {
             _clients.TryRemove(id, out _);
+            channel.Writer.Complete();
         }
     }
 
