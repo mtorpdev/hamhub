@@ -10,8 +10,10 @@ public class WsjtxDecode
     public string? DxGrid { get; set; }
     public int Snr { get; set; }
     public double DeltaTime { get; set; }
-    public uint DeltaFreqHz { get; set; }
+    public int DeltaFreqHz { get; set; }
     public double FrequencyMhz { get; set; }
     public string Mode { get; set; } = string.Empty;
     public DateTime DecodedAt { get; set; } = DateTime.UtcNow;
+
+    public ApplicationUser User { get; set; } = null!;
 }

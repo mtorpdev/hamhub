@@ -8,14 +8,11 @@ public record WsjtxDecodeDto(
     string? DxGrid,
     int Snr,
     double DeltaTime,
-    uint DeltaFreqHz,
+    int DeltaFreqHz,
     double FrequencyMhz,
     string Mode,
     DateTime DecodedAt
-)
-{
-    public WsjtxDecodeDto() : this(0, string.Empty, string.Empty, null, null, 0, 0, 0, 0, string.Empty, default) { }
-}
+);
 
 // Inbound from plugin
 public record PostDecodeDto(
@@ -25,7 +22,7 @@ public record PostDecodeDto(
     string? DxGrid,
     int Snr,
     double DeltaTime,
-    uint DeltaFreqHz,
+    int DeltaFreqHz,
     double FrequencyMhz,
     string Mode,
     DateTime DecodedAt

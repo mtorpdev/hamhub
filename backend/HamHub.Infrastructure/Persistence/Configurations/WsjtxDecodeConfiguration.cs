@@ -14,7 +14,12 @@ public class WsjtxDecodeConfiguration : IEntityTypeConfiguration<WsjtxDecode>
         builder.Property(d => d.Message).HasMaxLength(30).IsRequired();
         builder.Property(d => d.DxCallsign).HasMaxLength(20);
         builder.Property(d => d.DxGrid).HasMaxLength(10);
-        builder.Property(d => d.Mode).HasMaxLength(10);
+        builder.Property(d => d.Mode).HasMaxLength(10).IsRequired();
+
+        builder.HasOne(d => d.User)
+            .WithMany()
+            .HasForeignKey(d => d.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(d => d.DecodedAt);
     }
