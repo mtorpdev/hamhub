@@ -14,7 +14,8 @@ public partial class LogWindow : Window
         foreach (var line in _buffer.GetAll())
             LogList.Items.Add(line);
 
-        _buffer.LineAdded += (_, line) =>
+        EventHandler<string> handler = null!;
+        handler = (_, line) =>
         {
             Dispatcher.Invoke(() =>
             {
@@ -23,5 +24,7 @@ public partial class LogWindow : Window
                     LogList.ScrollIntoView(LogList.Items[^1]);
             });
         };
+        _buffer.LineAdded += handler;
+        Closed += (_, _) => _buffer.LineAdded -= handler;
     }
 }

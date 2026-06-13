@@ -25,6 +25,7 @@ public class TrayOrchestrator : IDisposable
     private readonly LogBuffer _logBuffer = new();
     private CancellationTokenSource _cts = new();
     private ConnectionState _state = ConnectionState.Disconnected;
+    private Task _runTask = Task.CompletedTask;
 
     public event EventHandler? ExitRequested;
 
@@ -34,7 +35,7 @@ public class TrayOrchestrator : IDisposable
         _trayIcon = new TaskbarIcon();
         UpdateIcon(ConnectionState.Disconnected);
         BuildContextMenu();
-        _ = StartAsync(_cts.Token);
+        _runTask = StartAsync(_cts.Token);
     }
 
     private void BuildContextMenu()
@@ -88,6 +89,11 @@ public class TrayOrchestrator : IDisposable
 
     private void UpdateIcon(ConnectionState state)
     {
+        if (!Application.Current.Dispatcher.CheckAccess())
+        {
+            Application.Current.Dispatcher.Invoke(() => UpdateIcon(state));
+            return;
+        }
         _state = state;
         if (_trayIcon == null) return;
         var iconPath = state switch
@@ -108,12 +114,14 @@ public class TrayOrchestrator : IDisposable
     {
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
 
-        // Login with retry
+        // Login with retry — one HttpClient for the entire retry loop
+        var http = new HttpClient();
+        _apiClient = null;
+
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                var http = new HttpClient();
                 _apiClient = new HamHubApiClient(http, _config,
                     loggerFactory.CreateLogger<HamHubApiClient>());
                 await _apiClient.LoginAsync(ct);
@@ -220,6 +228,8 @@ public class TrayOrchestrator : IDisposable
     private async Task RestartAsync()
     {
         _cts.Cancel();
+        try { await _runTask.ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
         _cts.Dispose();
         _udpListener?.Dispose();
         _decodeBuffer?.Dispose();
@@ -227,7 +237,7 @@ public class TrayOrchestrator : IDisposable
         _cts = new CancellationTokenSource();
         Application.Current.Dispatcher.Invoke(
             () => UpdateIcon(ConnectionState.Disconnected));
-        await StartAsync(_cts.Token);
+        _runTask = StartAsync(_cts.Token);
     }
 
     public void Dispose()

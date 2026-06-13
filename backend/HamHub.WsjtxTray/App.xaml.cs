@@ -33,7 +33,8 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => Shutdown();
         _tray.Initialize();
 
-        await _host.StartAsync();
+        try { await _host.StartAsync(); }
+        catch (Exception ex) { Log.Fatal(ex, "Host failed to start"); Shutdown(); }
     }
 
     protected override async void OnExit(ExitEventArgs e)
@@ -41,8 +42,18 @@ public partial class App : Application
         _tray?.Dispose();
         if (_host != null)
         {
-            await _host.StopAsync();
-            _host.Dispose();
+            try
+            {
+                await _host.StopAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stopping host");
+            }
+            finally
+            {
+                _host.Dispose();
+            }
         }
         Log.CloseAndFlush();
         base.OnExit(e);
