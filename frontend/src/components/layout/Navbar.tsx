@@ -25,6 +25,7 @@ export function Navbar() {
 
           <div className="hidden md:flex items-center gap-6">
             <Link href="/spots" className="text-gray-300 hover:text-white text-sm">DX Spots</Link>
+            <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Decodes</Link>
             <Link href="/articles" className="text-gray-300 hover:text-white text-sm">Artikler</Link>
             <Link href="/callsign-search" className="text-gray-300 hover:text-white text-sm">Callsign Lookup</Link>
             {isAuthenticated && <>
@@ -62,6 +63,7 @@ export function Navbar() {
         {menuOpen && (
           <div className="md:hidden py-3 border-t border-gray-800 flex flex-col gap-3">
             <Link href="/spots" className="text-gray-300 text-sm py-1">DX Spots</Link>
+            <Link href="/decode" className="text-gray-300 text-sm py-1">Live Decodes</Link>
             <Link href="/articles" className="text-gray-300 text-sm py-1">Artikler</Link>
             <Link href="/callsign-search" className="text-gray-300 text-sm py-1">Callsign Lookup</Link>
             {isAuthenticated ? <>
