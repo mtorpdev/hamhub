@@ -1,0 +1,17 @@
+<Window x:Class="HamHub.WsjtxTray.LogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HamHub WSJT-X Log"
+        Width="700" Height="400"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <ListBox x:Name="LogList"
+                 FontFamily="Consolas"
+                 FontSize="11"
+                 Background="#1a1a1a"
+                 Foreground="#cccccc"
+                 BorderThickness="0"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 VirtualizingPanel.IsVirtualizing="True"/>
+    </Grid>
+</Window>
