@@ -1,6 +1,7 @@
 using HamHub.WsjtxCore;
 using HamHub.WsjtxCore.Models;
 using Microsoft.Extensions.Options;
+using System.Threading.Channels;
 
 namespace HamHub.WsjtxService;
 
@@ -101,7 +102,28 @@ public class Worker : BackgroundService
             ));
         };
 
-        parser.QsoLoggedReceived += async (_, qso) =>
+        var qsoChannel = Channel.CreateUnbounded<ParsedQsoLogged>(
+            new UnboundedChannelOptions { SingleReader = true });
+
+        parser.QsoLoggedReceived += (_, qso) =>
+        {
+            qsoChannel.Writer.TryWrite(qso);
+        };
+
+        udpListener.MessageReceived += (_, data) => parser.Parse(data);
+
+        decodeBuffer.Start(stoppingToken);
+        udpListener.Start(stoppingToken);
+        _ = DrainQsoChannelAsync(qsoChannel, stoppingToken);
+
+        _logger.LogInformation("WSJT-X agent running. Press Ctrl+C to stop.");
+        await Task.Delay(Timeout.Infinite, stoppingToken);
+    }
+
+    private async Task DrainQsoChannelAsync(
+        Channel<ParsedQsoLogged> channel, CancellationToken ct)
+    {
+        await foreach (var qso in channel.Reader.ReadAllAsync(ct))
         {
             try
             {
@@ -115,21 +137,14 @@ public class Worker : BackgroundService
                     RstReceived: qso.ReportReceived,
                     Locator: qso.DxGrid,
                     Notes: string.IsNullOrWhiteSpace(qso.Comments) ? null : qso.Comments
-                ), stoppingToken);
+                ), ct);
                 _logger.LogInformation("Auto-logged QSO with {DxCall}", qso.DxCall);
             }
+            catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to log QSO with {DxCall}", qso.DxCall);
             }
-        };
-
-        udpListener.MessageReceived += (_, data) => parser.Parse(data);
-
-        decodeBuffer.Start(stoppingToken);
-        udpListener.Start(stoppingToken);
-
-        _logger.LogInformation("WSJT-X agent running. Press Ctrl+C to stop.");
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
     }
 }

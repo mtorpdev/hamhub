@@ -18,7 +18,7 @@ try
         {
             services.Configure<HamHubConfig>(ctx.Configuration.GetSection("HamHub"));
             services.AddHttpClient();
-            services.AddTransient<HamHubApiClient>(sp =>
+            services.AddSingleton<HamHubApiClient>(sp =>
             {
                 var config = sp.GetRequiredService<IOptions<HamHubConfig>>().Value;
                 var factory = sp.GetRequiredService<IHttpClientFactory>();
