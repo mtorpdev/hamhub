@@ -13,6 +13,11 @@ namespace HamHub.Api.Controllers;
 [Route("api/wsjtx")]
 public class WsjtxController : ControllerBase
 {
+    private static readonly JsonSerializerOptions _sseJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ApplicationDbContext _db;
     private readonly IMapper _mapper;
     private readonly WsjtxBroadcaster _broadcaster;
@@ -29,7 +34,7 @@ public class WsjtxController : ControllerBase
     [Authorize]
     public async Task<IActionResult> PostDecodes([FromBody] PostDecodeDto[] dtos)
     {
-        if (dtos.Length == 0) return NoContent();
+        if (dtos is null or { Length: 0 }) return BadRequest("Batch must not be empty.");
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
@@ -50,6 +55,7 @@ public class WsjtxController : ControllerBase
     }
 
     // GET /api/wsjtx/stream  — intentionally public (community feed)
+    [AllowAnonymous]
     [HttpGet("stream")]
     public async Task StreamDecodes(CancellationToken ct)
     {
@@ -57,23 +63,46 @@ public class WsjtxController : ControllerBase
         Response.Headers["Cache-Control"] = "no-cache";
         Response.Headers["X-Accel-Buffering"] = "no";
 
+        // Disable Kestrel response buffering for immediate event delivery
+        var bufferingFeature = HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>();
+        bufferingFeature?.DisableBuffering();
+
+        // Merge pings (null) and decode JSON strings into a single channel
+        // so there is only ONE writer to Response.Body
+        var merged = System.Threading.Channels.Channel.CreateUnbounded<string?>(
+            new System.Threading.Channels.UnboundedChannelOptions { SingleReader = true });
+
+        // Ping producer — writes null to merged channel every 30s
         using var pingTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
-        var pingTask = Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
-            while (await pingTimer.WaitForNextTickAsync(ct))
+            try
             {
-                await Response.WriteAsync(": ping\n\n", ct);
-                await Response.Body.FlushAsync(ct);
+                while (await pingTimer.WaitForNextTickAsync(ct))
+                    await merged.Writer.WriteAsync(null, ct);
             }
+            catch (OperationCanceledException) { }
+            finally { merged.Writer.TryComplete(); }
         }, ct);
 
-        await foreach (var decode in _broadcaster.Subscribe(ct))
+        // Decode producer — writes serialised JSON strings to merged channel
+        _ = Task.Run(async () =>
         {
-            var json = JsonSerializer.Serialize(decode, new JsonSerializerOptions
+            try
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-            await Response.WriteAsync($"data: {json}\n\n", ct);
+                await foreach (var decode in _broadcaster.Subscribe(ct))
+                    await merged.Writer.WriteAsync(
+                        JsonSerializer.Serialize(decode, _sseJsonOptions), ct);
+            }
+            catch (OperationCanceledException) { }
+            finally { merged.Writer.TryComplete(); }
+        }, ct);
+
+        // Single consumer — only this code writes to Response.Body
+        await foreach (var item in merged.Reader.ReadAllAsync(ct))
+        {
+            var line = item is null ? ": ping\n\n" : $"data: {item}\n\n";
+            await Response.WriteAsync(line, ct);
             await Response.Body.FlushAsync(ct);
         }
     }
