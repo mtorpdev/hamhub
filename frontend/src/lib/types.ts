@@ -108,10 +108,48 @@ export interface Article {
   createdAt: string
 }
 
+export interface ArticleCategory {
+  id: number
+  name: string
+  slug: string
+}
+
+export interface ArticleComment {
+  id: number
+  articleId: number
+  authorId: string
+  authorCallsign: string | null
+  content: string
+  createdAt: string
+}
+
+export interface ClusterSpot {
+  callsign: string
+  frequency: number
+  mode: string
+  spotter: string
+  info: string
+  time: string
+}
+
 export interface DashboardStats {
   totalUsers: number
   totalStations: number
   totalQsos: number
   totalDxSpots: number
   totalArticles: number
+}
+
+export interface WsjtxDecodeItem {
+  id: number
+  spotterCallsign: string
+  message: string
+  dxCallsign: string | null
+  dxGrid: string | null
+  snr: number
+  deltaTime: number
+  deltaFreqHz: number
+  frequencyMhz: number
+  mode: string
+  decodedAt: string
 }
