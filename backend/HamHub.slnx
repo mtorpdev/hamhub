@@ -3,4 +3,5 @@
   <Project Path="HamHub.Application/HamHub.Application.csproj" />
   <Project Path="HamHub.Domain/HamHub.Domain.csproj" />
   <Project Path="HamHub.Infrastructure/HamHub.Infrastructure.csproj" />
+  <Project Path="HamHub.WsjtxCore/HamHub.WsjtxCore.csproj" />
 </Solution>
