@@ -13,6 +13,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DxSpot> DxSpots => Set<DxSpot>();
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<ArticleCategory> ArticleCategories => Set<ArticleCategory>();
+    public DbSet<ArticleComment> ArticleComments => Set<ArticleComment>();
+    public DbSet<WsjtxDecode> WsjtxDecodes => Set<WsjtxDecode>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
