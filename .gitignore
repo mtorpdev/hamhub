@@ -2,6 +2,7 @@
 backend/**/bin/
 backend/**/obj/
 backend/**/*.user
+backend/**/publish/
 backend/HamHub.Api/appsettings.Development.json
 
 # Frontend
