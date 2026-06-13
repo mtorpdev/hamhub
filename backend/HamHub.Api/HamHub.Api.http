@@ -1,0 +1,6 @@
+@HamHub.Api_HostAddress = http://localhost:5085
+
+GET {{HamHub.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
