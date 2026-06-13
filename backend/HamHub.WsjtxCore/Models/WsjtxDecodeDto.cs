@@ -7,7 +7,7 @@ public record WsjtxDecodeDto(
     string? DxGrid,
     int Snr,
     double DeltaTime,
-    uint DeltaFreqHz,
+    int DeltaFreqHz,
     double FrequencyMhz,
     string Mode,
     DateTime DecodedAt

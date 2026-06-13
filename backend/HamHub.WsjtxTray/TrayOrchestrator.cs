@@ -183,7 +183,7 @@ public class TrayOrchestrator : IDisposable
                 DxGrid: dxGrid,
                 Snr: decode.Snr,
                 DeltaTime: decode.DeltaTime,
-                DeltaFreqHz: decode.DeltaFreqHz,
+                DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
                 Mode: decode.Mode,
                 DecodedAt: DateTime.UtcNow
@@ -250,6 +250,7 @@ public class TrayOrchestrator : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        try { _runTask.Wait(TimeSpan.FromSeconds(3)); } catch { /* best effort */ }
         _cts.Dispose();
         _udpListener?.Dispose();
         _decodeBuffer?.Dispose();

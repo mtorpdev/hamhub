@@ -95,7 +95,7 @@ public class Worker : BackgroundService
                 DxGrid: dxGrid,
                 Snr: decode.Snr,
                 DeltaTime: decode.DeltaTime,
-                DeltaFreqHz: decode.DeltaFreqHz,
+                DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
                 Mode: decode.Mode,
                 DecodedAt: DateTime.UtcNow
