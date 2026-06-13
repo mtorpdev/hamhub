@@ -55,6 +55,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddSingleton<HamHub.Api.Services.WsjtxBroadcaster>();
+builder.Services.AddHostedService<HamHub.Api.Services.WsjtxPruneService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
