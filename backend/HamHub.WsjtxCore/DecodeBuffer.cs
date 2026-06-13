@@ -10,7 +10,7 @@ public class DecodeBuffer : IDisposable
     private readonly HamHubApiClient _api;
     private readonly ILogger<DecodeBuffer> _logger;
     private PeriodicTimer? _timer;
-    private Task? _drainTask;
+    private CancellationTokenSource? _cts;
 
     public DecodeBuffer(HamHubApiClient api, ILogger<DecodeBuffer> logger)
     {
@@ -20,36 +20,50 @@ public class DecodeBuffer : IDisposable
 
     public void Enqueue(WsjtxDecodeDto decode) => _queue.Enqueue(decode);
 
-    public void Start(CancellationToken ct)
+    public void Start(CancellationToken externalCt)
     {
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
         _timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        _drainTask = DrainLoopAsync(ct);
+        _ = DrainLoopAsync(_cts.Token);
     }
 
     private async Task DrainLoopAsync(CancellationToken ct)
     {
-        while (await _timer!.WaitForNextTickAsync(ct))
+        try
         {
-            var batch = new List<WsjtxDecodeDto>();
-            while (_queue.TryDequeue(out var item))
-                batch.Add(item);
+            while (await _timer!.WaitForNextTickAsync(ct))
+                await FlushAsync(ct);
+        }
+        catch (OperationCanceledException) { }
 
-            if (batch.Count == 0) continue;
+        // Final flush on shutdown — best-effort
+        try { await FlushAsync(CancellationToken.None); }
+        catch (Exception ex) { _logger.LogError(ex, "Final flush failed"); }
+    }
 
-            try
-            {
-                await _api.PostDecodesAsync(batch.ToArray(), ct);
-                _logger.LogDebug("Flushed {Count} decodes to HamHub", batch.Count);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogError(ex, "Failed to flush {Count} decodes", batch.Count);
-            }
+    private async Task FlushAsync(CancellationToken ct)
+    {
+        var batch = new List<WsjtxDecodeDto>();
+        while (_queue.TryDequeue(out var item))
+            batch.Add(item);
+
+        if (batch.Count == 0) return;
+
+        try
+        {
+            await _api.PostDecodesAsync(batch.ToArray(), ct);
+            _logger.LogDebug("Flushed {Count} decodes to HamHub", batch.Count);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to flush {Count} decodes", batch.Count);
         }
     }
 
     public void Dispose()
     {
+        _cts?.Cancel();
         _timer?.Dispose();
+        _cts?.Dispose();
     }
 }

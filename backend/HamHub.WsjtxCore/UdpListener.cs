@@ -21,6 +21,7 @@ public class UdpListener : IDisposable
 
     public void Start(CancellationToken ct)
     {
+        _udp?.Dispose();  // Dispose previous socket if restarting
         _udp = new UdpClient();
         _udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _udp.Client.Bind(new IPEndPoint(IPAddress.Any, _config.UdpPort));

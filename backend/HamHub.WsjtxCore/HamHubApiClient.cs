@@ -18,11 +18,16 @@ public class HamHubApiClient
         _http = http;
         _config = config;
         _logger = logger;
-        _http.BaseAddress = new Uri(config.ServerUrl);
+        if (!string.IsNullOrWhiteSpace(config.ServerUrl))
+            _http.BaseAddress = new Uri(config.ServerUrl);
     }
 
     public async Task LoginAsync(CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(_config.ServerUrl))
+            throw new InvalidOperationException("HamHub ServerUrl is not configured.");
+        if (_http.BaseAddress is null)
+            _http.BaseAddress = new Uri(_config.ServerUrl);
         var body = new { email = _config.Username, password = _config.Password };
         var res = await _http.PostAsJsonAsync("/api/auth/login", body, ct);
         res.EnsureSuccessStatusCode();
