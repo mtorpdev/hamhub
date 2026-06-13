@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -27,14 +28,17 @@ export default function CallsignSearchPage() {
     setQsos([])
     setSearched(true)
     try {
-      const users = await api.users.getAll()
-      const found = users.find(u => u.callsign?.toLowerCase() === callsign.trim().toLowerCase())
-      if (!found) { setError(`Ingen bruger fundet med kaldesignalet ${callsign.toUpperCase()}`); return }
+      const found = await api.users.searchByCallsign(callsign.trim())
       setUser(found)
       const allStations = await api.stations.getAll()
       setStations(allStations.filter(s => s.userId === found.id))
-    } catch {
-      setError('Søgning mislykkedes')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('404') || msg.includes('HTTP 404')) {
+        setError(`Ingen bruger fundet med kaldesignalet ${callsign.toUpperCase()}`)
+      } else {
+        setError('Søgning mislykkedes')
+      }
     } finally {
       setLoading(false)
     }
@@ -53,7 +57,10 @@ export default function CallsignSearchPage() {
       {user && (
         <div className="flex flex-col gap-6">
           <Card>
-            <CardHeader><CardTitle>📻 {user.callsign || 'Ukendt'}</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>📻 {user.callsign || 'Ukendt'}</CardTitle>
+              {user.callsign && <Link href={`/users/${user.callsign}`} className="text-blue-400 hover:text-blue-300 text-sm">Se profil →</Link>}
+            </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-400">Navn: </span><span className="text-white">{user.firstName} {user.lastName}</span></div>

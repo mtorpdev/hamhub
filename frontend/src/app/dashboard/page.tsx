@@ -7,9 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type Qso, type DxSpot } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { isLoading } = useRequireAuth()
+  if (isLoading) return null
   const [recentQsos, setRecentQsos] = useState<Qso[]>([])
   const [recentSpots, setRecentSpots] = useState<DxSpot[]>([])
 

@@ -18,6 +18,20 @@ public class AdminController : ControllerBase
         _context = context;
     }
 
+    [HttpGet("stats")]
+    [AllowAnonymous]
+    public async Task<IActionResult> PublicStats()
+    {
+        var stats = new DashboardStatsDto(
+            TotalUsers: await _context.Users.CountAsync(),
+            TotalStations: await _context.StationProfiles.CountAsync(),
+            TotalQsos: await _context.QsoEntries.CountAsync(),
+            TotalDxSpots: await _context.DxSpots.CountAsync(),
+            TotalArticles: await _context.Articles.CountAsync()
+        );
+        return Ok(stats);
+    }
+
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard()
     {

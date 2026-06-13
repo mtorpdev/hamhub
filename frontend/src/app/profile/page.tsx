@@ -6,11 +6,14 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProfileVisibility } from '@/lib/types'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  useRequireAuth()
+  const { toast } = useToast()
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
-  const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -33,8 +36,7 @@ export default function ProfilePage() {
     setLoading(true)
     try {
       await api.users.updateMe(form as never)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      toast('Profil gemt!')
     } finally {
       setLoading(false)
     }
@@ -66,7 +68,6 @@ export default function ProfilePage() {
                 <option value={ProfileVisibility.Private}>Privat</option>
               </select>
             </div>
-            {saved && <p className="text-green-400 text-sm">Profil gemt!</p>}
             <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
           </form>
         </CardContent>

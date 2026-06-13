@@ -6,8 +6,12 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Band, BandLabels, Mode, ModeLabels } from '@/lib/types'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function NewSpotPage() {
+  useRequireAuth()
+  const { toast } = useToast()
   const [form, setForm] = useState({ callsign: '', frequency: '', band: Band.M20, mode: Mode.FT8, comment: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,6 +23,7 @@ export default function NewSpotPage() {
     setLoading(true)
     try {
       await api.spots.create({ ...form, frequency: parseFloat(form.frequency) })
+      toast('Spot sendt!')
       router.push('/spots')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fejl')

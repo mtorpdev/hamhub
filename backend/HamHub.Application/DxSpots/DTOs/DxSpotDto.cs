@@ -12,4 +12,7 @@ public record DxSpotDto(
     Mode Mode,
     string? Comment,
     DateTime SpottedAt
-);
+)
+{
+    public DxSpotDto() : this(0, string.Empty, string.Empty, string.Empty, 0, default, default, null, default) { }
+}

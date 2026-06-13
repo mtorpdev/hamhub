@@ -22,6 +22,16 @@ public class ArticlesController : ControllerBase
         _mapper = mapper;
     }
 
+    [HttpGet("categories")]
+    public async Task<IActionResult> GetCategories()
+    {
+        var cats = await _context.ArticleCategories
+            .OrderBy(c => c.Name)
+            .Select(c => new { c.Id, c.Name, c.Slug })
+            .ToListAsync();
+        return Ok(cats);
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetPublished()
     {

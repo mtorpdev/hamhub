@@ -55,6 +55,23 @@ public class SpotsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = spot.Id }, _mapper.Map<DxSpotDto>(created));
     }
 
+    [HttpGet("cluster")]
+    public async Task<IActionResult> GetClusterSpots([FromQuery] int limit = 30)
+    {
+        try
+        {
+            using var http = new System.Net.Http.HttpClient();
+            http.DefaultRequestHeaders.Add("User-Agent", "HamHub/1.0");
+            var url = $"https://www.dxsummit.fi/api/v1/spots?limit={Math.Min(limit, 50)}";
+            var json = await http.GetStringAsync(url);
+            return Content(json, "application/json");
+        }
+        catch
+        {
+            return Ok(Array.Empty<object>());
+        }
+    }
+
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> Delete(int id)

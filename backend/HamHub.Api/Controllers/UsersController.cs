@@ -33,6 +33,16 @@ public class UsersController : ControllerBase
         return Ok(users.Select(u => _mapper.Map<UserDto>(u)));
     }
 
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchByCallsign([FromQuery] string callsign)
+    {
+        if (string.IsNullOrWhiteSpace(callsign)) return BadRequest("callsign query parameter is required");
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Callsign != null && u.Callsign.ToLower() == callsign.ToLower());
+        if (user == null) return NotFound();
+        return Ok(_mapper.Map<UserDto>(user));
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id)
     {

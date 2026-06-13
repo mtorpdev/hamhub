@@ -13,4 +13,7 @@ public record ArticleDto(
     bool IsPublished,
     DateTime? PublishDate,
     DateTime CreatedAt
-);
+)
+{
+    public ArticleDto() : this(0, string.Empty, string.Empty, null, string.Empty, 0, string.Empty, string.Empty, null, false, null, default) { }
+}

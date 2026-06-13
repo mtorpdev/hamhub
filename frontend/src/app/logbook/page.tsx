@@ -6,32 +6,106 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { BandLabels, ModeLabels, type Qso } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useToast } from '@/contexts/ToastContext'
+
+const PAGE_SIZE = 25
+
+const BAND_ADIF: Record<Band, string> = {
+  [Band.M160]: '160M', [Band.M80]: '80M', [Band.M60]: '60M', [Band.M40]: '40M',
+  [Band.M30]: '30M', [Band.M20]: '20M', [Band.M17]: '17M', [Band.M15]: '15M',
+  [Band.M12]: '12M', [Band.M10]: '10M', [Band.M6]: '6M', [Band.M2]: '2M', [Band.CM70]: '70CM'
+}
+const MODE_ADIF: Record<Mode, string> = {
+  [Mode.SSB]: 'SSB', [Mode.CW]: 'CW', [Mode.FT8]: 'FT8', [Mode.FT4]: 'FT4',
+  [Mode.RTTY]: 'RTTY', [Mode.DMR]: 'DMR', [Mode.FM]: 'FM', [Mode.AM]: 'AM'
+}
+
+function exportAdif(qsos: Qso[]) {
+  const field = (name: string, value: string) => `<${name}:${value.length}>${value}`
+  const lines = ['<ADIF_VER:5>3.1.4', '<PROGRAMID:6>HamHub', '<EOH>']
+  for (const q of qsos) {
+    const d = new Date(q.dateUtc)
+    const date = d.toISOString().slice(0, 10).replace(/-/g, '')
+    const time = d.toISOString().slice(11, 16).replace(':', '')
+    const rec = [
+      field('CALL', q.workedCallsign),
+      field('BAND', BAND_ADIF[q.band]),
+      field('MODE', MODE_ADIF[q.mode]),
+      field('QSO_DATE', date),
+      field('TIME_ON', time),
+      q.rstSent ? field('RST_SENT', q.rstSent) : '',
+      q.rstReceived ? field('RST_RCVD', q.rstReceived) : '',
+      q.country ? field('COUNTRY', q.country) : '',
+      q.locator ? field('GRIDSQUARE', q.locator) : '',
+      q.frequency ? field('FREQ', q.frequency.toFixed(3)) : '',
+      q.notes ? field('NOTES', q.notes) : '',
+      '<EOR>',
+    ].filter(Boolean).join('')
+    lines.push(rec)
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `hamhub-logbog-${new Date().toISOString().slice(0, 10)}.adi`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 
 export default function LogbookPage() {
+  useRequireAuth()
+  const { toast } = useToast()
   const [qsos, setQsos] = useState<Qso[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   const load = (s?: string) => {
     setLoading(true)
+    setPage(1)
     api.qsos.getMine(s).then(setQsos).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const result = await api.qsos.importAdif(file)
+      toast(`Importeret: ${result.imported} QSOer${result.skipped ? `, ${result.skipped} sprunget over` : ''}`)
+      load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Import mislykkedes', 'error')
+    }
+    e.target.value = ''
+  }
+
   const handleDelete = async (id: number) => {
     if (!confirm('Slet QSO?')) return
-    await api.qsos.delete(id)
-    load(search)
+    try {
+      await api.qsos.delete(id)
+      toast('QSO slettet')
+      load(search)
+    } catch {
+      toast('Sletning mislykkedes', 'error')
+    }
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">QSO Logbog</h1>
-        <Link href="/logbook/new"><Button>+ Ny QSO</Button></Link>
+        <div className="flex gap-2">
+          {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>Eksporter ADIF</Button>}
+          <label className="cursor-pointer">
+            <Button variant="secondary" type="button" onClick={() => document.getElementById('adif-import')?.click()}>Importer ADIF</Button>
+            <input id="adif-import" type="file" accept=".adi,.adif" className="hidden" onChange={handleImport} />
+          </label>
+          <Link href="/logbook/new"><Button>+ Ny QSO</Button></Link>
+        </div>
       </div>
       <div className="flex gap-3 mb-6">
         <Input className="max-w-sm" placeholder="Søg kaldesignal..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && load(search)} />
@@ -45,13 +119,13 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', ''].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', '', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {qsos.map(q => (
+                  {qsos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(q => (
                     <tr key={q.id} className="hover:bg-gray-800/30 transition-colors">
                       <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{formatUtcDate(q.dateUtc)}</td>
                       <td className="px-4 py-3 font-mono text-gray-300">{q.ownCallsign}</td>
@@ -60,6 +134,9 @@ export default function LogbookPage() {
                       <td className="px-4 py-3"><Badge>{ModeLabels[q.mode]}</Badge></td>
                       <td className="px-4 py-3 text-gray-400">{q.rstSent}/{q.rstReceived}</td>
                       <td className="px-4 py-3 text-gray-400">{q.country || '—'}</td>
+                      <td className="px-4 py-3">
+                        <Link href={`/logbook/${q.id}`} className="text-blue-400 hover:text-blue-300 text-xs">Rediger</Link>
+                      </td>
                       <td className="px-4 py-3">
                         <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
                       </td>
@@ -72,7 +149,16 @@ export default function LogbookPage() {
           )}
         </CardContent>
       </Card>
-      <p className="text-gray-500 text-sm mt-3">{qsos.length} QSOer</p>
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-gray-500 text-sm">{qsos.length} QSOer</p>
+        {qsos.length > PAGE_SIZE && (
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">←</button>
+            <span className="text-gray-400 text-sm">Side {page} / {Math.ceil(qsos.length / PAGE_SIZE)}</span>
+            <button onClick={() => setPage(p => Math.min(Math.ceil(qsos.length / PAGE_SIZE), p + 1))} disabled={page >= Math.ceil(qsos.length / PAGE_SIZE)} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">→</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -27,7 +27,7 @@ public class HamHubApiClient
         if (string.IsNullOrWhiteSpace(_config.ServerUrl))
             throw new InvalidOperationException("HamHub ServerUrl is not configured.");
         if (_http.BaseAddress is null)
-            _http.BaseAddress = new Uri(_config.ServerUrl);
+            throw new InvalidOperationException("HttpClient BaseAddress was not set in constructor. This should not happen if ServerUrl was configured.");
         var body = new { email = _config.Username, password = _config.Password };
         var res = await _http.PostAsJsonAsync("/api/auth/login", body, ct);
         res.EnsureSuccessStatusCode();

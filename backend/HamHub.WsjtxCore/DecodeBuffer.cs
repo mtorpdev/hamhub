@@ -11,6 +11,7 @@ public class DecodeBuffer : IDisposable
     private readonly ILogger<DecodeBuffer> _logger;
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
+    private Task? _drainTask;
 
     public DecodeBuffer(HamHubApiClient api, ILogger<DecodeBuffer> logger)
     {
@@ -24,7 +25,7 @@ public class DecodeBuffer : IDisposable
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
         _timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        _ = DrainLoopAsync(_cts.Token);
+        _drainTask = DrainLoopAsync(_cts.Token);
     }
 
     private async Task DrainLoopAsync(CancellationToken ct)
@@ -63,6 +64,17 @@ public class DecodeBuffer : IDisposable
     public void Dispose()
     {
         _cts?.Cancel();
+        if (_drainTask != null)
+        {
+            try
+            {
+                _drainTask.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Drain task did not complete within timeout");
+            }
+        }
         _timer?.Dispose();
         _cts?.Dispose();
     }

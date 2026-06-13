@@ -7,7 +7,7 @@ export function HomeStatsSection() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
 
   useEffect(() => {
-    api.admin.dashboard().then(setStats).catch(() => {})
+    api.admin.stats().then(setStats).catch(() => {})
   }, [])
 
   const items = [
