@@ -105,7 +105,7 @@ public class Worker : BackgroundService
         var qsoChannel = Channel.CreateUnbounded<ParsedQsoLogged>(
             new UnboundedChannelOptions { SingleReader = true });
 
-        stoppingToken.Register(() => qsoChannel.Writer.TryComplete());
+        await using var _ = stoppingToken.Register(() => qsoChannel.Writer.TryComplete());
 
         parser.QsoLoggedReceived += (_, qso) =>
         {
@@ -122,7 +122,9 @@ public class Worker : BackgroundService
         await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         // stoppingToken fired → writer was completed via Register → ReadAllAsync finishes draining remaining items
-        await drainTask;
+        using var drainTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await drainTask.WaitAsync(drainTimeout.Token)
+                       .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
     }
 
     private async Task DrainQsoChannelAsync(
