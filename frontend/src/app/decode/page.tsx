@@ -19,6 +19,7 @@ export default function DecodePage() {
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
   const [filter, setFilter] = useState<'all' | 'FT8' | 'FT4'>('all')
   const [autoScroll, setAutoScroll] = useState(true)
+  const [connected, setConnected] = useState(false)
   const [workedCallsigns, setWorkedCallsigns] = useState<Set<string>>(new Set())
   const { isAuthenticated } = useAuth()
   const tableRef = useRef<HTMLDivElement>(null)
@@ -33,14 +34,16 @@ export default function DecodePage() {
 
   useEffect(() => {
     const es = new EventSource(`${API_URL}/api/wsjtx/stream`)
+    es.onopen = () => setConnected(true)
     es.onmessage = (e) => {
+      setConnected(true)
       const decode: WsjtxDecodeItem = JSON.parse(e.data)
       setDecodes(prev => {
         const next = [decode, ...prev]
         return next.length > MAX_ROWS ? next.slice(0, MAX_ROWS) : next
       })
     }
-    es.onerror = () => {} // browser auto-reconnects
+    es.onerror = () => setConnected(false)
     return () => es.close()
   }, [])
 
@@ -50,7 +53,7 @@ export default function DecodePage() {
     }
   }, [decodes, autoScroll])
 
-  const visible = filter === 'all' ? decodes : decodes.filter(d => d.mode === filter)
+  const visible = filter === 'all' ? decodes : decodes.filter(d => d.mode.toUpperCase() === filter)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10">
@@ -58,8 +61,8 @@ export default function DecodePage() {
         <h1 className="text-3xl font-bold text-white">Live Decodes</h1>
         <div className="flex items-center gap-4">
           <span className="text-xs text-gray-500 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            SSE live
+            <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            {connected ? 'SSE live' : 'Genopretter...'}
           </span>
           <Badge variant="info">{decodes.length} decodes</Badge>
         </div>
@@ -85,7 +88,7 @@ export default function DecodePage() {
             onChange={e => setAutoScroll(e.target.checked)}
             className="accent-blue-500"
           />
-          Auto-scroll
+          Fasthold toppen
         </label>
       </div>
 
@@ -102,7 +105,7 @@ export default function DecodePage() {
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {visible.map(d => (
-                  <tr key={d.id} className="hover:bg-gray-800/30 transition-colors">
+                  <tr key={`${d.id}-${d.decodedAt}`} className="hover:bg-gray-800/30 transition-colors">
                     <td className="px-3 py-2 text-gray-500 text-xs whitespace-nowrap font-mono">
                       {new Date(d.decodedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </td>
