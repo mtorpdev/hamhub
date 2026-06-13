@@ -10,7 +10,7 @@ public class WsjtxDecodeConfiguration : IEntityTypeConfiguration<WsjtxDecode>
     {
         builder.HasKey(d => d.Id);
         builder.Property(d => d.UserId).HasMaxLength(450).IsRequired();
-        builder.Property(d => d.SpotterCallsign).HasMaxLength(20);
+        builder.Property(d => d.SpotterCallsign).HasMaxLength(20).IsRequired();
         builder.Property(d => d.Message).HasMaxLength(30).IsRequired();
         builder.Property(d => d.DxCallsign).HasMaxLength(20);
         builder.Property(d => d.DxGrid).HasMaxLength(10);
