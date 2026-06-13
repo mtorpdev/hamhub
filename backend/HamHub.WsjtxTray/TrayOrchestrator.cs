@@ -18,6 +18,7 @@ public class TrayOrchestrator : IDisposable
     private TaskbarIcon? _trayIcon;
     private HamHubConfig _config = new();
     private HamHubApiClient? _apiClient;
+    private HttpClient? _httpClient;
     private UdpListener? _udpListener;
     private DecodeBuffer? _decodeBuffer;
     private MessageParser? _parser;
@@ -63,7 +64,11 @@ public class TrayOrchestrator : IDisposable
             {
                 _config = win.Config;
                 ConfigStore.Save(_config);
-                _ = RestartAsync();
+                _ = RestartAsync().ContinueWith(t =>
+                {
+                    if (t.IsFaulted && t.Exception != null)
+                        _logBuffer.Add($"[ERROR] Restart failed: {t.Exception.GetBaseException().Message}");
+                }, TaskContinuationOptions.OnlyOnFaulted);
             }
         };
         menu.Items.Add(settingsItem);
@@ -115,14 +120,14 @@ public class TrayOrchestrator : IDisposable
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
 
         // Login with retry — one HttpClient for the entire retry loop
-        var http = new HttpClient();
+        _httpClient = new HttpClient();
         _apiClient = null;
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                _apiClient = new HamHubApiClient(http, _config,
+                _apiClient = new HamHubApiClient(_httpClient, _config,
                     loggerFactory.CreateLogger<HamHubApiClient>());
                 await _apiClient.LoginAsync(ct);
                 Application.Current.Dispatcher.Invoke(
@@ -233,6 +238,8 @@ public class TrayOrchestrator : IDisposable
         _cts.Dispose();
         _udpListener?.Dispose();
         _decodeBuffer?.Dispose();
+        _httpClient?.Dispose();
+        _httpClient = null;
         _apiClient = null;
         _cts = new CancellationTokenSource();
         Application.Current.Dispatcher.Invoke(
@@ -246,6 +253,7 @@ public class TrayOrchestrator : IDisposable
         _cts.Dispose();
         _udpListener?.Dispose();
         _decodeBuffer?.Dispose();
+        _httpClient?.Dispose();
         _trayIcon?.Dispose();
     }
 }
