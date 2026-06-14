@@ -61,6 +61,7 @@ export default function LogbookPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [qrzSyncing, setQrzSyncing] = useState(false)
 
   const load = (s?: string) => {
     setLoading(true)
@@ -94,11 +95,28 @@ export default function LogbookPage() {
     }
   }
 
+  const handleQrzSync = async () => {
+    setQrzSyncing(true)
+    try {
+      await api.qrz.sync()
+      toast('QRZ synkronisering startet...')
+      await new Promise(r => setTimeout(r, 3000))
+      load(search)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Synkronisering mislykkedes', 'error')
+    } finally {
+      setQrzSyncing(false)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">QSO Logbog</h1>
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleQrzSync} disabled={qrzSyncing}>
+            {qrzSyncing ? 'Synkroniserer...' : 'QRZ Sync'}
+          </Button>
           {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>Eksporter ADIF</Button>}
           <label className="cursor-pointer">
             <Button variant="secondary" type="button" onClick={() => document.getElementById('adif-import')?.click()}>Importer ADIF</Button>
@@ -119,7 +137,7 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', '', ''].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QRZ', '', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -134,6 +152,11 @@ export default function LogbookPage() {
                       <td className="px-4 py-3"><Badge>{ModeLabels[q.mode]}</Badge></td>
                       <td className="px-4 py-3 text-gray-400">{q.rstSent}/{q.rstReceived}</td>
                       <td className="px-4 py-3 text-gray-400">{q.country || '—'}</td>
+                      <td className="px-4 py-3">
+                        {q.qrzId && (
+                          <span className="text-xs text-green-400 font-medium">QRZ ✓</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <Link href={`/logbook/${q.id}`} className="text-blue-400 hover:text-blue-300 text-xs">Rediger</Link>
                       </td>
