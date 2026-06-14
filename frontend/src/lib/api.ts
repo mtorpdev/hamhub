@@ -13,7 +13,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const text = await res.text()
     throw new Error(text || `HTTP ${res.status}`)
   }
-  if (res.status === 204) return undefined as T
+  if (res.status === 204 || res.status === 202) return undefined as T
   return res.json()
 }
 
@@ -109,5 +109,15 @@ export const api = {
   admin: {
     dashboard: () => request<import('./types').DashboardStats>('/api/admin/dashboard'),
     stats: () => request<import('./types').DashboardStats>('/api/admin/stats'),
+  },
+  qrz: {
+    lookup: (callsign: string) =>
+      request<import('./types').QrzCallsignInfo>(`/api/qrz/lookup?callsign=${encodeURIComponent(callsign)}`),
+    status: () =>
+      request<import('./types').QrzStatus>('/api/qrz/status'),
+    sync: () =>
+      request<void>('/api/qrz/sync', { method: 'POST' }),
+    saveKey: (apiKey: string) =>
+      request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
   },
 }

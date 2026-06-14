@@ -78,7 +78,9 @@ export interface Qso {
   locator: string | null
   country: string | null
   notes: string | null
+  qrzId: string | null
   createdAt: string
+  updatedAt: string
 }
 
 export interface DxSpot {
@@ -152,4 +154,21 @@ export interface WsjtxDecodeItem {
   frequencyMhz: number
   mode: string
   decodedAt: string
+}
+
+export interface QrzStatus {
+  connected: boolean
+  lastSyncedAt: string | null
+  qrzCallsign: string | null
+}
+
+export interface QrzCallsignInfo {
+  callsign: string
+  name: string | null
+  country: string | null
+  grid: string | null
+  dxcc: number | null
+  qslVia: string | null
+  imageUrl: string | null
+  email: string | null
 }
