@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 using HamHub.Application;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure;
@@ -38,7 +39,13 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "HamHub-Super-Secret-Key-MinLength-32-Chars!";
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(options =>
+{
+    // AddIdentity sets DefaultChallengeScheme to cookie (→ redirect to /Account/Login).
+    // Override both so API endpoints return 401 instead of redirecting.
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -55,8 +62,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("qrz-lookup", o =>
+    {
+        o.Window = TimeSpan.FromMinutes(1);
+        o.PermitLimit = 30;
+        o.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        o.QueueLimit = 0;
+    });
+});
+
+
 builder.Services.AddSingleton<HamHub.Api.Services.WsjtxBroadcaster>();
 builder.Services.AddHostedService<HamHub.Api.Services.WsjtxPruneService>();
+builder.Services.AddSingleton<HamHub.Api.Services.IQrzSyncTrigger, HamHub.Api.Services.QrzSyncTrigger>();
+builder.Services.AddHostedService<HamHub.Api.Services.QrzSyncService>();
 
 builder.Services.AddCors(options =>
 {
@@ -82,6 +103,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
