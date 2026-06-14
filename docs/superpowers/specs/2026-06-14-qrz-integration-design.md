@@ -55,7 +55,9 @@ Used for deduplication and targeted delete/update on QRZ.
 
 ### EF Migration
 
-One migration adds the three columns. No index needed on `QrzId` (low cardinality queries only).
+One migration adds **four columns**: `ApplicationUser.QrzApiKey`, `ApplicationUser.QrzLastSyncedAt`, `QsoEntry.QrzId`, and `QsoEntry.UpdatedAt`.
+
+A partial index on `QsoEntry (UserId) WHERE QrzId IS NULL` is added to speed up the periodic scan for unsynced QSOs. No full index on `QrzId` itself is needed (looked up by equality after dedup match).
 
 ---
 
@@ -64,10 +66,12 @@ One migration adds the three columns. No index needed on `QrzId` (low cardinalit
 When importing QSOs from QRZ, match on:
 `WorkedCallsign + DateUtc (±30 s) + Mode + Band`
 
-- Match found → compare `UpdatedAt` (add this field to `QsoEntry`); keep the newer record.
+- Match found → compare `UpdatedAt` on both sides:
+  - **Local newer:** upload local record to QRZ immediately via `UploadQsoAsync`, update `QrzId`.
+  - **QRZ newer:** overwrite local fields (`RstSent`, `RstReceived`, `Locator`, `Notes`) with QRZ values. `QrzId` already set.
 - No match → insert as new `QsoEntry` with `QrzId` populated.
 
-`QsoEntry` gains `UpdatedAt DateTime` (set on every save).
+`QsoEntry` gains `UpdatedAt DateTime` (set via EF `SaveChangesInterceptor` or explicit assignment on every create/update).
 
 ---
 
@@ -113,6 +117,25 @@ Returns `LOGID=12345` on success; extract and return the ID.
 
 On HTTP error or QRZ error response: throw `QrzApiException(message)`.
 
+**API key encryption:** `QrzApiKey` is protected using ASP.NET Core Data Protection (`IDataProtector`) with purpose string `"QrzApiKey"`. The protector is injected into `UsersController` and `QrzSyncService`. Raw key is never written to the DB; only the protected (encrypted) form is stored. Decryption happens at point of use inside `SyncUserAsync` and `QrzController`.
+
+### `AdifQso` (ADIF record)
+
+Fields parsed from QRZ ADIF response:
+```csharp
+public record AdifQso(
+    string Call,        // CALL
+    DateTime TimeOn,    // QSO_DATE + TIME_ON
+    string Band,        // BAND
+    string Mode,        // MODE
+    string? RstSent,    // RST_SENT
+    string? RstReceived,// RST_RCVD
+    string? Gridsquare, // GRIDSQUARE
+    string? Country,    // COUNTRY
+    string? LogId       // APP_QRZLOG_LOGID (QRZ internal ID)
+);
+```
+
 ### `IQrzSyncTrigger` + `QrzSyncTrigger` (singleton channel)
 
 ```csharp
@@ -128,6 +151,8 @@ public interface IQrzSyncTrigger
 ### `QrzSyncService` (BackgroundService)
 
 Startup: create `PeriodicTimer(15 min)`.
+
+**Dependency note:** `QrzSyncService` is a singleton `BackgroundService`. `QrzClient` is scoped. The service must resolve `QrzClient` via `IServiceScopeFactory.CreateScope()` inside `SyncUserAsync` — it must not inject `QrzClient` directly.
 
 Two concurrent loops:
 1. **Event loop** — `await foreach (userId in _trigger.ReadAsync(ct))` → call `SyncUserAsync(userId)` for immediate upload of new QSO.
@@ -149,6 +174,7 @@ Two concurrent loops:
 
 - If user is authenticated and has `QrzApiKey`, use it.
 - Otherwise use a system-level default key (configured in `appsettings.json` under `Qrz:DefaultApiKey`).
+- Rate-limited to 30 requests/minute per IP using ASP.NET Core `RateLimiter` (fixed window policy) to protect the system API key from abuse.
 - Returns `QrzCallsignDto` or 404 if callsign not found.
 
 ### `GET /api/qrz/status` `[Authorize]`
@@ -157,14 +183,11 @@ Returns:
 ```json
 { "connected": true, "lastSyncedAt": "2026-06-14T07:23:00Z", "qrzCallsign": "OZ4MT" }
 ```
-`connected` = user has a non-null `QrzApiKey`. `qrzCallsign` = callsign from a probe lookup.
+`connected` = user has a non-null `QrzApiKey`. `qrzCallsign` = value of `ApplicationUser.Callsign` (already stored in the user record; no live QRZ probe needed). If `Callsign` is null, field is omitted.
 
 ### `POST /api/qrz/sync` `[Authorize]`
 
-Triggers immediate full sync for the authenticated user. Waits for completion (max 30 s timeout). Returns:
-```json
-{ "added": 12, "updated": 3, "uploaded": 5 }
-```
+Triggers immediate full sync for the authenticated user. Returns **202 Accepted** immediately after enqueuing the sync via `IQrzSyncTrigger`. The sync runs asynchronously in `QrzSyncService`. Frontend polls `GET /api/qrz/status` (checking `lastSyncedAt`) to detect completion. This avoids blocking the request thread on potentially slow QRZ ADIF fetches.
 
 ### `PUT /api/users/me/qrz-key` `[Authorize]`
 
