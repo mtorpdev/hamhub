@@ -26,6 +26,8 @@ public static class DependencyInjection
         .AddDefaultTokenProviders();
 
         services.AddScoped<ITokenService, TokenService>();
+        services.AddMemoryCache();
+        services.AddHttpClient<QrzClient>();
 
         return services;
     }
