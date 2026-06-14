@@ -17,7 +17,7 @@ public class QsoEntry
     public string? Locator { get; set; }
     public string? Country { get; set; }
     public string? Notes { get; set; }
-    public string? QrzId { get; set; }
+    public string? QrzId { get; set; }        // QRZ internal log record ID; null = not yet synced
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
