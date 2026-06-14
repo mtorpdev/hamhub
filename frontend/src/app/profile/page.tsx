@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility } from '@/lib/types'
+import { ProfileVisibility, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -15,6 +15,10 @@ export default function ProfilePage() {
   const { toast } = useToast()
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
+  const [qrzKey, setQrzKey] = useState('')
+  const [qrzStatus, setQrzStatus] = useState<QrzStatus | null>(null)
+  const [qrzLoading, setQrzLoading] = useState(false)
+  const [qrzSyncing, setQrzSyncing] = useState(false)
 
   useEffect(() => {
     if (user) setForm({
@@ -26,6 +30,7 @@ export default function ProfilePage() {
       profileDescription: user.profileDescription || '',
       visibility: user.visibility,
     })
+    api.qrz.status().then(setQrzStatus).catch(() => {})
   }, [user])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -39,6 +44,44 @@ export default function ProfilePage() {
       toast('Profil gemt!')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveQrzKey = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!qrzKey.trim()) return
+    setQrzLoading(true)
+    try {
+      await api.qrz.saveKey(qrzKey.trim())
+      toast('QRZ API nøgle gemt og verificeret!')
+      setQrzKey('')
+      const status = await api.qrz.status()
+      setQrzStatus(status)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke gemme QRZ nøgle', 'error')
+    } finally {
+      setQrzLoading(false)
+    }
+  }
+
+  const handleQrzSync = async () => {
+    setQrzSyncing(true)
+    try {
+      await api.qrz.sync()
+      // Poll for completion (up to 30s)
+      const deadline = Date.now() + 30_000
+      const prevSyncedAt = qrzStatus?.lastSyncedAt
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000))
+        const status = await api.qrz.status()
+        setQrzStatus(status)
+        if (status.lastSyncedAt !== prevSyncedAt) break
+      }
+      toast('QRZ synkronisering fuldført!')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Synkronisering mislykkedes', 'error')
+    } finally {
+      setQrzSyncing(false)
     }
   }
 
@@ -69,6 +112,41 @@ export default function ProfilePage() {
               </select>
             </div>
             <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>QRZ Integration</CardTitle></CardHeader>
+        <CardContent>
+          {qrzStatus?.connected ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-green-400 text-sm">
+                Tilsluttet som {qrzStatus.qrzCallsign || 'ukendt'}
+                {qrzStatus.lastSyncedAt && (
+                  <span className="text-gray-400 ml-2">
+                    — Sidst synkroniseret: {new Date(qrzStatus.lastSyncedAt).toLocaleString('da-DK')}
+                  </span>
+                )}
+              </p>
+              <Button onClick={handleQrzSync} disabled={qrzSyncing} variant="secondary">
+                {qrzSyncing ? 'Synkroniserer...' : 'Synkroniser nu'}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ</p>
+          )}
+          <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
+            <Input
+              label={`QRZ Logbook API nøgle${qrzStatus?.connected ? ' (efterlad tom for at beholde eksisterende)' : ''}`}
+              type="password"
+              value={qrzKey}
+              onChange={e => setQrzKey(e.target.value.toUpperCase())}
+              placeholder="F82B-A8C7-8B74-82EA"
+              autoComplete="off"
+            />
+            <Button type="submit" disabled={qrzLoading || !qrzKey.trim()}>
+              {qrzLoading ? 'Verificerer...' : 'Gem og verificer'}
+            </Button>
           </form>
         </CardContent>
       </Card>
