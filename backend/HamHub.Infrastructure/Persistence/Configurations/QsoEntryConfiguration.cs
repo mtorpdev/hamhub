@@ -15,6 +15,7 @@ public class QsoEntryConfiguration : IEntityTypeConfiguration<QsoEntry>
         builder.Property(q => q.RstReceived).HasMaxLength(10);
         builder.Property(q => q.Locator).HasMaxLength(10);
         builder.Property(q => q.Country).HasMaxLength(100);
+        builder.Property(q => q.QrzId).HasMaxLength(30);
 
         builder.HasOne(q => q.User)
             .WithMany(u => u.QsoEntries)
@@ -24,5 +25,10 @@ public class QsoEntryConfiguration : IEntityTypeConfiguration<QsoEntry>
         builder.HasIndex(q => q.UserId);
         builder.HasIndex(q => q.WorkedCallsign);
         builder.HasIndex(q => q.DateUtc);
+
+        // Partial index for fast unsynced-QSO scan (used by QrzSyncService)
+        builder.HasIndex(q => q.UserId)
+            .HasFilter("\"QrzId\" IS NULL")
+            .HasDatabaseName("IX_QsoEntries_UserId_Unsynced");
     }
 }
