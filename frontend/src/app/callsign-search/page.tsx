@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type User, type Station, type Qso } from '@/lib/types'
+import { type QrzCallsignInfo } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 
 export default function CallsignSearchPage() {
@@ -17,6 +18,22 @@ export default function CallsignSearchPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [qrzInfo, setQrzInfo] = useState<QrzCallsignInfo | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (callsign.length < 3) { setQrzInfo(null); return }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const info = await api.qrz.lookup(callsign)
+        setQrzInfo(info)
+      } catch {
+        setQrzInfo(null)
+      }
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [callsign])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,6 +110,29 @@ export default function CallsignSearchPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {qrzInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              QRZ: {qrzInfo.callsign}
+              {qrzInfo.imageUrl && (
+                <img src={qrzInfo.imageUrl} alt={qrzInfo.callsign} className="h-10 w-10 rounded-full object-cover" />
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {qrzInfo.name && <div><span className="text-gray-400">Navn: </span><span className="text-white">{qrzInfo.name}</span></div>}
+              {qrzInfo.country && <div><span className="text-gray-400">Land: </span><span className="text-white">{qrzInfo.country}</span></div>}
+              {qrzInfo.grid && <div><span className="text-gray-400">Grid: </span><span className="text-white font-mono">{qrzInfo.grid}</span></div>}
+              {qrzInfo.dxcc && <div><span className="text-gray-400">DXCC: </span><span className="text-white">{qrzInfo.dxcc}</span></div>}
+              {qrzInfo.qslVia && <div><span className="text-gray-400">QSL via: </span><span className="text-white">{qrzInfo.qslVia}</span></div>}
+              {qrzInfo.email && <div><span className="text-gray-400">Email: </span><span className="text-white">{qrzInfo.email}</span></div>}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {searched && !user && !error && !loading && (
