@@ -1,4 +1,5 @@
 using AutoMapper;
+using HamHub.Api.Services;
 using HamHub.Application.QsoEntries.DTOs;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure.Persistence;
@@ -16,11 +17,13 @@ public class QsosController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
+    private readonly IQrzSyncTrigger _trigger;
 
-    public QsosController(ApplicationDbContext context, IMapper mapper)
+    public QsosController(ApplicationDbContext context, IMapper mapper, IQrzSyncTrigger trigger)
     {
         _context = context;
         _mapper = mapper;
+        _trigger = trigger;
     }
 
     [HttpGet]
@@ -52,8 +55,10 @@ public class QsosController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var qso = _mapper.Map<QsoEntry>(dto);
         qso.UserId = userId;
+        qso.UpdatedAt = DateTime.UtcNow;
         _context.QsoEntries.Add(qso);
         await _context.SaveChangesAsync();
+        _trigger.NotifyQsoChanged(userId);
         return CreatedAtAction(nameof(GetById), new { id = qso.Id }, _mapper.Map<QsoDto>(qso));
     }
 
@@ -76,8 +81,12 @@ public class QsosController : ControllerBase
         qso.Locator = dto.Locator;
         qso.Country = dto.Country;
         qso.Notes = dto.Notes;
+        qso.UpdatedAt = DateTime.UtcNow;
+        // Clear QrzId so the sync service re-uploads the edited record to QRZ as a new entry.
+        qso.QrzId = null;
 
         await _context.SaveChangesAsync();
+        _trigger.NotifyQsoChanged(userId!);
         return Ok(_mapper.Map<QsoDto>(qso));
     }
 

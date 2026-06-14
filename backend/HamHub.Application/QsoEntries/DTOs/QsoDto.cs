@@ -16,5 +16,7 @@ public record QsoDto(
     string? Locator,
     string? Country,
     string? Notes,
-    DateTime CreatedAt
+    string? QrzId,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );
