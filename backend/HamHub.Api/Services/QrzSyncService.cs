@@ -1,0 +1,226 @@
+using HamHub.Domain.Entities;
+using HamHub.Domain.Enums;
+using HamHub.Infrastructure.Persistence;
+using HamHub.Infrastructure.Services;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+
+namespace HamHub.Api.Services;
+
+public class QrzSyncService : BackgroundService
+{
+    private readonly IQrzSyncTrigger _trigger;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDataProtector _protector;
+    private readonly ILogger<QrzSyncService> _logger;
+
+    private static readonly Dictionary<string, Band> BandMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["160M"] = Band.M160, ["80M"] = Band.M80, ["60M"] = Band.M60, ["40M"] = Band.M40,
+        ["30M"] = Band.M30, ["20M"] = Band.M20, ["17M"] = Band.M17, ["15M"] = Band.M15,
+        ["12M"] = Band.M12, ["10M"] = Band.M10, ["6M"] = Band.M6, ["2M"] = Band.M2,
+        ["70CM"] = Band.CM70
+    };
+    private static readonly Dictionary<string, Mode> ModeMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SSB"] = Mode.SSB, ["USB"] = Mode.SSB, ["LSB"] = Mode.SSB,
+        ["CW"] = Mode.CW, ["FT8"] = Mode.FT8, ["FT4"] = Mode.FT4,
+        ["RTTY"] = Mode.RTTY, ["DMR"] = Mode.DMR, ["FM"] = Mode.FM, ["AM"] = Mode.AM
+    };
+    private static readonly Dictionary<Band, string> BandAdif = new()
+    {
+        [Band.M160] = "160M", [Band.M80] = "80M", [Band.M60] = "60M", [Band.M40] = "40M",
+        [Band.M30] = "30M", [Band.M20] = "20M", [Band.M17] = "17M", [Band.M15] = "15M",
+        [Band.M12] = "12M", [Band.M10] = "10M", [Band.M6] = "6M", [Band.M2] = "2M",
+        [Band.CM70] = "70CM"
+    };
+    private static readonly Dictionary<Mode, string> ModeAdif = new()
+    {
+        [Mode.SSB] = "SSB", [Mode.CW] = "CW", [Mode.FT8] = "FT8", [Mode.FT4] = "FT4",
+        [Mode.RTTY] = "RTTY", [Mode.DMR] = "DMR", [Mode.FM] = "FM", [Mode.AM] = "AM"
+    };
+
+    public QrzSyncService(
+        IQrzSyncTrigger trigger,
+        IServiceScopeFactory scopeFactory,
+        IDataProtectionProvider dataProtectionProvider,
+        ILogger<QrzSyncService> logger)
+    {
+        _trigger = trigger;
+        _scopeFactory = scopeFactory;
+        _protector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Event loop: immediately sync when notified of a new/updated QSO
+        _ = Task.Run(async () =>
+        {
+            await foreach (var userId in _trigger.ReadAsync(stoppingToken))
+                await SyncUserAsync(userId, stoppingToken);
+        }, CancellationToken.None);
+
+        // Periodic loop: full sync every 15 minutes
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+                await RunPeriodicSyncAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+    }
+
+    private async Task RunPeriodicSyncAsync(CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userIds = await db.Users
+            .Where(u => u.QrzApiKey != null)
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+
+        foreach (var userId in userIds)
+            await SyncUserAsync(userId, ct);
+    }
+
+    private async Task SyncUserAsync(string userId, CancellationToken ct)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var qrzClient = scope.ServiceProvider.GetRequiredService<QrzClient>();
+
+        var user = await db.Users.FindAsync([userId], ct);
+        if (user?.QrzApiKey == null) return;
+
+        string apiKey;
+        try { apiKey = _protector.Unprotect(user.QrzApiKey); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decrypt QRZ API key for user {UserId}", userId);
+            return;
+        }
+
+        try
+        {
+            var qrzQsos = await qrzClient.FetchLogAsync(apiKey, ct);
+
+            foreach (var qrzQso in qrzQsos)
+            {
+                if (!BandMap.TryGetValue(qrzQso.Band, out var band)) continue;
+                if (!ModeMap.TryGetValue(qrzQso.Mode, out var mode)) continue;
+
+                var lower = qrzQso.TimeOn.AddSeconds(-30);
+                var upper = qrzQso.TimeOn.AddSeconds(30);
+
+                var match = await db.QsoEntries.FirstOrDefaultAsync(q =>
+                    q.UserId == userId &&
+                    q.WorkedCallsign == qrzQso.Call &&
+                    q.DateUtc >= lower && q.DateUtc <= upper &&
+                    q.Mode == mode && q.Band == band, ct);
+
+                if (match == null)
+                {
+                    // New record from QRZ — import it
+                    db.QsoEntries.Add(new QsoEntry
+                    {
+                        UserId = userId,
+                        WorkedCallsign = qrzQso.Call,
+                        OwnCallsign = user.Callsign ?? string.Empty,
+                        DateUtc = qrzQso.TimeOn,
+                        Band = band,
+                        Mode = mode,
+                        RstSent = qrzQso.RstSent,
+                        RstReceived = qrzQso.RstReceived,
+                        Locator = qrzQso.Gridsquare,
+                        Country = qrzQso.Country,
+                        QrzId = qrzQso.LogId,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+                else if (match.QrzId == null)
+                {
+                    // Match found, not yet linked. Newest-wins: compare local UpdatedAt vs QRZ QSO date.
+                    // If local was modified after the QSO time (i.e., user edited it locally), local is newer.
+                    if (match.UpdatedAt > match.CreatedAt)
+                    {
+                        // Local was edited after creation — upload local version to QRZ
+                        try
+                        {
+                            var adifQso = new AdifQso(
+                                Call: match.WorkedCallsign,
+                                TimeOn: match.DateUtc,
+                                Band: BandAdif.GetValueOrDefault(match.Band, "20M"),
+                                Mode: ModeAdif.GetValueOrDefault(match.Mode, "SSB"),
+                                RstSent: match.RstSent,
+                                RstReceived: match.RstReceived,
+                                Gridsquare: match.Locator,
+                                Country: match.Country,
+                                LogId: null
+                            );
+                            match.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
+                        }
+                        catch (QrzApiException ex)
+                        {
+                            _logger.LogError(ex, "Failed to upload matched QSO {Id} to QRZ", match.Id);
+                        }
+                    }
+                    else
+                    {
+                        // QRZ is authoritative — overwrite local fields and link
+                        match.RstSent = qrzQso.RstSent ?? match.RstSent;
+                        match.RstReceived = qrzQso.RstReceived ?? match.RstReceived;
+                        match.Locator = qrzQso.Gridsquare ?? match.Locator;
+                        match.Country = qrzQso.Country ?? match.Country;
+                        match.QrzId = qrzQso.LogId;
+                    }
+                    match.UpdatedAt = DateTime.UtcNow;
+                }
+                // else: already synced (QrzId != null) — local is source of truth; changes are
+                // propagated via the "upload unsynced" pass below (QrzId cleared on edit in QsosController)
+            }
+
+            // Upload any local QSOs that have never been synced to QRZ
+            var unsynced = await db.QsoEntries
+                .Where(q => q.UserId == userId && q.QrzId == null)
+                .ToListAsync(ct);
+
+            foreach (var qso in unsynced)
+            {
+                try
+                {
+                    var adifQso = new AdifQso(
+                        Call: qso.WorkedCallsign,
+                        TimeOn: qso.DateUtc,
+                        Band: BandAdif.GetValueOrDefault(qso.Band, "20M"),
+                        Mode: ModeAdif.GetValueOrDefault(qso.Mode, "SSB"),
+                        RstSent: qso.RstSent,
+                        RstReceived: qso.RstReceived,
+                        Gridsquare: qso.Locator,
+                        Country: qso.Country,
+                        LogId: null
+                    );
+                    qso.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
+                    qso.UpdatedAt = DateTime.UtcNow;
+                }
+                catch (QrzApiException ex)
+                {
+                    _logger.LogError(ex, "Failed to upload QSO {Id} to QRZ for user {UserId}", qso.Id, userId);
+                }
+            }
+
+            user.QrzLastSyncedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+        catch (QrzApiException ex)
+        {
+            _logger.LogWarning(ex, "QRZ sync failed for user {UserId} — will retry next tick", userId);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during QRZ sync for user {UserId}", userId);
+        }
+    }
+}
