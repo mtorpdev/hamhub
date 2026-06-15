@@ -7,6 +7,7 @@ using HamHub.Infrastructure.Persistence;
 using HamHub.Infrastructure.Persistence.Seeders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -79,7 +80,13 @@ builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.Kc2gMufFof2Service>();
+builder.Services.AddHttpClient<HamHub.Api.Services.ArticleFeedImportService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("HamHub/1.0 (+https://hamhub.dk)");
+});
 builder.Services.AddHostedService<HamHub.Api.Services.WsjtxPruneService>();
+builder.Services.AddHostedService<HamHub.Api.Services.ArticleFeedImportHostedService>();
 builder.Services.AddSingleton<HamHub.Api.Services.IQrzSyncTrigger, HamHub.Api.Services.QrzSyncTrigger>();
 builder.Services.AddHostedService<HamHub.Api.Services.QrzSyncService>();
 
@@ -125,7 +132,26 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     await context.Database.EnsureCreatedAsync();
+    await EnsureArticleFeedSchemaAsync(context);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
+
+    var importer = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.ArticleFeedImportService>();
+    await importer.ImportAsync();
 }
 
 app.Run();
+
+static async Task EnsureArticleFeedSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "Articles"
+        ADD COLUMN IF NOT EXISTS "SourceName" character varying(200),
+        ADD COLUMN IF NOT EXISTS "SourceUrl" character varying(1000),
+        ADD COLUMN IF NOT EXISTS "OriginalUrl" character varying(1000),
+        ADD COLUMN IF NOT EXISTS "FeedGuid" character varying(1000),
+        ADD COLUMN IF NOT EXISTS "ImportedAt" timestamp with time zone;
+
+        CREATE INDEX IF NOT EXISTS "IX_Articles_FeedGuid" ON "Articles" ("FeedGuid");
+        CREATE INDEX IF NOT EXISTS "IX_Articles_OriginalUrl" ON "Articles" ("OriginalUrl");
+        """);
+}

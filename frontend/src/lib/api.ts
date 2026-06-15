@@ -102,6 +102,7 @@ export const api = {
       request<import('./types').Article>('/api/articles', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: { title: string; slug: string; summary?: string; content: string; categoryId: number }) =>
       request<import('./types').Article>(`/api/articles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    importFeeds: () => request<import('./types').ArticleFeedImportResult>('/api/articles/import-feeds', { method: 'POST' }),
     publish: (id: number) => request<void>(`/api/articles/${id}/publish`, { method: 'POST' }),
     delete: (id: number) => request<void>(`/api/articles/${id}`, { method: 'DELETE' }),
   },

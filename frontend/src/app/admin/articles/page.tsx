@@ -20,6 +20,7 @@ export default function AdminArticlesPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [formError, setFormError] = useState('')
 
   const load = () => api.articles.getAll().then(setArticles).finally(() => setLoading(false))
@@ -47,6 +48,19 @@ export default function AdminArticlesPage() {
       load()
     } catch {
       toast('Sletning mislykkedes', 'error')
+    }
+  }
+
+  const handleImportFeeds = async () => {
+    setImporting(true)
+    try {
+      const result = await api.articles.importFeeds()
+      toast(`Importerede ${result.imported} nyheder. Sprang ${result.skipped} over.`)
+      load()
+    } catch {
+      toast('Import af nyheder mislykkedes', 'error')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -88,9 +102,14 @@ export default function AdminArticlesPage() {
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-white">Artikler</h1>
-        <Button onClick={() => { setShowForm(s => !s); setFormError('') }}>
-          {showForm ? 'Annuller' : '+ Ny artikel'}
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={handleImportFeeds} disabled={importing}>
+            {importing ? 'Henter...' : 'Importer nyheder'}
+          </Button>
+          <Button onClick={() => { setShowForm(s => !s); setFormError('') }}>
+            {showForm ? 'Annuller' : '+ Ny artikel'}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -165,7 +184,7 @@ export default function AdminArticlesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Titel', 'Kategori', 'Forfatter', 'Status', 'Oprettet', 'Handlinger'].map(h => (
+                    {['Titel', 'Kategori', 'Kilde', 'Status', 'Oprettet', 'Handlinger'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -175,7 +194,7 @@ export default function AdminArticlesPage() {
                     <tr key={a.id} className="hover:bg-gray-800/30 transition-colors">
                       <td className="px-4 py-3 text-white">{a.title}</td>
                       <td className="px-4 py-3 text-gray-400">{a.categoryName}</td>
-                      <td className="px-4 py-3 text-gray-400 font-mono">{a.authorCallsign}</td>
+                      <td className="px-4 py-3 text-gray-400">{a.sourceName || a.authorCallsign}</td>
                       <td className="px-4 py-3">
                         <Badge variant={a.isPublished ? 'success' : 'warning'}>
                           {a.isPublished ? 'Udgivet' : 'Kladde'}

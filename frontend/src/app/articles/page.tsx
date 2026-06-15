@@ -16,7 +16,8 @@ export default function ArticlesPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-bold text-white mb-8">Artikler</h1>
+      <h1 className="text-3xl font-bold text-white mb-2">Nyheder</h1>
+      <p className="text-gray-400 mb-8">Seneste amatørradio-nyheder fra HamHub og udvalgte kilder.</p>
       {loading ? <p className="text-gray-400">Indlæser...</p> : (
         <div className="flex flex-col gap-4">
           {articles.map(a => (
@@ -27,8 +28,13 @@ export default function ArticlesPage() {
                     <div>
                       <h2 className="text-lg font-semibold text-white">{a.title}</h2>
                       {a.summary && <p className="text-gray-400 text-sm mt-1">{a.summary}</p>}
-                      <p className="text-gray-500 text-xs mt-2">{a.categoryName} &bull; {a.authorCallsign} &bull; {formatDate(a.createdAt)}</p>
+                      <p className="text-gray-500 text-xs mt-2">
+                        {a.categoryName} &bull; {a.sourceName || a.authorCallsign || 'HamHub'} &bull; {formatDate(a.publishDate || a.createdAt)}
+                      </p>
                     </div>
+                    {a.isExternal && (
+                      <span className="shrink-0 rounded border border-blue-500/30 px-2 py-1 text-xs text-blue-300">Ekstern</span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
