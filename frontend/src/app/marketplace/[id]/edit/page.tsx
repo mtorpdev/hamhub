@@ -9,7 +9,7 @@ import { ListingCategoryLabels, ListingConditionLabels, type Listing } from '@/l
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 export default function EditListingPage() {
   useRequireAuth()

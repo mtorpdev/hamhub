@@ -7,7 +7,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
 import type { WsjtxDecodeItem } from '@/lib/types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const MAX_ROWS = 200
 
 function snrColor(snr: number) {
