@@ -13,6 +13,7 @@ export default function ProfilePage() {
   const { user } = useAuth()
   useRequireAuth()
   const { toast } = useToast()
+  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps'>('profile')
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
   const [qrzKey, setQrzKey] = useState('')
@@ -148,146 +149,222 @@ export default function ProfilePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
-      <Card>
-        <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input label="Kaldesignal" value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Fornavn" value={form.firstName} onChange={set('firstName')} />
-              <Input label="Efternavn" value={form.lastName} onChange={set('lastName')} />
-            </div>
-            <Input label="Land" value={form.country} onChange={set('country')} />
-            <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Om mig</label>
-              <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Synlighed</label>
-              <select value={form.visibility} onChange={set('visibility')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                <option value={ProfileVisibility.Public}>Offentlig</option>
-                <option value={ProfileVisibility.MembersOnly}>Kun medlemmer</option>
-                <option value={ProfileVisibility.Private}>Privat</option>
-              </select>
-            </div>
-            <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
-          </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>QRZ Integration</CardTitle></CardHeader>
-        <CardContent>
-          {qrzStatus?.connected ? (
-            <div className="flex flex-col gap-3">
-              <p className="text-green-400 text-sm">
-                Tilsluttet som {qrzStatus.qrzCallsign || 'ukendt'}
-                {qrzStatus.lastSyncedAt && (
-                  <span className="text-gray-400 ml-2">
-                    — Sidst synkroniseret: {new Date(qrzStatus.lastSyncedAt).toLocaleString('da-DK')}
-                  </span>
-                )}
-              </p>
-              <Button onClick={handleQrzSync} disabled={qrzSyncing} variant="secondary">
-                {qrzSyncing ? 'Synkroniserer...' : 'Synkroniser nu'}
-              </Button>
-            </div>
-          ) : (
-            <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ</p>
-          )}
-          <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
-            <Input
-              label={`QRZ Logbook API nøgle${qrzStatus?.connected ? ' (efterlad tom for at beholde eksisterende)' : ''}`}
-              type="password"
-              value={qrzKey}
-              onChange={e => setQrzKey(e.target.value.toUpperCase())}
-              placeholder="F82B-A8C7-8B74-82EA"
-              autoComplete="off"
-            />
-            <Button type="submit" disabled={qrzLoading || !qrzKey.trim()}>
-              {qrzLoading ? 'Verificerer...' : 'Gem og verificer'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>QRZ Kaldesignals-opslag</CardTitle></CardHeader>
-        <CardContent>
-          {qrzStatus?.xmlConnected ? (
-            <p className="text-green-400 text-sm mb-3">
-              Tilsluttet som {qrzStatus.qrzUsername}
-            </p>
-          ) : (
-            <p className="text-gray-400 text-sm mb-3">
-              Ikke tilsluttet — indtast dine QRZ.com login-oplysninger for at aktivere kaldesignals-opslag.
-            </p>
-          )}
-          <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
-            <Input
-              label="QRZ brugernavn"
-              value={qrzXmlUsername}
-              onChange={e => setQrzXmlUsername(e.target.value)}
-              placeholder={qrzStatus?.qrzUsername ?? 'OZ1ABC'}
-              autoComplete="username"
-            />
-            <Input
-              label="QRZ adgangskode"
-              type="password"
-              value={qrzXmlPassword}
-              onChange={e => setQrzXmlPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-            <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
-              {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle>eQSL Integration</CardTitle></CardHeader>
-        <CardContent>
-          {eqslStatus?.connected ? (
-            <p className="text-green-400 text-sm mb-3">
-              Tilsluttet som {eqslStatus.username}
-              {eqslStatus.qthNickname && <span className="text-gray-400 ml-2">QTH: {eqslStatus.qthNickname}</span>}
-              {eqslStatus.lastSyncedAt && (
-                <span className="text-gray-400 ml-2">
-                  — Sidst brugt: {new Date(eqslStatus.lastSyncedAt).toLocaleString('da-DK')}
-                </span>
+
+      <div className="mb-6 flex flex-wrap gap-2 border-b border-gray-800">
+        {[
+          { id: 'profile', label: 'Profil' },
+          { id: 'integrations', label: 'Integrationer' },
+          { id: 'apps', label: 'Apps' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as typeof activeTab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-white'
+                : 'border-transparent text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'profile' && (
+        <Card>
+          <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <Input label="Kaldesignal" value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input label="Fornavn" value={form.firstName} onChange={set('firstName')} />
+                <Input label="Efternavn" value={form.lastName} onChange={set('lastName')} />
+              </div>
+              <Input label="Land" value={form.country} onChange={set('country')} />
+              <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-300">Om mig</label>
+                <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-300">Synlighed</label>
+                <select value={form.visibility} onChange={set('visibility')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
+                  <option value={ProfileVisibility.Public}>Offentlig</option>
+                  <option value={ProfileVisibility.MembersOnly}>Kun medlemmer</option>
+                  <option value={ProfileVisibility.Private}>Privat</option>
+                </select>
+              </div>
+              <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'integrations' && (
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader><CardTitle>QRZ Integration</CardTitle></CardHeader>
+            <CardContent>
+              {qrzStatus?.connected ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-green-400 text-sm">
+                    Tilsluttet som {qrzStatus.qrzCallsign || 'ukendt'}
+                    {qrzStatus.lastSyncedAt && (
+                      <span className="text-gray-400 ml-2">
+                        Sidst synkroniseret: {new Date(qrzStatus.lastSyncedAt).toLocaleString('da-DK')}
+                      </span>
+                    )}
+                  </p>
+                  <Button onClick={handleQrzSync} disabled={qrzSyncing} variant="secondary">
+                    {qrzSyncing ? 'Synkroniserer...' : 'Synkroniser nu'}
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ</p>
               )}
-            </p>
-          ) : (
-            <p className="text-gray-400 text-sm mb-3">
-              Ikke tilsluttet — indtast dit eQSL.cc brugernavn og adgangskode for at kunne sende QSOer til eQSL. Login testes først ved upload.
-            </p>
-          )}
-          <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
-            <Input
-              label="eQSL brugernavn"
-              value={eqslUsername}
-              onChange={e => setEqslUsername(e.target.value)}
-              placeholder={eqslStatus?.username ?? 'OZ1ABC'}
-              autoComplete="username"
-            />
-            <Input
-              label="eQSL adgangskode"
-              type="password"
-              value={eqslPassword}
-              onChange={e => setEqslPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-            <Input
-              label="QTH nickname"
-              value={eqslQthNickname}
-              onChange={e => setEqslQthNickname(e.target.value)}
-              placeholder={eqslStatus?.qthNickname ?? 'Valgfrit'}
-            />
-            <Button type="submit" disabled={eqslLoading || !eqslUsername.trim() || !eqslPassword}>
-              {eqslLoading ? 'Gemmer...' : 'Gem eQSL login'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
+                <Input
+                  label={`QRZ Logbook API nøgle${qrzStatus?.connected ? ' (efterlad tom for at beholde eksisterende)' : ''}`}
+                  type="password"
+                  value={qrzKey}
+                  onChange={e => setQrzKey(e.target.value.toUpperCase())}
+                  placeholder="F82B-A8C7-8B74-82EA"
+                  autoComplete="off"
+                />
+                <Button type="submit" disabled={qrzLoading || !qrzKey.trim()}>
+                  {qrzLoading ? 'Verificerer...' : 'Gem og verificer'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>QRZ Kaldesignals-opslag</CardTitle></CardHeader>
+            <CardContent>
+              {qrzStatus?.xmlConnected ? (
+                <p className="text-green-400 text-sm mb-3">
+                  Tilsluttet som {qrzStatus.qrzUsername}
+                </p>
+              ) : (
+                <p className="text-gray-400 text-sm mb-3">
+                  Ikke tilsluttet. Indtast dine QRZ.com login-oplysninger for at aktivere kaldesignals-opslag.
+                </p>
+              )}
+              <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
+                <Input
+                  label="QRZ brugernavn"
+                  value={qrzXmlUsername}
+                  onChange={e => setQrzXmlUsername(e.target.value)}
+                  placeholder={qrzStatus?.qrzUsername ?? 'OZ1ABC'}
+                  autoComplete="username"
+                />
+                <Input
+                  label="QRZ adgangskode"
+                  type="password"
+                  value={qrzXmlPassword}
+                  onChange={e => setQrzXmlPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
+                  {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>eQSL Integration</CardTitle></CardHeader>
+            <CardContent>
+              {eqslStatus?.connected ? (
+                <p className="text-green-400 text-sm mb-3">
+                  Tilsluttet som {eqslStatus.username}
+                  {eqslStatus.qthNickname && <span className="text-gray-400 ml-2">QTH: {eqslStatus.qthNickname}</span>}
+                  {eqslStatus.lastSyncedAt && (
+                    <span className="text-gray-400 ml-2">
+                      Sidst brugt: {new Date(eqslStatus.lastSyncedAt).toLocaleString('da-DK')}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-gray-400 text-sm mb-3">
+                  Ikke tilsluttet. Indtast dit eQSL.cc brugernavn og adgangskode for at kunne sende QSOer til eQSL.
+                </p>
+              )}
+              <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
+                <Input
+                  label="eQSL brugernavn"
+                  value={eqslUsername}
+                  onChange={e => setEqslUsername(e.target.value)}
+                  placeholder={eqslStatus?.username ?? 'OZ1ABC'}
+                  autoComplete="username"
+                />
+                <Input
+                  label="eQSL adgangskode"
+                  type="password"
+                  value={eqslPassword}
+                  onChange={e => setEqslPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <Input
+                  label="QTH nickname"
+                  value={eqslQthNickname}
+                  onChange={e => setEqslQthNickname(e.target.value)}
+                  placeholder={eqslStatus?.qthNickname ?? 'Valgfrit'}
+                />
+                <Button type="submit" disabled={eqslLoading || !eqslUsername.trim() || !eqslPassword}>
+                  {eqslLoading ? 'Gemmer...' : 'Gem eQSL login'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'apps' && (
+        <Card>
+          <CardHeader><CardTitle>HamHub Apps</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-6">
+              <div>
+                <h2 className="text-white font-semibold mb-2">WSJT-X Agent</h2>
+                <p className="text-gray-400 text-sm max-w-3xl">
+                  Agenten kører lokalt på din computer, lytter efter WSJT-X UDP beskeder og sender decodes og loggede QSOer til HamHub.
+                  Den bruger production API på https://api.hamhub.dk og gemmer kun din lokale opsætning på din egen computer.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                  <h3 className="text-white font-semibold mb-1">macOS</h3>
+                  <p className="text-gray-400 text-sm mb-4">Til Apple Silicon Mac. Pak zip-filen ud og start appen.</p>
+                  <a href="/downloads/HamHub-WSJTX-Agent-macOS-arm64.zip" download>
+                    <Button type="button">Download til Mac</Button>
+                  </a>
+                </div>
+
+                <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                  <h3 className="text-white font-semibold mb-1">Windows</h3>
+                  <p className="text-gray-400 text-sm mb-4">Til 64-bit Windows. Pak zip-filen ud og start HamHub.WsjtxTray.exe.</p>
+                  <a href="/downloads/HamHub-WSJTX-Agent-Windows-x64.zip" download>
+                    <Button type="button">Download til Windows</Button>
+                  </a>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                <h3 className="text-white font-semibold mb-2">WSJT-X opsætning</h3>
+                <ol className="list-decimal list-inside text-gray-400 text-sm space-y-1">
+                  <li>Installer agenten til dit operativsystem.</li>
+                  <li>Log ind med din HamHub email og adgangskode.</li>
+                  <li>Sæt WSJT-X UDP server til port 2237.</li>
+                  <li>Lad agenten køre mens WSJT-X er aktiv.</li>
+                </ol>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
