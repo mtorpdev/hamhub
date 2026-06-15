@@ -89,6 +89,9 @@ export const api = {
       request<import('./types').DxSpot>('/api/spots', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/spots/${id}`, { method: 'DELETE' }),
   },
+  propagation: {
+    live: () => request<import('./types').QsoMufFof2>('/api/propagation/live'),
+  },
   articles: {
     getPublished: () => request<import('./types').Article[]>('/api/articles'),
     getAll: () => request<import('./types').Article[]>('/api/articles/all'),

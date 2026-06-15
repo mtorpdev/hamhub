@@ -5,21 +5,24 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { BandLabels, ModeLabels, type Qso, type DxSpot } from '@/lib/types'
+import { BandLabels, ModeLabels, type Qso, type DxSpot, type QsoMufFof2 } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const { isLoading } = useRequireAuth()
-  if (isLoading) return null
   const [recentQsos, setRecentQsos] = useState<Qso[]>([])
   const [recentSpots, setRecentSpots] = useState<DxSpot[]>([])
+  const [livePropagation, setLivePropagation] = useState<QsoMufFof2 | null>(null)
 
   useEffect(() => {
     api.qsos.getMine().then(q => setRecentQsos(q.slice(0, 5))).catch(() => {})
     api.spots.getLatest(5).then(setRecentSpots).catch(() => {})
+    api.propagation.live().then(setLivePropagation).catch(() => {})
   }, [])
+
+  if (isLoading) return null
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -45,6 +48,76 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      <Card className="mb-8">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Live propagation</CardTitle>
+          {livePropagation && (
+            <a className="text-sm text-blue-400" href={livePropagation.sourceUrl} target="_blank" rel="noreferrer">
+              KC2G
+            </a>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!livePropagation ? (
+            <p className="text-sm text-gray-500">Henter live MUF/foF2...</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={livePropagation.status === 'Live nowcast' ? 'success' : 'default'}>
+                    {livePropagation.status}
+                  </Badge>
+                  {livePropagation.retrievedAtUtc && (
+                    <span className="text-xs text-gray-500">
+                      Hentet {new Date(livePropagation.retrievedAtUtc).toLocaleTimeString('da-DK', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })} UTC
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-sm text-gray-400">{livePropagation.description}</p>
+              </div>
+
+              {livePropagation.ownNearestStation ? (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Nærmeste ionosonde</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{livePropagation.ownNearestStation.name}</p>
+                    <p className="mt-1 text-xs text-gray-500">{formatNumber(livePropagation.ownNearestStation.distanceKm, ' km')} fra dit grid</p>
+                  </div>
+                  <div className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">foF2</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{formatNumber(livePropagation.ownNearestStation.fof2Mhz, ' MHz', 1)}</p>
+                  </div>
+                  <div className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-500">MUF(3000)</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{formatNumber(livePropagation.ownNearestStation.muf3000Mhz, ' MHz', 1)}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-md border border-gray-800 bg-gray-950/40 p-3 text-sm text-gray-400">
+                  Sæt din grid locator på profilen for at få live MUF/foF2 for dit QTH.
+                </p>
+              )}
+
+              {livePropagation.bandRecommendations.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {livePropagation.bandRecommendations.map(band => (
+                    <div key={band.band} className={`rounded-md border px-3 py-2 ${band.supported ? 'border-emerald-900 bg-emerald-950/20' : 'border-gray-800 bg-gray-950/40'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-white">{band.band}</p>
+                        <Badge variant={band.supported ? 'success' : 'default'}>
+                          {band.supported ? 'Under MUF' : 'Over MUF'}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">{band.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
@@ -96,4 +169,9 @@ export default function DashboardPage() {
       </div>
     </div>
   )
+}
+
+function formatNumber(value: number | null | undefined, suffix = '', digits = 0) {
+  if (value == null || Number.isNaN(value)) return 'Ukendt'
+  return `${value.toLocaleString('da-DK', { maximumFractionDigits: digits, minimumFractionDigits: digits })}${suffix}`
 }

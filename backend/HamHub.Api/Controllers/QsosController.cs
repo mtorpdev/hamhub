@@ -25,7 +25,6 @@ public class QsosController : ControllerBase
     private readonly IDataProtector _eqslProtector;
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
-    private readonly Kc2gMufFof2Service _mufFof2Service;
 
     public QsosController(
         ApplicationDbContext context,
@@ -34,7 +33,6 @@ public class QsosController : ControllerBase
         EqslClient eqslClient,
         OpenMeteoWeatherService weatherService,
         NoaaSwpcPropagationService propagationService,
-        Kc2gMufFof2Service mufFof2Service,
         IDataProtectionProvider dataProtectionProvider)
     {
         _context = context;
@@ -43,7 +41,6 @@ public class QsosController : ControllerBase
         _eqslClient = eqslClient;
         _weatherService = weatherService;
         _propagationService = propagationService;
-        _mufFof2Service = mufFof2Service;
         _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
     }
 
@@ -107,13 +104,10 @@ public class QsosController : ControllerBase
                 conditions.NearestWeatherHourUtc,
                 ct);
         var propagation = await _propagationService.GetPropagationAsync(conditions.QsoTimeUtc, ct);
-        var mufFof2 = await _mufFof2Service.GetSnapshotAsync(conditions.OwnLocation, conditions.WorkedLocation, ct);
 
-        return Ok(QsoConditionsBuilder.WithMufFof2(
-            QsoConditionsBuilder.WithPropagation(
-                QsoConditionsBuilder.WithWeather(conditions, ownWeather, workedWeather),
-                propagation),
-            mufFof2));
+        return Ok(QsoConditionsBuilder.WithPropagation(
+            QsoConditionsBuilder.WithWeather(conditions, ownWeather, workedWeather),
+            propagation));
     }
 
     [HttpPost("{id}/eqsl/send")]

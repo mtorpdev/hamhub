@@ -249,14 +249,6 @@ export default function EditQsoPage() {
     return 'info'
   }
 
-  const stationRows = conditions
-    ? [
-        ['Min station', conditions.propagation.mufFof2.ownNearestStation],
-        ['Midtpunkt', conditions.propagation.mufFof2.midpointNearestStation],
-        ['Kontakt', conditions.propagation.mufFof2.workedNearestStation],
-      ] as const
-    : []
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Rediger QSO</h1>
@@ -712,64 +704,6 @@ export default function EditQsoPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-gray-500">MUF / foF2</p>
-                        <h3 className="mt-1 text-base font-semibold text-white">{conditions.propagation.mufFof2.status}</h3>
-                        <p className="mt-1 text-sm text-gray-400">{conditions.propagation.mufFof2.description}</p>
-                      </div>
-                      <a className="text-sm text-blue-300 underline" href={conditions.propagation.mufFof2.sourceUrl} target="_blank" rel="noreferrer">
-                        Åbn KC2G
-                      </a>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                      {stationRows.map(([label, station]) => (
-                        <div key={label} className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
-                          <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-                          {station ? (
-                            <>
-                              <p className="mt-1 text-sm font-semibold text-white">{station.name}</p>
-                              <p className="mt-1 text-xs text-gray-500">{formatNumber(station.distanceKm, ' km')} fra referencepunkt</p>
-                              <div className="mt-3 grid grid-cols-2 gap-2">
-                                <div>
-                                  <p className="text-xs text-gray-500">foF2</p>
-                                  <p className="text-sm font-medium text-white">{formatNumber(station.fof2Mhz, ' MHz', 1)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-gray-500">MUF(3000)</p>
-                                  <p className="text-sm font-medium text-white">{formatNumber(station.muf3000Mhz, ' MHz', 1)}</p>
-                                </div>
-                              </div>
-                              <p className="mt-2 text-xs text-gray-500">
-                                {station.observedAtUtc
-                                  ? `${new Date(station.observedAtUtc).toLocaleTimeString('da-DK', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })} UTC`
-                                  : 'Tid ukendt'}
-                                {station.confidencePercent != null ? ` · ${station.confidencePercent.toFixed(0)}% confidence` : ''}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="mt-3 text-sm text-gray-400">Ingen nær station fundet.</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                      {conditions.propagation.mufFof2.bandRecommendations.map(band => (
-                        <div key={band.band} className={`rounded-md border px-3 py-2 ${band.supported ? 'border-emerald-900 bg-emerald-950/20' : 'border-gray-800 bg-gray-950/40'}`}>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-white">{band.band}</p>
-                            <Badge variant={band.supported ? 'success' : 'default'}>
-                              {band.supported ? 'Under MUF' : 'Over MUF'}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-400">{band.reason}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </>
               ) : (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
