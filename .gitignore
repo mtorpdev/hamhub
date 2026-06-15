@@ -13,6 +13,7 @@ frontend/next-env.d.ts
 
 # Logs
 logs/
+artifacts/
 
 # OS
 .DS_Store
