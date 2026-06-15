@@ -223,6 +223,128 @@ Features:
 
 ---
 
+## Future: WSJT-X Remote Actions from Live Decodes
+
+### Goal
+
+Extend the current one-way WSJT-X bridge into a two-way control loop so a logged-in HamHub user can act on decodes from the `/decode` page:
+
+- Click a decoded CQ to prepare a reply in WSJT-X.
+- Click a decoded station to set the DX callsign/frequency in WSJT-X.
+- Start a CQ session from HamHub with an explicit user action.
+
+Current flow:
+
+```
+WSJT-X -> local HamHub agent -> HamHub API -> /decode page
+```
+
+Required future flow:
+
+```
+/decode page -> HamHub API -> local HamHub agent -> WSJT-X UDP command
+```
+
+### UX
+
+On the `/decode` page:
+
+- Add an action button on eligible rows, e.g. `Svar` for `CQ ...` messages and `Kald` for direct station messages.
+- Add a top-level `Start CQ` action.
+- Show command state per row/action: idle, sending, sent, failed.
+- Disable actions when no local agent is connected for the current user.
+- For TX-related actions, require an explicit confirmation before anything can enable transmission.
+
+Recommended first release:
+
+- Implement `Prepare reply` only: set DX callsign/grid and target audio frequency in WSJT-X.
+- Do not start TX automatically.
+
+Later release:
+
+- Add `Start CQ` and optional TX enable, guarded by a confirmation and clear state in the UI.
+
+### Backend
+
+Add a per-user command channel/queue for the local agent.
+
+Suggested endpoints:
+
+```http
+POST /api/wsjtx/commands
+GET  /api/wsjtx/commands/stream
+POST /api/wsjtx/commands/{id}/ack
+```
+
+`POST /api/wsjtx/commands` accepts commands from the web UI:
+
+```json
+{
+  "type": "prepare-reply",
+  "decodeId": 123,
+  "dxCallsign": "OZ1ABC",
+  "dxGrid": "JO65",
+  "frequencyMhz": 14.074,
+  "deltaFreqHz": 1240,
+  "message": "CQ OZ1ABC JO65"
+}
+```
+
+`GET /api/wsjtx/commands/stream` is consumed by the local agent after authentication. It should only stream commands for the authenticated user.
+
+`POST /api/wsjtx/commands/{id}/ack` lets the agent report `accepted`, `completed`, or `failed`, including an optional error message. The UI can subscribe to command status updates or poll command status.
+
+### Local Agent
+
+The agent must be extended from a listener/uploader into a bidirectional bridge:
+
+- Keep the existing UDP listener for WSJT-X Status, Decode, and QSO Logged messages.
+- Maintain an authenticated connection to `GET /api/wsjtx/commands/stream`.
+- Convert HamHub command DTOs into WSJT-X UDP command datagrams.
+- Send command datagrams to the local WSJT-X UDP server.
+- Ack command results back to HamHub.
+
+The agent should expose connection state to HamHub, for example:
+
+- connected/disconnected
+- WSJT-X heard recently
+- last status timestamp
+- station callsign/grid
+- current band/mode/frequency
+
+This lets the web UI avoid showing control actions when the local agent or WSJT-X is unavailable.
+
+### WSJT-X Safety Rules
+
+HamHub must be conservative around transmit control:
+
+- Never enable TX silently.
+- Never start a CQ or reply from a row click without an explicit user action.
+- Prefer preparing WSJT-X state first, then let the operator start/confirm transmit in WSJT-X.
+- Any future `start-cq` or `enable-tx` command must require a visible confirmation in HamHub.
+- The UI must clearly show whether a command only prepared WSJT-X or actually requested transmit.
+
+### Command Types
+
+Initial command set:
+
+- `prepare-reply`: set DX callsign/grid and target frequency/DF in WSJT-X from a selected decode.
+- `prepare-call`: set DX callsign/frequency for a non-CQ decode.
+
+Future command set:
+
+- `start-cq`: start a CQ sequence using current band/mode settings.
+- `halt-tx`: stop transmit/request halt.
+- `clear-dx`: clear active DX target in WSJT-X.
+
+### Implementation Notes
+
+This feature depends on the WSJT-X UDP command side of the protocol, not only the broadcast messages already parsed by `MessageParser`.
+
+Before implementation, add protocol-level tests for binary command serialization in `HamHub.WsjtxCore`, similar to the existing parse-side tests that should cover incoming WSJT-X datagrams.
+
+---
+
 ## Tech Stack
 
 - .NET 8, C#
@@ -241,6 +363,6 @@ Features:
 
 - Radio CAT control
 - Waterfall display
-- Two-way WSJT-X control (Reply / Halt TX)
+- Automatic transmit without explicit operator confirmation
 - Installer / auto-update (user downloads zip, extracts, runs)
 - WSPR decode support (type 10) — future work

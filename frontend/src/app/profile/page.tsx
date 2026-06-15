@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility, type QrzStatus } from '@/lib/types'
+import { ProfileVisibility, type EqslStatus, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -22,18 +22,39 @@ export default function ProfilePage() {
   const [qrzXmlUsername, setQrzXmlUsername] = useState('')
   const [qrzXmlPassword, setQrzXmlPassword] = useState('')
   const [qrzXmlLoading, setQrzXmlLoading] = useState(false)
+  const [eqslStatus, setEqslStatus] = useState<EqslStatus | null>(null)
+  const [eqslUsername, setEqslUsername] = useState('')
+  const [eqslPassword, setEqslPassword] = useState('')
+  const [eqslQthNickname, setEqslQthNickname] = useState('')
+  const [eqslLoading, setEqslLoading] = useState(false)
 
   useEffect(() => {
-    if (user) setForm({
-      callsign: user.callsign || '',
-      firstName: user.firstName || '',
-      lastName: user.lastName || '',
-      country: user.country || '',
-      gridLocator: user.gridLocator || '',
-      profileDescription: user.profileDescription || '',
-      visibility: user.visibility,
-    })
-    api.qrz.status().then(setQrzStatus).catch(() => {})
+    let cancelled = false
+
+    async function loadProfileState() {
+      await Promise.resolve()
+      if (cancelled) return
+
+      if (user) setForm({
+        callsign: user.callsign || '',
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        country: user.country || '',
+        gridLocator: user.gridLocator || '',
+        profileDescription: user.profileDescription || '',
+        visibility: user.visibility,
+      })
+
+      api.qrz.status().then(status => {
+        if (!cancelled) setQrzStatus(status)
+      }).catch(() => {})
+      api.eqsl.status().then(status => {
+        if (!cancelled) setEqslStatus(status)
+      }).catch(() => {})
+    }
+
+    loadProfileState()
+    return () => { cancelled = true }
   }, [user])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -106,8 +127,26 @@ export default function ProfilePage() {
     }
   }
 
+  const handleSaveEqslCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!eqslUsername.trim() || !eqslPassword) return
+    setEqslLoading(true)
+    try {
+      await api.eqsl.saveCredentials(eqslUsername.trim(), eqslPassword, eqslQthNickname.trim() || undefined)
+      toast('eQSL login gemt!')
+      setEqslUsername('')
+      setEqslPassword('')
+      setEqslQthNickname('')
+      setEqslStatus(await api.eqsl.status())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke gemme eQSL login', 'error')
+    } finally {
+      setEqslLoading(false)
+    }
+  }
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
       <Card>
         <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
@@ -200,6 +239,51 @@ export default function ProfilePage() {
             />
             <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
               {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>eQSL Integration</CardTitle></CardHeader>
+        <CardContent>
+          {eqslStatus?.connected ? (
+            <p className="text-green-400 text-sm mb-3">
+              Tilsluttet som {eqslStatus.username}
+              {eqslStatus.qthNickname && <span className="text-gray-400 ml-2">QTH: {eqslStatus.qthNickname}</span>}
+              {eqslStatus.lastSyncedAt && (
+                <span className="text-gray-400 ml-2">
+                  — Sidst brugt: {new Date(eqslStatus.lastSyncedAt).toLocaleString('da-DK')}
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="text-gray-400 text-sm mb-3">
+              Ikke tilsluttet — indtast dit eQSL.cc brugernavn og adgangskode for at kunne sende QSOer til eQSL. Login testes først ved upload.
+            </p>
+          )}
+          <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
+            <Input
+              label="eQSL brugernavn"
+              value={eqslUsername}
+              onChange={e => setEqslUsername(e.target.value)}
+              placeholder={eqslStatus?.username ?? 'OZ1ABC'}
+              autoComplete="username"
+            />
+            <Input
+              label="eQSL adgangskode"
+              type="password"
+              value={eqslPassword}
+              onChange={e => setEqslPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <Input
+              label="QTH nickname"
+              value={eqslQthNickname}
+              onChange={e => setEqslQthNickname(e.target.value)}
+              placeholder={eqslStatus?.qthNickname ?? 'Valgfrit'}
+            />
+            <Button type="submit" disabled={eqslLoading || !eqslUsername.trim() || !eqslPassword}>
+              {eqslLoading ? 'Gemmer...' : 'Gem eQSL login'}
             </Button>
           </form>
         </CardContent>

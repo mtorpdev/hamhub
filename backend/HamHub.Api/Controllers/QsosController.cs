@@ -2,8 +2,11 @@ using AutoMapper;
 using HamHub.Api.Services;
 using HamHub.Application.QsoEntries.DTOs;
 using HamHub.Domain.Entities;
+using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
+using HamHub.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -18,12 +21,30 @@ public class QsosController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
     private readonly IQrzSyncTrigger _trigger;
+    private readonly EqslClient _eqslClient;
+    private readonly IDataProtector _eqslProtector;
+    private readonly OpenMeteoWeatherService _weatherService;
+    private readonly NoaaSwpcPropagationService _propagationService;
+    private readonly Kc2gMufFof2Service _mufFof2Service;
 
-    public QsosController(ApplicationDbContext context, IMapper mapper, IQrzSyncTrigger trigger)
+    public QsosController(
+        ApplicationDbContext context,
+        IMapper mapper,
+        IQrzSyncTrigger trigger,
+        EqslClient eqslClient,
+        OpenMeteoWeatherService weatherService,
+        NoaaSwpcPropagationService propagationService,
+        Kc2gMufFof2Service mufFof2Service,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _context = context;
         _mapper = mapper;
         _trigger = trigger;
+        _eqslClient = eqslClient;
+        _weatherService = weatherService;
+        _propagationService = propagationService;
+        _mufFof2Service = mufFof2Service;
+        _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
     }
 
     [HttpGet]
@@ -49,6 +70,84 @@ public class QsosController : ControllerBase
         return Ok(_mapper.Map<QsoDto>(qso));
     }
 
+    [HttpGet("{id}/external-status")]
+    public async Task<IActionResult> GetExternalStatus(int id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var qso = await _context.QsoEntries
+            .Include(q => q.User)
+            .FirstOrDefaultAsync(q => q.Id == id);
+        if (qso == null) return NotFound();
+        if (qso.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User));
+    }
+
+    [HttpGet("{id}/conditions")]
+    public async Task<IActionResult> GetConditions(int id, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var qso = await _context.QsoEntries.FindAsync(new object[] { id }, ct);
+        if (qso == null) return NotFound();
+        if (qso.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+
+        var conditions = QsoConditionsBuilder.Build(qso);
+        var ownWeather = conditions.OwnLocation is null
+            ? null
+            : await _weatherService.GetHistoricalWeatherAsync(
+                conditions.OwnLocation.Latitude,
+                conditions.OwnLocation.Longitude,
+                conditions.NearestWeatherHourUtc,
+                ct);
+        var workedWeather = conditions.WorkedLocation is null
+            ? null
+            : await _weatherService.GetHistoricalWeatherAsync(
+                conditions.WorkedLocation.Latitude,
+                conditions.WorkedLocation.Longitude,
+                conditions.NearestWeatherHourUtc,
+                ct);
+        var propagation = await _propagationService.GetPropagationAsync(conditions.QsoTimeUtc, ct);
+        var mufFof2 = await _mufFof2Service.GetSnapshotAsync(conditions.OwnLocation, conditions.WorkedLocation, ct);
+
+        return Ok(QsoConditionsBuilder.WithMufFof2(
+            QsoConditionsBuilder.WithPropagation(
+                QsoConditionsBuilder.WithWeather(conditions, ownWeather, workedWeather),
+                propagation),
+            mufFof2));
+    }
+
+    [HttpPost("{id}/eqsl/send")]
+    public async Task<IActionResult> SendToEqsl(int id, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var qso = await _context.QsoEntries
+            .Include(q => q.User)
+            .FirstOrDefaultAsync(q => q.Id == id, ct);
+        if (qso == null) return NotFound();
+        if (qso.UserId != userId && !User.IsInRole("Admin")) return Forbid();
+        if (qso.User.EqslUsername == null || qso.User.EqslPassword == null)
+            return BadRequest("eQSL er ikke sat op på profilen");
+
+        var password = _eqslProtector.Unprotect(qso.User.EqslPassword);
+        EqslUploadResult result;
+        try
+        {
+            result = await _eqslClient.UploadQsoAsync(ToEqslAdif(qso), qso.User.EqslUsername, password, qso.User.EqslQthNickname, ct);
+        }
+        catch (EqslApiException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        qso.EqslSentAt = DateTime.UtcNow;
+        qso.EqslLastResult = result.Message;
+        qso.UpdatedAt = DateTime.UtcNow;
+        qso.User.EqslLastSyncedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new { result.Success, result.Message, qso.EqslSentAt });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateQsoDto dto)
     {
@@ -61,6 +160,49 @@ public class QsosController : ControllerBase
         _trigger.NotifyQsoChanged(userId);
         return CreatedAtAction(nameof(GetById), new { id = qso.Id }, _mapper.Map<QsoDto>(qso));
     }
+
+    private static EqslAdifQso ToEqslAdif(QsoEntry qso) => new(
+        Call: qso.WorkedCallsign,
+        TimeOn: qso.DateUtc,
+        Band: BandToAdif(qso.Band),
+        Mode: ModeToAdif(qso.Mode),
+        FrequencyMhz: qso.Frequency,
+        RstSent: qso.RstSent,
+        RstReceived: qso.RstReceived,
+        Submode: qso.Submode,
+        Gridsquare: qso.Locator,
+        Comment: qso.Comment);
+
+    private static string BandToAdif(Band band) => band switch
+    {
+        Band.M160 => "160M",
+        Band.M80 => "80M",
+        Band.M60 => "60M",
+        Band.M40 => "40M",
+        Band.M30 => "30M",
+        Band.M20 => "20M",
+        Band.M17 => "17M",
+        Band.M15 => "15M",
+        Band.M12 => "12M",
+        Band.M10 => "10M",
+        Band.M6 => "6M",
+        Band.M2 => "2M",
+        Band.CM70 => "70CM",
+        _ => throw new ArgumentOutOfRangeException(nameof(band), band, null)
+    };
+
+    private static string ModeToAdif(Mode mode) => mode switch
+    {
+        Mode.SSB => "SSB",
+        Mode.CW => "CW",
+        Mode.FT8 => "FT8",
+        Mode.FT4 => "FT4",
+        Mode.RTTY => "RTTY",
+        Mode.DMR => "DMR",
+        Mode.FM => "FM",
+        Mode.AM => "AM",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+    };
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] CreateQsoDto dto)

@@ -15,7 +15,7 @@ export default function ArticlesPage() {
   }, [])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Artikler</h1>
       {loading ? <p className="text-gray-400">Indlæser...</p> : (
         <div className="flex flex-col gap-4">

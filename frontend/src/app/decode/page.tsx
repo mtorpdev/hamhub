@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
 import type { WsjtxDecodeItem } from '@/lib/types'
 
@@ -16,6 +17,7 @@ function snrColor(snr: number) {
 }
 
 export default function DecodePage() {
+  const { isLoading } = useRequireAuth()
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
   const [filter, setFilter] = useState<'all' | 'FT8' | 'FT4'>('all')
   const [autoScroll, setAutoScroll] = useState(true)
@@ -33,6 +35,7 @@ export default function DecodePage() {
   }, [isAuthenticated])
 
   useEffect(() => {
+    if (!isAuthenticated) return
     const es = new EventSource(`${API_URL}/api/wsjtx/stream`)
     es.onopen = () => setConnected(true)
     es.onmessage = (e) => {
@@ -45,7 +48,7 @@ export default function DecodePage() {
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (autoScroll && tableRef.current) {
@@ -55,8 +58,10 @@ export default function DecodePage() {
 
   const visible = filter === 'all' ? decodes : decodes.filter(d => d.mode.toUpperCase() === filter)
 
+  if (isLoading || !isAuthenticated) return null
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">Live Decodes</h1>
         <div className="flex items-center gap-4">

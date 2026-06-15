@@ -38,7 +38,7 @@ export default function MessagesPage() {
   const unread = messages.filter(m => !m.isRead && tab === 'inbox').length
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-white">Beskeder</h1>

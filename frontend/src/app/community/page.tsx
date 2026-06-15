@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 
@@ -136,6 +137,7 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
 }
 
 export default function CommunityPage() {
+  const { isLoading } = useRequireAuth()
   const { isAuthenticated, user } = useAuth()
   const { toast } = useToast()
   const [posts, setPosts] = useState<Post[]>([])
@@ -158,7 +160,26 @@ export default function CommunityPage() {
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { load(1) }, [])
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+
+    async function loadInitialFeed() {
+      setLoading(true)
+      try {
+        const res = await api.posts.getFeed(1)
+        if (cancelled) return
+        setPosts(res.items)
+        setTotal(res.total)
+        setPage(1)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadInitialFeed()
+    return () => { cancelled = true }
+  }, [isAuthenticated])
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -187,42 +208,42 @@ export default function CommunityPage() {
     } catch { toast('Fejl', 'error') }
   }
 
+  if (isLoading || !isAuthenticated) return null
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-6">Community</h1>
 
-      {isAuthenticated && (
-        <Card className="mb-6">
-          <CardContent className="py-5">
-            <form onSubmit={handlePost} className="flex flex-col gap-3">
-              <textarea
-                rows={3}
-                value={newContent}
-                onChange={e => setNewContent(e.target.value)}
-                placeholder="Del noget med community..."
-                className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
-              />
-              <div className="flex items-center justify-between">
-                <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm flex items-center gap-1">
-                  📷 Tilføj billeder
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={e => setNewImages(Array.from(e.target.files || []).slice(0, 4))}
-                  />
-                </label>
-                {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
-                <Button type="submit" disabled={posting || !newContent.trim()} size="sm">
-                  {posting ? 'Poster...' : 'Post'}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="mb-6">
+        <CardContent className="py-5">
+          <form onSubmit={handlePost} className="flex flex-col gap-3">
+            <textarea
+              rows={3}
+              value={newContent}
+              onChange={e => setNewContent(e.target.value)}
+              placeholder="Del noget med community..."
+              className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
+            />
+            <div className="flex items-center justify-between">
+              <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm flex items-center gap-1">
+                📷 Tilføj billeder
+                <input
+                  ref={fileRef}
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={e => setNewImages(Array.from(e.target.files || []).slice(0, 4))}
+                />
+              </label>
+              {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
+              <Button type="submit" disabled={posting || !newContent.trim()} size="sm">
+                {posting ? 'Poster...' : 'Post'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {loading && posts.length === 0 ? (
         <p className="text-gray-400">Indlæser...</p>

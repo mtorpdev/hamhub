@@ -22,21 +22,26 @@ public class UsersController : ControllerBase
     private readonly IMapper _mapper;
     private readonly IDataProtector _protector;
     private readonly IDataProtector _xmlProtector;
+    private readonly IDataProtector _eqslProtector;
     private readonly QrzClient _qrzClient;
+    private readonly EqslClient _eqslClient;
 
     public UsersController(
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext context,
         IMapper mapper,
         IDataProtectionProvider dataProtectionProvider,
-        QrzClient qrzClient)
+        QrzClient qrzClient,
+        EqslClient eqslClient)
     {
         _userManager = userManager;
         _context = context;
         _mapper = mapper;
         _protector = dataProtectionProvider.CreateProtector("QrzApiKey");
         _xmlProtector = dataProtectionProvider.CreateProtector("QrzXmlPassword");
+        _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
         _qrzClient = qrzClient;
+        _eqslClient = eqslClient;
     }
 
     [HttpGet]
@@ -129,6 +134,26 @@ public class UsersController : ControllerBase
         return Ok(new { username = user.QrzUsername });
     }
 
+    [HttpPut("me/eqsl-credentials")]
+    [Authorize]
+    public async Task<IActionResult> SaveEqslCredentials([FromBody] SaveEqslCredentialsDto dto, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest("eQSL brugernavn og adgangskode er påkrævet");
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        user.EqslUsername = dto.Username.Trim();
+        user.EqslPassword = _eqslProtector.Protect(dto.Password);
+        var qthNickname = dto.QthNickname?.Trim();
+        user.EqslQthNickname = string.IsNullOrWhiteSpace(qthNickname) ? null : qthNickname;
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { username = user.EqslUsername, qthNickname = user.EqslQthNickname });
+    }
+
     [HttpPut("me/qrz-key")]
     [Authorize]
     public async Task<IActionResult> SaveQrzKey([FromBody] SaveQrzKeyDto dto, CancellationToken ct)
@@ -164,3 +189,4 @@ public class UsersController : ControllerBase
 
 public record SaveQrzKeyDto(string? ApiKey);
 public record SaveQrzCredentialsDto(string? Username, string? Password);
+public record SaveEqslCredentialsDto(string? Username, string? Password, string? QthNickname);

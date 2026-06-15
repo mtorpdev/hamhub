@@ -59,11 +59,11 @@ export default function ArticlePage() {
     }
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
-  if (!article) return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-400">Artikel ikke fundet. <Link href="/articles" className="text-blue-400">← Tilbage</Link></div>
+  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (!article) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Artikel ikke fundet. <Link href="/articles" className="text-blue-400">← Tilbage</Link></div>
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <Link href="/articles" className="text-blue-400 hover:text-blue-300 text-sm mb-6 block">← Alle artikler</Link>
       <Card>
         <CardContent className="py-8">

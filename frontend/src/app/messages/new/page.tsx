@@ -49,7 +49,7 @@ export default function NewMessagePage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Ny besked</h1>
       <Card>
         <CardContent className="py-6">

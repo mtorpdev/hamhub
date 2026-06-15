@@ -22,6 +22,11 @@ public class ApplicationUser : IdentityUser
     public string? QrzUsername { get; set; }
     public string? QrzXmlPassword { get; set; }
 
+    public string? EqslUsername { get; set; }
+    public string? EqslPassword { get; set; }
+    public string? EqslQthNickname { get; set; }
+    public DateTime? EqslLastSyncedAt { get; set; }
+
     public ICollection<StationProfile> Stations { get; set; } = new List<StationProfile>();
     public ICollection<QsoEntry> QsoEntries { get; set; } = new List<QsoEntry>();
     public ICollection<DxSpot> DxSpots { get; set; } = new List<DxSpot>();

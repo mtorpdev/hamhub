@@ -35,10 +35,24 @@ export default function SpotsPage() {
   }
 
   useEffect(() => {
-    loadLocal()
+    let cancelled = false
+    async function loadInitialSpots() {
+      setLoading(true)
+      const latest = await api.spots.getLatest(200)
+      if (cancelled) return
+      setSpots(latest)
+      setLoading(false)
+    }
+
+    loadInitialSpots().catch(() => {
+      if (!cancelled) setLoading(false)
+    })
     // auto-refresh local spots every 60s
     refreshRef.current = setInterval(loadLocal, 60000)
-    return () => { if (refreshRef.current) clearInterval(refreshRef.current) }
+    return () => {
+      cancelled = true
+      if (refreshRef.current) clearInterval(refreshRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -50,10 +64,24 @@ export default function SpotsPage() {
   }, [isAuthenticated])
 
   useEffect(() => {
-    if (tab === 'cluster' && clusterSpots.length === 0) loadCluster()
-    if (tab === 'cluster') {
-      const id = setInterval(loadCluster, 60000)
-      return () => clearInterval(id)
+    if (tab !== 'cluster') return
+    let cancelled = false
+
+    async function loadClusterSpots() {
+      setClusterLoading(true)
+      const latest = await api.spots.getCluster(50)
+      if (cancelled) return
+      setClusterSpots(latest)
+      setClusterLoading(false)
+    }
+
+    loadClusterSpots().catch(() => {
+      if (!cancelled) setClusterLoading(false)
+    })
+    const id = setInterval(loadCluster, 60000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
     }
   }, [tab])
 
@@ -69,7 +97,7 @@ export default function SpotsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">DX Spots</h1>
         <div className="flex items-center gap-3">
@@ -146,7 +174,7 @@ export default function SpotsPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-800/50">
                     <tr>
-                      {['Kaldesignal', 'Freq (MHz)', 'Mode', 'Info', 'Spotter', 'Tid'].map(h => (
+                      {['Kaldesignal', 'Freq (kHz)', 'Mode', 'Info', 'Spotter', 'Kilde', 'Tid'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                       ))}
                     </tr>
@@ -155,10 +183,11 @@ export default function SpotsPage() {
                     {clusterSpots.map((s, i) => (
                       <tr key={i} className="hover:bg-gray-800/30 transition-colors">
                         <td className="px-4 py-3 font-mono font-bold text-white">{s.callsign}</td>
-                        <td className="px-4 py-3 text-gray-300">{Number(s.frequency).toFixed(1)}</td>
+                        <td className="px-4 py-3 text-gray-300">{Number(s.frequencyKhz ?? s.frequency).toFixed(1)}</td>
                         <td className="px-4 py-3"><Badge>{s.mode || '—'}</Badge></td>
                         <td className="px-4 py-3 text-gray-400 max-w-xs truncate">{s.info || '—'}</td>
                         <td className="px-4 py-3 text-gray-400 font-mono">{s.spotter}</td>
+                        <td className="px-4 py-3"><Badge variant="info">{s.source || 'DX Cluster'}</Badge></td>
                         <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.time}</td>
                       </tr>
                     ))}

@@ -59,10 +59,10 @@ export default function EditStationPage() {
     }
   }
 
-  if (loading) return <div className="max-w-xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Rediger Station</h1>
       <Card>
         <CardContent className="py-6">

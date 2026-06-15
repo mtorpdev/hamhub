@@ -43,7 +43,7 @@ export default function StationsPage() {
     .filter(Boolean) as { lat: number; lng: number; label: string; popup: string }[]
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-white">Mine Stationer</h1>
         <div className="flex gap-2">

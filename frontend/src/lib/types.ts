@@ -88,8 +88,125 @@ export interface Qso {
   txPower: number | null
   comment: string | null
   qrzId: string | null
+  eqslSentAt: string | null
+  eqslConfirmedAt: string | null
+  eqslLastResult: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface QsoExternalLogStatus {
+  provider: string
+  status: 'synced' | 'ready' | 'not-configured' | string
+  label: string
+  externalId: string | null
+  canSend: boolean
+  canFetch: boolean
+  description: string
+}
+
+export interface QsoWeather {
+  timeUtc: string
+  temperatureC: number | null
+  relativeHumidityPercent: number | null
+  pressureHpa: number | null
+  cloudCoverPercent: number | null
+  windSpeedKmh: number | null
+  windDirectionDegrees: number | null
+  precipitationMm: number | null
+}
+
+export interface QsoConditionsLocation {
+  callsign: string
+  role: string
+  grid: string
+  latitude: number
+  longitude: number
+  weather: QsoWeather | null
+}
+
+export interface QsoConditions {
+  qsoTimeUtc: string
+  nearestWeatherHourUtc: string
+  ownLocation: QsoConditionsLocation | null
+  workedLocation: QsoConditionsLocation | null
+  distanceKm: number | null
+  bearingDegrees: number | null
+  weatherSource: string
+  propagation: {
+    status: string
+    description: string
+    source: string
+    observedAtUtc: string | null
+    kpIndex: number | null
+    geomagneticScale: string | null
+    radioBlackoutScale: string | null
+    solarRadiationScale: string | null
+    solarWindSpeedKms: number | null
+    solarWindDensity: number | null
+    interplanetaryMagneticFieldBz: number | null
+    interplanetaryMagneticFieldBt: number | null
+    minutesFromQso: number | null
+    solarFluxIndex: number | null
+    forecastApIndex: number | null
+    sunspotNumber: number | null
+    solarCyclePhase: string | null
+    solarCycleProgressPercent: number | null
+    xrayClass: string | null
+    xrayFlux: number | null
+    dRegionAbsorption: {
+      product: string
+      impact: string
+      sourceUrl: string
+    }
+    path: {
+      ownLight: string
+      workedLight: string
+      midpointLight: string
+      ownSolarElevationDegrees: number
+      workedSolarElevationDegrees: number
+      midpointSolarElevationDegrees: number
+      summary: string
+    } | null
+    bandConditions: Array<{
+      band: string
+      rating: string
+      reason: string
+      isCurrentQsoBand: boolean
+    }>
+    mufStatus: string
+    mufSourceUrl: string
+    mufFof2: {
+      status: string
+      source: string
+      sourceUrl: string
+      retrievedAtUtc: string | null
+      ownNearestStation: QsoMufStation | null
+      workedNearestStation: QsoMufStation | null
+      midpointNearestStation: QsoMufStation | null
+      bandRecommendations: QsoMufBandRecommendation[]
+      description: string
+    }
+  }
+}
+
+export interface QsoMufStation {
+  name: string
+  latitude: number
+  longitude: number
+  distanceKm: number
+  fof2Mhz: number | null
+  muf3000Mhz: number | null
+  confidencePercent: number | null
+  source: string | null
+  observedAtUtc: string | null
+}
+
+export interface QsoMufBandRecommendation {
+  band: string
+  frequencyMhz: number
+  supported: boolean
+  reason: string
 }
 
 export interface DxSpot {
@@ -137,10 +254,13 @@ export interface ArticleComment {
 export interface ClusterSpot {
   callsign: string
   frequency: number
+  frequencyKhz: number
   mode: string
   spotter: string
   info: string
   time: string
+  source: string
+  retrievedAt: string
 }
 
 export interface DashboardStats {
@@ -171,6 +291,13 @@ export interface QrzStatus {
   qrzCallsign: string | null
   xmlConnected: boolean
   qrzUsername: string | null
+}
+
+export interface EqslStatus {
+  connected: boolean
+  username: string | null
+  qthNickname: string | null
+  lastSyncedAt: string | null
 }
 
 export enum ListingCategory {

@@ -51,13 +51,13 @@ export default function MessagePage() {
     }
   }
 
-  if (loading) return <div className="max-w-2xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
   if (!message) return null
 
   const otherParty = message.senderId === user?.id ? message.recipientCallsign : message.senderCallsign
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <Link href="/messages" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til beskeder</Link>
 
       <Card className="mb-4">

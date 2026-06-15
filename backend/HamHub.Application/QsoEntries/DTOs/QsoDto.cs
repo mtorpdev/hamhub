@@ -26,6 +26,9 @@ public record QsoDto(
     double? TxPower,
     string? Comment,
     string? QrzId,
+    DateTime? EqslSentAt,
+    DateTime? EqslConfirmedAt,
+    string? EqslLastResult,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

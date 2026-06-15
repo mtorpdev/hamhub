@@ -30,7 +30,11 @@ export default function Map({ markers, height = '400px' }: MapProps) {
     if (!ref.current || mapRef.current) return
     if (markers.length === 0) return
 
+    let cancelled = false
+
     import('leaflet').then(L => {
+      if (cancelled || !ref.current || mapRef.current) return
+
       // Fix default marker icon path in Next.js
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -44,7 +48,7 @@ export default function Map({ markers, height = '400px' }: MapProps) {
         ? [markers[0].lat, markers[0].lng] as [number, number]
         : [56, 10] as [number, number]
 
-      const map = L.map(ref.current!).setView(center, markers.length === 1 ? 8 : 4)
+      const map = L.map(ref.current).setView(center, markers.length === 1 ? 8 : 4)
       mapRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -64,13 +68,14 @@ export default function Map({ markers, height = '400px' }: MapProps) {
     })
 
     return () => {
+      cancelled = true
       if (mapRef.current) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (mapRef.current as any).remove()
         mapRef.current = null
       }
     }
-  }, [])
+  }, [markers])
 
   return (
     <>

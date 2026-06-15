@@ -14,6 +14,8 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(u => u.Country).HasMaxLength(100);
         builder.Property(u => u.GridLocator).HasMaxLength(10);
         builder.Property(u => u.ProfileImageUrl).HasMaxLength(500);
+        builder.Property(u => u.EqslUsername).HasMaxLength(50);
+        builder.Property(u => u.EqslQthNickname).HasMaxLength(100);
 
         builder.HasIndex(u => u.Callsign);
     }

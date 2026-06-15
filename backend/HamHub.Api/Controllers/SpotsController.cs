@@ -1,5 +1,6 @@
 using AutoMapper;
 using HamHub.Application.DxSpots.DTOs;
+using HamHub.Api.Services;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -15,11 +16,13 @@ public class SpotsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
+    private readonly DxClusterSpotService _clusterSpotService;
 
-    public SpotsController(ApplicationDbContext context, IMapper mapper)
+    public SpotsController(ApplicationDbContext context, IMapper mapper, DxClusterSpotService clusterSpotService)
     {
         _context = context;
         _mapper = mapper;
+        _clusterSpotService = clusterSpotService;
     }
 
     [HttpGet]
@@ -56,20 +59,21 @@ public class SpotsController : ControllerBase
     }
 
     [HttpGet("cluster")]
-    public async Task<IActionResult> GetClusterSpots([FromQuery] int limit = 30)
+    public async Task<IActionResult> GetClusterSpots([FromQuery] int limit = 30, CancellationToken ct = default)
     {
-        try
+        var spots = await _clusterSpotService.GetSpotsAsync(limit, ct);
+        return Ok(spots.Select(s => new
         {
-            using var http = new System.Net.Http.HttpClient();
-            http.DefaultRequestHeaders.Add("User-Agent", "HamHub/1.0");
-            var url = $"https://www.dxsummit.fi/api/v1/spots?limit={Math.Min(limit, 50)}";
-            var json = await http.GetStringAsync(url);
-            return Content(json, "application/json");
-        }
-        catch
-        {
-            return Ok(Array.Empty<object>());
-        }
+            s.Callsign,
+            Frequency = s.FrequencyKhz,
+            s.FrequencyKhz,
+            s.Mode,
+            s.Spotter,
+            s.Info,
+            s.Time,
+            s.Source,
+            s.RetrievedAt
+        }));
     }
 
     [HttpDelete("{id}")]

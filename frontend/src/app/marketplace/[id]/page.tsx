@@ -52,13 +52,13 @@ export default function ListingPage() {
     } catch { toast('Fejl', 'error') }
   }
 
-  if (loading) return <div className="max-w-4xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
   if (!listing) return null
 
   const isOwner = user?.id === listing.userId
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-6xl mx-auto px-4 py-10">
       <Link href="/marketplace" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til marked</Link>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

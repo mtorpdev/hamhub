@@ -45,6 +45,9 @@ export const api = {
   qsos: {
     getMine: (search?: string) => request<import('./types').Qso[]>(`/api/qsos${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     getById: (id: number) => request<import('./types').Qso>(`/api/qsos/${id}`),
+    getExternalStatus: (id: number) => request<import('./types').QsoExternalLogStatus[]>(`/api/qsos/${id}/external-status`),
+    getConditions: (id: number) => request<import('./types').QsoConditions>(`/api/qsos/${id}/conditions`),
+    sendToEqsl: (id: number) => request<{ success: boolean; message: string; eqslSentAt: string }>(`/api/qsos/${id}/eqsl/send`, { method: 'POST' }),
     create: (data: Partial<import('./types').Qso>) =>
       request<import('./types').Qso>('/api/qsos', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: Partial<import('./types').Qso>) =>
@@ -185,5 +188,14 @@ export const api = {
       request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
     saveCredentials: (username: string, password: string) =>
       request<{ username: string }>('/api/users/me/qrz-credentials', { method: 'PUT', body: JSON.stringify({ username, password }) }),
+  },
+  eqsl: {
+    status: () =>
+      request<import('./types').EqslStatus>('/api/eqsl/status'),
+    saveCredentials: (username: string, password: string, qthNickname?: string) =>
+      request<{ username: string; qthNickname: string | null }>('/api/users/me/eqsl-credentials', {
+        method: 'PUT',
+        body: JSON.stringify({ username, password, qthNickname }),
+      }),
   },
 }
