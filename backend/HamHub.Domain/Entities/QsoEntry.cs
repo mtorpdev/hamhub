@@ -14,10 +14,19 @@ public class QsoEntry
     public Mode Mode { get; set; }
     public string? RstSent { get; set; }
     public string? RstReceived { get; set; }
-    public string? Locator { get; set; }
+    public string? Submode { get; set; }       // SUBMODE (e.g. USB, LSB)
+    public string? Locator { get; set; }       // GRIDSQUARE (worked station)
+    public string? MyGridsquare { get; set; }  // MY_GRIDSQUARE (own station)
     public string? Country { get; set; }
-    public string? Notes { get; set; }
-    public string? QrzId { get; set; }        // QRZ internal log record ID; null = not yet synced
+    public int? Dxcc { get; set; }             // DXCC entity number
+    public string? Continent { get; set; }     // CONT
+    public string? State { get; set; }         // STATE
+    public string? Iota { get; set; }          // IOTA island reference
+    public string? Name { get; set; }          // NAME (operator name)
+    public string? Qth { get; set; }           // QTH (city)
+    public double? TxPower { get; set; }       // TX_PWR in watts
+    public string? Comment { get; set; }       // COMMENT
+    public string? QrzId { get; set; }         // QRZ internal log record ID; null = not yet synced
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

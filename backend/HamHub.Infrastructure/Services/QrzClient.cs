@@ -24,8 +24,18 @@ public record AdifQso(
     string Mode,
     string? RstSent,
     string? RstReceived,
+    string? Submode,
     string? Gridsquare,
+    string? MyGridsquare,
     string? Country,
+    int? Dxcc,
+    string? Continent,
+    string? State,
+    string? Iota,
+    string? Name,
+    string? Qth,
+    double? TxPower,
+    string? Comment,
     string? LogId
 );
 
@@ -41,6 +51,28 @@ public class QrzClient
         _http = http;
         _cache = cache;
         _logger = logger;
+    }
+
+    public async Task<string> GetSessionKeyAsync(string username, string password, CancellationToken ct)
+    {
+        var cacheKey = $"qrz:session:{username.ToLowerInvariant()}";
+        if (_cache.TryGetValue(cacheKey, out string? cached) && cached != null)
+            return cached;
+
+        var url = $"https://xmldata.qrz.com/xml/current/?username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}&agent=hamhub";
+        var xml = await _http.GetStringAsync(url, ct);
+        var doc = XDocument.Parse(xml);
+
+        var sessionError = doc.Root?.Element(Ns + "Session")?.Element(Ns + "Error")?.Value;
+        if (sessionError != null)
+            throw new QrzApiException($"QRZ XML login fejlede: {sessionError}");
+
+        var key = doc.Root?.Element(Ns + "Session")?.Element(Ns + "Key")?.Value;
+        if (string.IsNullOrWhiteSpace(key))
+            throw new QrzApiException("QRZ returnerede ingen session-nøgle");
+
+        _cache.Set(cacheKey, key, TimeSpan.FromHours(1));
+        return key;
     }
 
     public async Task<QrzCallsignDto?> LookupCallsignAsync(string callsign, string apiKey, CancellationToken ct)
@@ -92,14 +124,33 @@ public class QrzClient
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync(ct);
 
-        // Check for error response (URL-encoded format)
-        if (body.Contains("RESULT=FAIL"))
+        // QRZ returns RESULT=AUTH for bad keys, RESULT=FAIL for other errors.
+        // A successful FETCH returns RESULT=OK&COUNT=N&ADIF=<raw adif> or just raw ADIF.
+        if (body.Contains("RESULT=") && !body.Contains("RESULT=OK"))
         {
             var parts = ParseKvp(body);
-            throw new QrzApiException(parts.GetValueOrDefault("REASON", "QRZ fetch failed"));
+            var reason = parts.GetValueOrDefault("REASON", "QRZ API fejl");
+            var resultCode = parts.GetValueOrDefault("RESULT", "");
+            throw new QrzApiException(resultCode == "AUTH"
+                ? $"Ugyldig QRZ logbook API nøgle: {reason}"
+                : reason);
         }
 
-        return ParseAdif(body);
+        // Extract ADIF from KVP envelope if present (RESULT=OK&COUNT=N&ADIF=<raw>)
+        string adif = body;
+        if (body.StartsWith("RESULT=", StringComparison.OrdinalIgnoreCase))
+        {
+            var adifIdx = body.IndexOf("&ADIF=", StringComparison.OrdinalIgnoreCase);
+            adif = adifIdx >= 0 ? body[(adifIdx + 6)..] : string.Empty;
+        }
+
+        // QRZ HTML-encodes the ADIF in the response body
+        adif = System.Net.WebUtility.HtmlDecode(adif);
+
+        _logger.LogInformation("QRZ fetch: body={Len}, ADIF={AdifLen}, preview={Preview}",
+            body.Length, adif.Length, adif.Length > 100 ? adif[..100] : adif);
+
+        return ParseAdif(adif);
     }
 
     public async Task<string> UploadQsoAsync(AdifQso qso, string apiKey, CancellationToken ct)
@@ -139,7 +190,8 @@ public class QrzClient
     private static IReadOnlyList<AdifQso> ParseAdif(string adif)
     {
         var result = new List<AdifQso>();
-        var records = adif.Split("<EOR>", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var records = System.Text.RegularExpressions.Regex.Split(adif, "<eor>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            .Select(r => r.Trim()).Where(r => r.Length > 0).ToArray();
         foreach (var rec in records)
         {
             var call = GetField(rec, "CALL");
@@ -158,8 +210,19 @@ public class QrzClient
                 Mode: mode.ToUpperInvariant(),
                 RstSent: GetField(rec, "RST_SENT"),
                 RstReceived: GetField(rec, "RST_RCVD"),
+                Submode: GetField(rec, "SUBMODE"),
                 Gridsquare: GetField(rec, "GRIDSQUARE"),
+                MyGridsquare: GetField(rec, "MY_GRIDSQUARE"),
                 Country: GetField(rec, "COUNTRY"),
+                Dxcc: int.TryParse(GetField(rec, "DXCC"), out var dxccVal) ? dxccVal : null,
+                Continent: GetField(rec, "CONT"),
+                State: GetField(rec, "STATE"),
+                Iota: GetField(rec, "IOTA"),
+                Name: GetField(rec, "NAME"),
+                Qth: GetField(rec, "QTH"),
+                TxPower: double.TryParse(GetField(rec, "TX_PWR"), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var pwrVal) ? pwrVal : null,
+                Comment: GetField(rec, "COMMENT") ?? GetField(rec, "NOTES"),
                 LogId: GetField(rec, "APP_QRZLOG_LOGID")
             ));
         }
@@ -189,10 +252,20 @@ public class QrzClient
         sb.Append(F("TIME_ON", qso.TimeOn.ToString("HHmm")));
         sb.Append(F("BAND", qso.Band));
         sb.Append(F("MODE", qso.Mode));
+        if (!string.IsNullOrEmpty(qso.Submode)) sb.Append(F("SUBMODE", qso.Submode));
         if (!string.IsNullOrEmpty(qso.RstSent)) sb.Append(F("RST_SENT", qso.RstSent));
         if (!string.IsNullOrEmpty(qso.RstReceived)) sb.Append(F("RST_RCVD", qso.RstReceived));
-        if (!string.IsNullOrEmpty(qso.Gridsquare)) sb.Append(F("GRIDSQUARE", qso.Gridsquare));
+        if (!string.IsNullOrEmpty(qso.Name)) sb.Append(F("NAME", qso.Name));
+        if (!string.IsNullOrEmpty(qso.Qth)) sb.Append(F("QTH", qso.Qth));
         if (!string.IsNullOrEmpty(qso.Country)) sb.Append(F("COUNTRY", qso.Country));
+        if (qso.Dxcc.HasValue) sb.Append(F("DXCC", qso.Dxcc.Value.ToString()));
+        if (!string.IsNullOrEmpty(qso.Continent)) sb.Append(F("CONT", qso.Continent));
+        if (!string.IsNullOrEmpty(qso.State)) sb.Append(F("STATE", qso.State));
+        if (!string.IsNullOrEmpty(qso.Iota)) sb.Append(F("IOTA", qso.Iota));
+        if (!string.IsNullOrEmpty(qso.Gridsquare)) sb.Append(F("GRIDSQUARE", qso.Gridsquare));
+        if (!string.IsNullOrEmpty(qso.MyGridsquare)) sb.Append(F("MY_GRIDSQUARE", qso.MyGridsquare));
+        if (qso.TxPower.HasValue) sb.Append(F("TX_PWR", qso.TxPower.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)));
+        if (!string.IsNullOrEmpty(qso.Comment)) sb.Append(F("COMMENT", qso.Comment));
         sb.Append("<EOR>");
         return sb.ToString();
     }

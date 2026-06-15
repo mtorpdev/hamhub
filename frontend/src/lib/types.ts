@@ -75,9 +75,18 @@ export interface Qso {
   mode: Mode
   rstSent: string | null
   rstReceived: string | null
+  submode: string | null
   locator: string | null
+  myGridsquare: string | null
   country: string | null
-  notes: string | null
+  dxcc: number | null
+  continent: string | null
+  state: string | null
+  iota: string | null
+  name: string | null
+  qth: string | null
+  txPower: number | null
+  comment: string | null
   qrzId: string | null
   createdAt: string
   updatedAt: string
@@ -160,6 +169,101 @@ export interface QrzStatus {
   connected: boolean
   lastSyncedAt: string | null
   qrzCallsign: string | null
+  xmlConnected: boolean
+  qrzUsername: string | null
+}
+
+export enum ListingCategory {
+  Transceiver = 1, Receiver = 2, Antenna = 3, Amplifier = 4,
+  PowerSupply = 5, Rotator = 6, Keyer = 7, SDR = 8,
+  Accessories = 9, Cables = 10, Books = 11, Other = 12
+}
+
+export enum ListingCondition {
+  New = 1, LikeNew = 2, Good = 3, Fair = 4, ForParts = 5
+}
+
+export const ListingCategoryLabels: Record<ListingCategory, string> = {
+  [ListingCategory.Transceiver]: 'Transceiver',
+  [ListingCategory.Receiver]: 'Modtager',
+  [ListingCategory.Antenna]: 'Antenne',
+  [ListingCategory.Amplifier]: 'Forstærker',
+  [ListingCategory.PowerSupply]: 'Strømforsyning',
+  [ListingCategory.Rotator]: 'Rotator',
+  [ListingCategory.Keyer]: 'Nøgle',
+  [ListingCategory.SDR]: 'SDR',
+  [ListingCategory.Accessories]: 'Tilbehør',
+  [ListingCategory.Cables]: 'Kabler',
+  [ListingCategory.Books]: 'Bøger',
+  [ListingCategory.Other]: 'Andet',
+}
+
+export const ListingConditionLabels: Record<ListingCondition, string> = {
+  [ListingCondition.New]: 'Ny',
+  [ListingCondition.LikeNew]: 'Som ny',
+  [ListingCondition.Good]: 'God',
+  [ListingCondition.Fair]: 'Rimelig',
+  [ListingCondition.ForParts]: 'Til reservedele',
+}
+
+export interface ListingImage {
+  id: number
+  url: string
+}
+
+export interface Listing {
+  id: number
+  userId: string
+  sellerCallsign: string | null
+  sellerEmail: string | null
+  title: string
+  description: string
+  price: number
+  currency: string
+  category: ListingCategory
+  categoryName: string
+  condition: ListingCondition
+  conditionName: string
+  isActive: boolean
+  isSold: boolean
+  images: ListingImage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Message {
+  id: number
+  senderId: string
+  senderCallsign: string | null
+  recipientId: string
+  recipientCallsign: string | null
+  subject: string
+  body: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface Post {
+  id: number
+  userId: string
+  authorCallsign: string | null
+  authorName: string | null
+  content: string
+  images: string[]
+  likeCount: number
+  isLikedByMe: boolean
+  commentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PostComment {
+  id: number
+  postId: number
+  userId: string
+  authorCallsign: string | null
+  content: string
+  createdAt: string
 }
 
 export interface QrzCallsignInfo {

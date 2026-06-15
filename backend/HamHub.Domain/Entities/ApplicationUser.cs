@@ -19,6 +19,9 @@ public class ApplicationUser : IdentityUser
     public string? QrzApiKey { get; set; }
     public DateTime? QrzLastSyncedAt { get; set; }
 
+    public string? QrzUsername { get; set; }
+    public string? QrzXmlPassword { get; set; }
+
     public ICollection<StationProfile> Stations { get; set; } = new List<StationProfile>();
     public ICollection<QsoEntry> QsoEntries { get; set; } = new List<QsoEntry>();
     public ICollection<DxSpot> DxSpots { get; set; } = new List<DxSpot>();

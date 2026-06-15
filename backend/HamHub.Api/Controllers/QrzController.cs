@@ -16,7 +16,8 @@ public class QrzController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly QrzClient _qrzClient;
     private readonly IQrzSyncTrigger _trigger;
-    private readonly IDataProtector _protector;
+    private readonly IDataProtector _logbookProtector;
+    private readonly IDataProtector _xmlProtector;
     private readonly IConfiguration _config;
 
     public QrzController(
@@ -29,7 +30,8 @@ public class QrzController : ControllerBase
         _context = context;
         _qrzClient = qrzClient;
         _trigger = trigger;
-        _protector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _logbookProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _xmlProtector = dataProtectionProvider.CreateProtector("QrzXmlPassword");
         _config = config;
     }
 
@@ -40,25 +42,39 @@ public class QrzController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(callsign)) return BadRequest("callsign is required");
 
-        string? apiKey = null;
+        string? sessionKey = null;
 
-        // Try authenticated user's own key first
+        // Try authenticated user's XML credentials first
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId != null)
         {
             var user = await _context.Users.FindAsync([userId], ct);
-            if (user?.QrzApiKey != null)
+            if (user?.QrzUsername != null && user.QrzXmlPassword != null)
             {
-                try { apiKey = _protector.Unprotect(user.QrzApiKey); }
-                catch { apiKey = null; }
+                try
+                {
+                    var password = _xmlProtector.Unprotect(user.QrzXmlPassword);
+                    sessionKey = await _qrzClient.GetSessionKeyAsync(user.QrzUsername, password, ct);
+                }
+                catch { sessionKey = null; }
             }
         }
 
-        // Fall back to system default key
-        apiKey ??= _config["Qrz:DefaultApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey)) return StatusCode(503, "QRZ API key not configured");
+        // Fall back to system default credentials
+        if (sessionKey == null)
+        {
+            var sysUser = _config["Qrz:XmlUsername"];
+            var sysPass = _config["Qrz:XmlPassword"];
+            if (!string.IsNullOrWhiteSpace(sysUser) && !string.IsNullOrWhiteSpace(sysPass))
+            {
+                try { sessionKey = await _qrzClient.GetSessionKeyAsync(sysUser, sysPass, ct); }
+                catch { sessionKey = null; }
+            }
+        }
 
-        var result = await _qrzClient.LookupCallsignAsync(callsign.Trim().ToUpperInvariant(), apiKey, ct);
+        if (string.IsNullOrWhiteSpace(sessionKey)) return StatusCode(503, "QRZ XML credentials not configured");
+
+        var result = await _qrzClient.LookupCallsignAsync(callsign.Trim().ToUpperInvariant(), sessionKey, ct);
         if (result == null) return NotFound();
         return Ok(result);
     }
@@ -75,7 +91,9 @@ public class QrzController : ControllerBase
         {
             connected = user.QrzApiKey != null,
             lastSyncedAt = user.QrzLastSyncedAt,
-            qrzCallsign = user.Callsign
+            qrzCallsign = user.Callsign,
+            xmlConnected = user.QrzUsername != null,
+            qrzUsername = user.QrzUsername
         });
     }
 

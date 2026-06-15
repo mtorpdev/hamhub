@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -41,7 +42,7 @@ function exportAdif(qsos: Qso[]) {
       q.country ? field('COUNTRY', q.country) : '',
       q.locator ? field('GRIDSQUARE', q.locator) : '',
       q.frequency ? field('FREQ', q.frequency.toFixed(3)) : '',
-      q.notes ? field('NOTES', q.notes) : '',
+      q.comment ? field('COMMENT', q.comment) : '',
       '<EOR>',
     ].filter(Boolean).join('')
     lines.push(rec)
@@ -57,6 +58,7 @@ function exportAdif(qsos: Qso[]) {
 export default function LogbookPage() {
   useRequireAuth()
   const { toast } = useToast()
+  const router = useRouter()
   const [qsos, setQsos] = useState<Qso[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -137,14 +139,18 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QRZ', '', ''].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QRZ', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {qsos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(q => (
-                    <tr key={q.id} className="hover:bg-gray-800/30 transition-colors">
+                    <tr
+                      key={q.id}
+                      className="hover:bg-gray-800/50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/logbook/${q.id}`)}
+                    >
                       <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{formatUtcDate(q.dateUtc)}</td>
                       <td className="px-4 py-3 font-mono text-gray-300">{q.ownCallsign}</td>
                       <td className="px-4 py-3 font-mono font-bold text-white">{q.workedCallsign}</td>
@@ -157,10 +163,7 @@ export default function LogbookPage() {
                           <span className="text-xs text-green-400 font-medium">QRZ ✓</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/logbook/${q.id}`} className="text-blue-400 hover:text-blue-300 text-xs">Rediger</Link>
-                      </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
                       </td>
                     </tr>

@@ -110,6 +110,70 @@ export const api = {
     dashboard: () => request<import('./types').DashboardStats>('/api/admin/dashboard'),
     stats: () => request<import('./types').DashboardStats>('/api/admin/stats'),
   },
+  listings: {
+    getAll: (category?: number, search?: string) => {
+      const params = new URLSearchParams()
+      if (category) params.set('category', String(category))
+      if (search) params.set('search', search)
+      const qs = params.toString()
+      return request<import('./types').Listing[]>(`/api/listings${qs ? `?${qs}` : ''}`)
+    },
+    getMine: () => request<import('./types').Listing[]>('/api/listings/my'),
+    getById: (id: number) => request<import('./types').Listing>(`/api/listings/${id}`),
+    create: (data: { title: string; description: string; price: number; currency: string; category: number; condition: number }) =>
+      request<import('./types').Listing>('/api/listings', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: { title: string; description: string; price: number; currency: string; category: number; condition: number }) =>
+      request<import('./types').Listing>(`/api/listings/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    markSold: (id: number) => request<void>(`/api/listings/${id}/sold`, { method: 'POST' }),
+    delete: (id: number) => request<void>(`/api/listings/${id}`, { method: 'DELETE' }),
+    uploadImage: async (id: number, file: File) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${API_URL}/api/listings/${id}/images`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      })
+      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+      return res.json() as Promise<{ id: number; url: string }>
+    },
+    deleteImage: (listingId: number, imageId: number) =>
+      request<void>(`/api/listings/${listingId}/images/${imageId}`, { method: 'DELETE' }),
+  },
+  messages: {
+    getInbox: () => request<import('./types').Message[]>('/api/messages/inbox'),
+    getSent: () => request<import('./types').Message[]>('/api/messages/sent'),
+    getUnreadCount: () => request<{ count: number }>('/api/messages/unread-count'),
+    getById: (id: number) => request<import('./types').Message>(`/api/messages/${id}`),
+    send: (data: { recipientId: string; subject: string; body: string }) =>
+      request<import('./types').Message>('/api/messages', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/api/messages/${id}`, { method: 'DELETE' }),
+  },
+  posts: {
+    getFeed: (page = 1) => request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(`/api/posts?page=${page}`),
+    getById: (id: number) => request<import('./types').Post>(`/api/posts/${id}`),
+    create: (content: string) => request<import('./types').Post>('/api/posts', { method: 'POST', body: JSON.stringify({ content }) }),
+    delete: (id: number) => request<void>(`/api/posts/${id}`, { method: 'DELETE' }),
+    toggleLike: (id: number) => request<{ liked: boolean }>(`/api/posts/${id}/like`, { method: 'POST' }),
+    getComments: (id: number) => request<import('./types').PostComment[]>(`/api/posts/${id}/comments`),
+    addComment: (id: number, content: string) =>
+      request<import('./types').PostComment>(`/api/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
+    deleteComment: (postId: number, commentId: number) =>
+      request<void>(`/api/posts/${postId}/comments/${commentId}`, { method: 'DELETE' }),
+    uploadImage: async (postId: number, file: File) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${API_URL}/api/posts/${postId}/images`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      })
+      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+      return res.json() as Promise<{ id: number; url: string }>
+    },
+  },
   qrz: {
     lookup: (callsign: string) =>
       request<import('./types').QrzCallsignInfo>(`/api/qrz/lookup?callsign=${encodeURIComponent(callsign)}`),
@@ -119,5 +183,7 @@ export const api = {
       request<void>('/api/qrz/sync', { method: 'POST' }),
     saveKey: (apiKey: string) =>
       request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
+    saveCredentials: (username: string, password: string) =>
+      request<{ username: string }>('/api/users/me/qrz-credentials', { method: 'PUT', body: JSON.stringify({ username, password }) }),
   },
 }

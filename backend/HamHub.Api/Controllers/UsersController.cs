@@ -21,6 +21,7 @@ public class UsersController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
     private readonly IDataProtector _protector;
+    private readonly IDataProtector _xmlProtector;
     private readonly QrzClient _qrzClient;
 
     public UsersController(
@@ -34,6 +35,7 @@ public class UsersController : ControllerBase
         _context = context;
         _mapper = mapper;
         _protector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _xmlProtector = dataProtectionProvider.CreateProtector("QrzXmlPassword");
         _qrzClient = qrzClient;
     }
 
@@ -95,6 +97,38 @@ public class UsersController : ControllerBase
         return Ok(_mapper.Map<UserDto>(user));
     }
 
+    [HttpPut("me/qrz-credentials")]
+    [Authorize]
+    public async Task<IActionResult> SaveQrzCredentials([FromBody] SaveQrzCredentialsDto dto, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest("Brugernavn og adgangskode er påkrævet");
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        // Verify credentials against QRZ XML API
+        try
+        {
+            await _qrzClient.GetSessionKeyAsync(dto.Username.Trim(), dto.Password, ct);
+        }
+        catch (QrzApiException ex)
+        {
+            return BadRequest($"QRZ XML fejl: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            return BadRequest("Kunne ikke forbinde til QRZ. Kontroller brugernavn og adgangskode.");
+        }
+
+        user.QrzUsername = dto.Username.Trim();
+        user.QrzXmlPassword = _xmlProtector.Protect(dto.Password);
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { username = user.QrzUsername });
+    }
+
     [HttpPut("me/qrz-key")]
     [Authorize]
     public async Task<IActionResult> SaveQrzKey([FromBody] SaveQrzKeyDto dto, CancellationToken ct)
@@ -107,23 +141,18 @@ public class UsersController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null) return NotFound();
 
-        // Verify key by doing a test lookup with the user's own callsign
-        if (!string.IsNullOrWhiteSpace(user.Callsign))
+        // Verify key against the QRZ Logbook API (the key format is a logbook key, not an XML session key)
+        try
         {
-            try
-            {
-                var result = await _qrzClient.LookupCallsignAsync(user.Callsign, dto.ApiKey!, ct);
-                if (result == null)
-                    return BadRequest($"API nøglen er gyldig men kaldesignalet {user.Callsign} blev ikke fundet på QRZ");
-            }
-            catch (QrzApiException ex)
-            {
-                return BadRequest($"QRZ API fejl: {ex.Message}");
-            }
-            catch (Exception)
-            {
-                return BadRequest("Kunne ikke forbinde til QRZ. Kontroller API nøglen.");
-            }
+            await _qrzClient.FetchLogAsync(dto.ApiKey!, ct);
+        }
+        catch (QrzApiException ex)
+        {
+            return BadRequest($"QRZ API fejl: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            return BadRequest("Kunne ikke forbinde til QRZ. Kontroller API nøglen.");
         }
 
         user.QrzApiKey = _protector.Protect(dto.ApiKey!);
@@ -134,3 +163,4 @@ public class UsersController : ControllerBase
 }
 
 public record SaveQrzKeyDto(string? ApiKey);
+public record SaveQrzCredentialsDto(string? Username, string? Password);

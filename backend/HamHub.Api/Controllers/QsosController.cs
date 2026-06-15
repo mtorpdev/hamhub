@@ -78,9 +78,18 @@ public class QsosController : ControllerBase
         qso.Mode = dto.Mode;
         qso.RstSent = dto.RstSent;
         qso.RstReceived = dto.RstReceived;
+        qso.Submode = dto.Submode;
         qso.Locator = dto.Locator;
+        qso.MyGridsquare = dto.MyGridsquare;
         qso.Country = dto.Country;
-        qso.Notes = dto.Notes;
+        qso.Dxcc = dto.Dxcc;
+        qso.Continent = dto.Continent;
+        qso.State = dto.State;
+        qso.Iota = dto.Iota;
+        qso.Name = dto.Name;
+        qso.Qth = dto.Qth;
+        qso.TxPower = dto.TxPower;
+        qso.Comment = dto.Comment;
         qso.UpdatedAt = DateTime.UtcNow;
         // Clear QrzId so the sync service re-uploads the edited record to QRZ as a new entry.
         qso.QrzId = null;
@@ -164,9 +173,19 @@ public class QsosController : ControllerBase
                     System.Globalization.CultureInfo.InvariantCulture, out var freq) ? freq : null,
                 RstSent = GetField(rec, "RST_SENT"),
                 RstReceived = GetField(rec, "RST_RCVD"),
+                Submode = GetField(rec, "SUBMODE"),
                 Country = GetField(rec, "COUNTRY"),
+                Dxcc = int.TryParse(GetField(rec, "DXCC"), out var dxcc) ? dxcc : null,
+                Continent = GetField(rec, "CONT"),
+                State = GetField(rec, "STATE"),
+                Iota = GetField(rec, "IOTA"),
+                Name = GetField(rec, "NAME"),
+                Qth = GetField(rec, "QTH"),
+                TxPower = double.TryParse(GetField(rec, "TX_PWR"), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var pwr) ? pwr : null,
                 Locator = GetField(rec, "GRIDSQUARE"),
-                Notes = GetField(rec, "NOTES"),
+                MyGridsquare = GetField(rec, "MY_GRIDSQUARE"),
+                Comment = GetField(rec, "COMMENT") ?? GetField(rec, "NOTES"),
             };
             _context.QsoEntries.Add(qso);
             imported++;
@@ -215,12 +234,22 @@ public class QsosController : ControllerBase
             lines.Append(F("MODE", modeAdif[q.Mode]));
             lines.Append(F("QSO_DATE", q.DateUtc.ToString("yyyyMMdd")));
             lines.Append(F("TIME_ON", q.DateUtc.ToString("HHmm")));
+            if (!string.IsNullOrEmpty(q.OwnCallsign)) lines.Append(F("STATION_CALLSIGN", q.OwnCallsign));
+            if (!string.IsNullOrEmpty(q.Submode)) lines.Append(F("SUBMODE", q.Submode));
+            if (q.Frequency.HasValue) lines.Append(F("FREQ", q.Frequency.Value.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)));
             if (!string.IsNullOrEmpty(q.RstSent)) lines.Append(F("RST_SENT", q.RstSent));
             if (!string.IsNullOrEmpty(q.RstReceived)) lines.Append(F("RST_RCVD", q.RstReceived));
+            if (!string.IsNullOrEmpty(q.Name)) lines.Append(F("NAME", q.Name));
+            if (!string.IsNullOrEmpty(q.Qth)) lines.Append(F("QTH", q.Qth));
             if (!string.IsNullOrEmpty(q.Country)) lines.Append(F("COUNTRY", q.Country));
+            if (q.Dxcc.HasValue) lines.Append(F("DXCC", q.Dxcc.Value.ToString()));
+            if (!string.IsNullOrEmpty(q.Continent)) lines.Append(F("CONT", q.Continent));
+            if (!string.IsNullOrEmpty(q.State)) lines.Append(F("STATE", q.State));
+            if (!string.IsNullOrEmpty(q.Iota)) lines.Append(F("IOTA", q.Iota));
             if (!string.IsNullOrEmpty(q.Locator)) lines.Append(F("GRIDSQUARE", q.Locator));
-            if (q.Frequency.HasValue) lines.Append(F("FREQ", q.Frequency.Value.ToString("F3")));
-            if (!string.IsNullOrEmpty(q.Notes)) lines.Append(F("NOTES", q.Notes));
+            if (!string.IsNullOrEmpty(q.MyGridsquare)) lines.Append(F("MY_GRIDSQUARE", q.MyGridsquare));
+            if (q.TxPower.HasValue) lines.Append(F("TX_PWR", q.TxPower.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)));
+            if (!string.IsNullOrEmpty(q.Comment)) lines.Append(F("COMMENT", q.Comment));
             lines.AppendLine("<EOR>");
         }
 

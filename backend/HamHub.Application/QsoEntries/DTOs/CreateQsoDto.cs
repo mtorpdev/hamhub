@@ -12,7 +12,16 @@ public record CreateQsoDto(
     [Required] Mode Mode,
     string? RstSent,
     string? RstReceived,
+    string? Submode,
     string? Locator,
+    string? MyGridsquare,
     string? Country,
-    string? Notes
+    int? Dxcc,
+    string? Continent,
+    string? State,
+    string? Iota,
+    string? Name,
+    string? Qth,
+    double? TxPower,
+    string? Comment
 );

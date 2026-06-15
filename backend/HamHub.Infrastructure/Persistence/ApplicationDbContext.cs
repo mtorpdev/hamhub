@@ -15,10 +15,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ArticleCategory> ArticleCategories => Set<ArticleCategory>();
     public DbSet<ArticleComment> ArticleComments => Set<ArticleComment>();
     public DbSet<WsjtxDecode> WsjtxDecodes => Set<WsjtxDecode>();
+    public DbSet<Listing> Listings => Set<Listing>();
+    public DbSet<ListingImage> ListingImages => Set<ListingImage>();
+    public DbSet<Message> Messages => Set<Message>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostImage> PostImages => Set<PostImage>();
+    public DbSet<PostLike> PostLikes => Set<PostLike>();
+    public DbSet<PostComment> PostComments => Set<PostComment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        // Composite PK for PostLike (no surrogate key)
+        builder.Entity<PostLike>().HasKey(pl => new { pl.PostId, pl.UserId });
     }
 }

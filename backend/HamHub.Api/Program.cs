@@ -104,9 +104,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors();
 app.UseRateLimiter();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Ensure upload directories exist
+var uploadsRoot = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads");
+Directory.CreateDirectory(Path.Combine(uploadsRoot, "listings"));
+Directory.CreateDirectory(Path.Combine(uploadsRoot, "posts"));
 
 using (var scope = app.Services.CreateScope())
 {

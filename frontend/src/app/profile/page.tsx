@@ -19,6 +19,9 @@ export default function ProfilePage() {
   const [qrzStatus, setQrzStatus] = useState<QrzStatus | null>(null)
   const [qrzLoading, setQrzLoading] = useState(false)
   const [qrzSyncing, setQrzSyncing] = useState(false)
+  const [qrzXmlUsername, setQrzXmlUsername] = useState('')
+  const [qrzXmlPassword, setQrzXmlPassword] = useState('')
+  const [qrzXmlLoading, setQrzXmlLoading] = useState(false)
 
   useEffect(() => {
     if (user) setForm({
@@ -61,6 +64,24 @@ export default function ProfilePage() {
       toast(err instanceof Error ? err.message : 'Kunne ikke gemme QRZ nøgle', 'error')
     } finally {
       setQrzLoading(false)
+    }
+  }
+
+  const handleSaveQrzCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!qrzXmlUsername.trim() || !qrzXmlPassword) return
+    setQrzXmlLoading(true)
+    try {
+      await api.qrz.saveCredentials(qrzXmlUsername.trim(), qrzXmlPassword)
+      toast('QRZ brugernavn og adgangskode gemt og verificeret!')
+      setQrzXmlUsername('')
+      setQrzXmlPassword('')
+      const status = await api.qrz.status()
+      setQrzStatus(status)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke gemme QRZ credentials', 'error')
+    } finally {
+      setQrzXmlLoading(false)
     }
   }
 
@@ -146,6 +167,39 @@ export default function ProfilePage() {
             />
             <Button type="submit" disabled={qrzLoading || !qrzKey.trim()}>
               {qrzLoading ? 'Verificerer...' : 'Gem og verificer'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>QRZ Kaldesignals-opslag</CardTitle></CardHeader>
+        <CardContent>
+          {qrzStatus?.xmlConnected ? (
+            <p className="text-green-400 text-sm mb-3">
+              Tilsluttet som {qrzStatus.qrzUsername}
+            </p>
+          ) : (
+            <p className="text-gray-400 text-sm mb-3">
+              Ikke tilsluttet — indtast dine QRZ.com login-oplysninger for at aktivere kaldesignals-opslag.
+            </p>
+          )}
+          <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
+            <Input
+              label="QRZ brugernavn"
+              value={qrzXmlUsername}
+              onChange={e => setQrzXmlUsername(e.target.value)}
+              placeholder={qrzStatus?.qrzUsername ?? 'OZ1ABC'}
+              autoComplete="username"
+            />
+            <Input
+              label="QRZ adgangskode"
+              type="password"
+              value={qrzXmlPassword}
+              onChange={e => setQrzXmlPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
+              {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
             </Button>
           </form>
         </CardContent>

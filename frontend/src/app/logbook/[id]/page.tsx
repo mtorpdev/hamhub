@@ -17,7 +17,10 @@ export default function EditQsoPage() {
   const [form, setForm] = useState({
     dateUtc: '', ownCallsign: '', workedCallsign: '',
     band: Band.M20, frequency: '', mode: Mode.SSB,
-    rstSent: '', rstReceived: '', locator: '', country: '', notes: ''
+    rstSent: '', rstReceived: '',
+    submode: '', locator: '', myGridsquare: '',
+    country: '', dxcc: '', continent: '', state: '', iota: '',
+    name: '', qth: '', txPower: '', comment: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -35,9 +38,18 @@ export default function EditQsoPage() {
         mode: q.mode,
         rstSent: q.rstSent ?? '',
         rstReceived: q.rstReceived ?? '',
+        submode: q.submode ?? '',
         locator: q.locator ?? '',
+        myGridsquare: q.myGridsquare ?? '',
         country: q.country ?? '',
-        notes: q.notes ?? '',
+        dxcc: q.dxcc?.toString() ?? '',
+        continent: q.continent ?? '',
+        state: q.state ?? '',
+        iota: q.iota ?? '',
+        name: q.name ?? '',
+        qth: q.qth ?? '',
+        txPower: q.txPower?.toString() ?? '',
+        comment: q.comment ?? '',
       })
     }).catch(() => router.replace('/logbook')).finally(() => setLoading(false))
   }, [id, router])
@@ -54,6 +66,8 @@ export default function EditQsoPage() {
         ...form,
         dateUtc: new Date(form.dateUtc).toISOString(),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
+        dxcc: form.dxcc ? parseInt(form.dxcc) : undefined,
+        txPower: form.txPower ? parseFloat(form.txPower) : undefined,
       })
       toast('QSO gemt!')
       router.push('/logbook')
@@ -64,20 +78,23 @@ export default function EditQsoPage() {
     }
   }
 
-  if (loading) return <div className="max-w-2xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-3xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Rediger QSO</h1>
       <Card>
         <CardContent className="py-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
             <div className="grid grid-cols-2 gap-3">
               <Input label="Dato/tid UTC *" type="datetime-local" value={form.dateUtc} onChange={set('dateUtc')} required />
               <Input label="Eget kaldesignal *" value={form.ownCallsign} onChange={set('ownCallsign')} required />
             </div>
+
             <Input label="Kontaktens kaldesignal *" value={form.workedCallsign} onChange={set('workedCallsign')} required />
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-300">Band</label>
                 <select value={form.band} onChange={set('band')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
@@ -90,20 +107,52 @@ export default function EditQsoPage() {
                   {Object.entries(ModeLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
+              <Input label="Submode" value={form.submode} onChange={set('submode')} placeholder="USB, LSB, JT65..." />
             </div>
+
             <div className="grid grid-cols-3 gap-3">
               <Input label="Frekvens (MHz)" type="number" step="0.001" value={form.frequency} onChange={set('frequency')} />
               <Input label="RST Sendt" value={form.rstSent} onChange={set('rstSent')} />
               <Input label="RST Modtaget" value={form.rstReceived} onChange={set('rstReceived')} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
-              <Input label="Land" value={form.country} onChange={set('country')} />
+
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Lokation</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Kontaktens Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
+                <Input label="Mit Grid Locator" value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
+              </div>
             </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">DX-info</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Land" value={form.country} onChange={set('country')} />
+                <Input label="DXCC" type="number" value={form.dxcc} onChange={set('dxcc')} placeholder="291" />
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <Input label="Kontinent" value={form.continent} onChange={set('continent')} placeholder="EU" />
+                <Input label="Stat/Provins" value={form.state} onChange={set('state')} placeholder="CA" />
+                <Input label="IOTA" value={form.iota} onChange={set('iota')} placeholder="EU-030" />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Operatøroplysninger</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Navn" value={form.name} onChange={set('name')} />
+                <Input label="QTH" value={form.qth} onChange={set('qth')} />
+              </div>
+              <div className="mt-3">
+                <Input label="TX Effekt (W)" type="number" step="0.1" value={form.txPower} onChange={set('txPower')} />
+              </div>
+            </div>
+
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Noter</label>
-              <textarea rows={2} value={form.notes} onChange={set('notes')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
+              <label className="text-sm font-medium text-gray-300">Kommentar</label>
+              <textarea rows={2} value={form.comment} onChange={set('comment')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
             </div>
+
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3">
               <Button type="submit" disabled={saving}>{saving ? 'Gemmer...' : 'Gem ændringer'}</Button>

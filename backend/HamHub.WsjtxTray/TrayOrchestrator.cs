@@ -185,7 +185,7 @@ public class TrayOrchestrator : IDisposable
                 DeltaTime: decode.DeltaTime,
                 DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
-                Mode: decode.Mode,
+                Mode: string.IsNullOrWhiteSpace(status.Mode) ? decode.Mode : status.Mode,
                 DecodedAt: DateTime.UtcNow
             ));
             _logBuffer.Add($"[DECODE] {decode.Message} SNR={decode.Snr}");
