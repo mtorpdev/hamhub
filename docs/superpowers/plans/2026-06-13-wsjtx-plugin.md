@@ -499,7 +499,7 @@ Start the backend:
 cd D:/hamhub/backend
 dotnet run --project HamHub.Api &
 sleep 3
-curl -N http://localhost:5000/api/wsjtx/stream
+curl -N https://api.hamhub.dk/api/wsjtx/stream
 ```
 
 Expected: Response with `Content-Type: text/event-stream`, then `: ping` every 30 s. Press Ctrl+C to stop.
@@ -550,7 +550,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import type { WsjtxDecodeItem } from '@/lib/types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const MAX_ROWS = 200
 
 function snrColor(snr: number) {
@@ -1414,7 +1414,7 @@ dotnet add package Serilog.Sinks.File
 ```json
 {
   "HamHub": {
-    "ServerUrl": "https://hamhub.example.com",
+    "ServerUrl": "https://api.hamhub.dk",
     "Username": "user@email.com",
     "Password": "secret",
     "UdpPort": 2237,
@@ -2210,7 +2210,7 @@ Create a test `appsettings.json` override for local testing:
 ```json
 {
   "HamHub": {
-    "ServerUrl": "http://localhost:5000",
+    "ServerUrl": "https://api.hamhub.dk",
     "Username": "your-test@email.com",
     "Password": "yourpassword",
     "UdpPort": 2237,

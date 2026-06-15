@@ -2,7 +2,9 @@ namespace HamHub.WsjtxCore.Models;
 
 public class HamHubConfig
 {
-    public string ServerUrl { get; set; } = string.Empty;
+    public const string DefaultServerUrl = "https://api.hamhub.dk";
+
+    public string ServerUrl { get; set; } = DefaultServerUrl;
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public int UdpPort { get; set; } = 2237;
