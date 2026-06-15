@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [recentQsos, setRecentQsos] = useState<Qso[]>([])
   const [recentSpots, setRecentSpots] = useState<DxSpot[]>([])
   const [livePropagation, setLivePropagation] = useState<QsoMufFof2 | null>(null)
+  const [livePropagationTab, setLivePropagationTab] = useState<'summary' | 'website'>('summary')
 
   useEffect(() => {
     api.qsos.getMine().then(q => setRecentQsos(q.slice(0, 5))).catch(() => {})
@@ -59,8 +60,46 @@ export default function DashboardPage() {
           )}
         </CardHeader>
         <CardContent>
+          <div className="mb-4 inline-flex rounded-md border border-gray-700 bg-gray-950/60 p-1">
+            {[
+              { id: 'summary', label: 'Oversigt' },
+              { id: 'website', label: 'Website' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setLivePropagationTab(tab.id as typeof livePropagationTab)}
+                className={`rounded px-3 py-1.5 text-sm transition-colors ${
+                  livePropagationTab === tab.id
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {!livePropagation ? (
             <p className="text-sm text-gray-500">Henter live MUF/foF2...</p>
+          ) : livePropagationTab === 'website' ? (
+            <div className="flex flex-col gap-3">
+              <div className="overflow-hidden rounded-lg border border-gray-800 bg-gray-950">
+                <iframe
+                  title="KC2G live propagation"
+                  src={livePropagation.sourceUrl}
+                  className="h-[520px] w-full bg-white"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Hvis siden ikke vises i rammen, kan den åbnes direkte hos{' '}
+                <a className="text-blue-400 underline" href={livePropagation.sourceUrl} target="_blank" rel="noreferrer">
+                  KC2G
+                </a>.
+              </p>
+            </div>
           ) : (
             <div className="flex flex-col gap-4">
               <div>
