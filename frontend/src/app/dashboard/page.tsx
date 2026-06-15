@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const [recentQsos, setRecentQsos] = useState<Qso[]>([])
   const [recentSpots, setRecentSpots] = useState<DxSpot[]>([])
   const [livePropagation, setLivePropagation] = useState<QsoMufFof2 | null>(null)
-  const [livePropagationTab, setLivePropagationTab] = useState<'summary' | 'website'>('summary')
+  const [livePropagationTab, setLivePropagationTab] = useState<'summary' | 'website' | 'guide'>('summary')
 
   useEffect(() => {
     api.qsos.getMine().then(q => setRecentQsos(q.slice(0, 5))).catch(() => {})
@@ -64,6 +64,7 @@ export default function DashboardPage() {
             {[
               { id: 'summary', label: 'Oversigt' },
               { id: 'website', label: 'Website' },
+              { id: 'guide', label: 'Forklaring' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -99,6 +100,49 @@ export default function DashboardPage() {
                   KC2G
                 </a>.
               </p>
+            </div>
+          ) : livePropagationTab === 'guide' ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {[
+                {
+                  title: 'MUF(3000)',
+                  text: 'Maximum Usable Frequency for en cirka 3000 km radiovej. Hvis MUF er over et bånds frekvens, er båndet mere sandsynligt brugbart via ionosfæren.',
+                },
+                {
+                  title: 'foF2',
+                  text: 'Den kritiske frekvens for F2-laget direkte over en ionosonde. Højere foF2 betyder typisk bedre mulighed for højere HF-bånd.',
+                },
+                {
+                  title: 'Kp',
+                  text: 'Global geomagnetisk uro fra 0 til 9. Lav Kp er roligt. Høj Kp kan give aurora, støj og dårligere polar/HF-forhold.',
+                },
+                {
+                  title: 'G / R / S',
+                  text: 'NOAA-skalaer for geomagnetiske storme, radio blackouts og solpartikelstorme. Højere tal betyder større risiko for forstyrrelser.',
+                },
+                {
+                  title: 'Solar flux / SFI',
+                  text: 'Et groft mål for solaktivitet ved 10,7 cm. Højere SFI kan løfte de højere HF-bånd, især 15m, 12m og 10m.',
+                },
+                {
+                  title: 'D-RAP',
+                  text: 'Viser mulig D-lags absorption. Det rammer især lavere HF-bånd og solbelyste ruter ved kraftig røntgenaktivitet.',
+                },
+              ].map(item => (
+                <div key={item.title} className="rounded-md border border-gray-800 bg-gray-950/40 p-4">
+                  <h3 className="text-sm font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-gray-400">{item.text}</p>
+                </div>
+              ))}
+
+              <div className="rounded-md border border-blue-900/60 bg-blue-950/20 p-4 lg:col-span-2">
+                <h3 className="text-sm font-semibold text-white">Sådan læser du widgetten</h3>
+                <p className="mt-2 text-sm leading-6 text-blue-100">
+                  Start med MUF(3000): ligger den over et bånd, er båndet værd at prøve. Kig derefter på Kp og D-RAP:
+                  høj uro eller absorption kan forklare, hvorfor et ellers lovende bånd ikke spiller. Brug tallene som
+                  en aktuel indikator, ikke som garanti.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
