@@ -94,7 +94,7 @@ export default function MarketplacePage() {
                 <CardContent className="py-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h2 className="text-white font-semibold line-clamp-2 group-hover:text-blue-400 transition-colors">{l.title}</h2>
-                    {l.isSold && <Badge variant="secondary">Solgt</Badge>}
+                    {l.isSold && <Badge variant="warning">Solgt</Badge>}
                   </div>
                   <p className="text-2xl font-bold text-green-400 mb-2">{l.price.toLocaleString('da-DK')} {l.currency}</p>
                   <div className="flex gap-2 flex-wrap">

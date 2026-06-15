@@ -59,6 +59,37 @@ public class HamHubApiClient
         await SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, "/api/qsos", body), ct);
     }
 
+    public async Task PostStatusAsync(WsjtxStatusDto status, CancellationToken ct = default)
+    {
+        await SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, "/api/wsjtx/status", status), ct);
+    }
+
+    public async Task<WsjtxAgentCommand?> GetNextCommandAsync(CancellationToken ct = default)
+    {
+        var res = await _http.SendAsync(BuildRequest(HttpMethod.Get, "/api/wsjtx/commands/next"), ct);
+        if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Got 401 while polling commands, re-logging in...");
+            await LoginAsync(ct);
+            res = await _http.SendAsync(BuildRequest(HttpMethod.Get, "/api/wsjtx/commands/next"), ct);
+        }
+        if (res.StatusCode == System.Net.HttpStatusCode.NoContent) return null;
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync(ct);
+            _logger.LogError("Command poll error {Status}: {Body}", (int)res.StatusCode, err);
+            return null;
+        }
+        return await res.Content.ReadFromJsonAsync<WsjtxAgentCommand>(ct);
+    }
+
+    public async Task CompleteCommandAsync(Guid id, WsjtxCommandType type, bool success, string message, CancellationToken ct = default)
+    {
+        await SendWithRetryAsync(
+            () => BuildRequest(HttpMethod.Post, $"/api/wsjtx/commands/{id}/result", new { type, success, message }),
+            ct);
+    }
+
     private HttpRequestMessage BuildRequest<T>(HttpMethod method, string path, T body)
     {
         var req = new HttpRequestMessage(method, path);
@@ -66,6 +97,15 @@ public class HamHubApiClient
             JsonSerializer.Serialize(body),
             Encoding.UTF8,
             "application/json");
+        if (_token != null)
+            req.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _token);
+        return req;
+    }
+
+    private HttpRequestMessage BuildRequest(HttpMethod method, string path)
+    {
+        var req = new HttpRequestMessage(method, path);
         if (_token != null)
             req.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _token);

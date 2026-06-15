@@ -1,4 +1,5 @@
 using System.Windows;
+using System.IO;
 using HamHub.WsjtxCore.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,9 +17,15 @@ public partial class App : Application
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "HamHub",
+            "logs");
+        Directory.CreateDirectory(logDir);
+
         Log.Logger = new LoggerConfiguration()
             .WriteTo.Console()
-            .WriteTo.File("logs/wsjtx-tray-.log", rollingInterval: Serilog.RollingInterval.Day)
+            .WriteTo.File(Path.Combine(logDir, "wsjtx-tray-.log"), rollingInterval: Serilog.RollingInterval.Day)
             .CreateLogger();
 
         _host = Host.CreateDefaultBuilder()

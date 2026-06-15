@@ -42,14 +42,22 @@ public class ParsedQsoLogged
     public string? AdifPropMode { get; set; }
 }
 
+public class ParsedStatus
+{
+    public string Id { get; set; } = string.Empty;
+    public StatusEntry Entry { get; set; } = new();
+}
+
 public class MessageParser
 {
     private const uint Magic = 0xADBCCBDA;
     private readonly ILogger<MessageParser> _logger;
     private readonly StatusCache _statusCache;
+    private readonly Dictionary<string, (bool TxEnabled, bool Transmitting, bool TxWatchdog, string DxCall)> _lastLoggedStatus = new();
 
     public event EventHandler<ParsedDecode>? DecodeReceived;
     public event EventHandler<ParsedQsoLogged>? QsoLoggedReceived;
+    public event EventHandler<ParsedStatus>? StatusReceived;
 
     public MessageParser(ILogger<MessageParser> logger, StatusCache statusCache)
     {
@@ -92,22 +100,51 @@ public class MessageParser
         // tx_enabled, transmitting, decoding, rx_df, tx_df, de_call, …
         var dialFreq = ReadUInt64(span, ref pos);
         var mode = ReadString(span, ref pos);
-        ReadString(span, ref pos);  // dx_call (skip)
+        var dxCall = ReadString(span, ref pos);
         ReadString(span, ref pos);  // report (skip)
         ReadString(span, ref pos);  // tx_mode (skip)
-        ReadBool(span, ref pos);    // tx_enabled (skip)
-        ReadBool(span, ref pos);    // transmitting (skip)
-        ReadBool(span, ref pos);    // decoding (skip)
-        ReadUInt32(span, ref pos);  // rx_df (skip)
-        ReadUInt32(span, ref pos);  // tx_df (skip)
+        var txEnabled = ReadBool(span, ref pos);
+        var transmitting = ReadBool(span, ref pos);
+        var decoding = ReadBool(span, ref pos);
+        var rxDf = ReadInt32(span, ref pos);
+        var txDf = ReadInt32(span, ref pos);
         var deCall = ReadString(span, ref pos); // spotter callsign
+        var deGrid = pos < span.Length ? ReadString(span, ref pos) : string.Empty; // spotter grid
+        var dxGrid = pos < span.Length ? ReadString(span, ref pos) : string.Empty;
+        var txWatchdog = pos < span.Length && ReadBool(span, ref pos);
 
-        _statusCache.Update(id, new StatusEntry
+        var entry = new StatusEntry
         {
             DialFreqHz = dialFreq,
             Mode = mode,
-            DeCall = deCall
-        });
+            DeCall = deCall,
+            DeGrid = deGrid,
+            TxEnabled = txEnabled,
+            Transmitting = transmitting,
+            Decoding = decoding,
+            RxDf = rxDf,
+            TxDf = txDf,
+            DxCall = dxCall,
+            DxGrid = dxGrid,
+            TxWatchdog = txWatchdog
+        };
+        _statusCache.Update(id, entry);
+
+        var key = (entry.TxEnabled, entry.Transmitting, entry.TxWatchdog, entry.DxCall);
+        if (!_lastLoggedStatus.TryGetValue(id, out var previous) || previous != key)
+        {
+            _lastLoggedStatus[id] = key;
+            _logger.LogInformation(
+                "WSJT-X status changed: Id={Id} DxCall={DxCall} TxEnabled={TxEnabled} Transmitting={Transmitting} TxWatchdog={TxWatchdog} RxDf={RxDf} TxDf={TxDf}",
+                id,
+                entry.DxCall,
+                entry.TxEnabled,
+                entry.Transmitting,
+                entry.TxWatchdog,
+                entry.RxDf,
+                entry.TxDf);
+            StatusReceived?.Invoke(this, new ParsedStatus { Id = id, Entry = entry });
+        }
     }
 
     private void ParseDecode(ReadOnlySpan<byte> span, ref int pos, string id, uint schema)

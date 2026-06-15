@@ -12,6 +12,7 @@ public class UdpListener : IDisposable
     private UdpClient? _udp;
 
     public event EventHandler<byte[]>? MessageReceived;
+    public event EventHandler<UdpDatagramReceivedEventArgs>? DatagramReceived;
 
     public UdpListener(HamHubConfig config, ILogger<UdpListener> logger)
     {
@@ -23,6 +24,7 @@ public class UdpListener : IDisposable
     {
         _udp?.Dispose();  // Dispose previous socket if restarting
         _udp = new UdpClient();
+        _udp.Client.ExclusiveAddressUse = false;
         _udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _udp.Client.Bind(new IPEndPoint(IPAddress.Any, _config.UdpPort));
 
@@ -43,6 +45,7 @@ public class UdpListener : IDisposable
             try
             {
                 var result = await _udp!.ReceiveAsync(ct);
+                DatagramReceived?.Invoke(this, new UdpDatagramReceivedEventArgs(result.Buffer, result.RemoteEndPoint));
                 MessageReceived?.Invoke(this, result.Buffer);
             }
             catch (OperationCanceledException) { break; }
@@ -55,3 +58,5 @@ public class UdpListener : IDisposable
 
     public void Dispose() => _udp?.Dispose();
 }
+
+public record UdpDatagramReceivedEventArgs(byte[] Data, IPEndPoint RemoteEndPoint);

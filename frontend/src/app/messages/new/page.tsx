@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -9,6 +9,14 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
 export default function NewMessagePage() {
+  return (
+    <Suspense fallback={null}>
+      <NewMessageContent />
+    </Suspense>
+  )
+}
+
+function NewMessageContent() {
   useRequireAuth()
   const router = useRouter()
   const searchParams = useSearchParams()

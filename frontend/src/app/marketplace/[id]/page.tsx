@@ -94,7 +94,7 @@ export default function ListingPage() {
         <div className="flex flex-col gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              {listing.isSold && <Badge variant="secondary">Solgt</Badge>}
+              {listing.isSold && <Badge variant="warning">Solgt</Badge>}
               <Badge variant="info">{listing.categoryName}</Badge>
               <Badge>{listing.conditionName}</Badge>
             </div>

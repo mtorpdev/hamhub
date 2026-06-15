@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus, type QsoMufStation } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
@@ -249,7 +249,7 @@ export default function EditQsoPage() {
     return 'info'
   }
 
-  const stationRows = conditions
+  const stationRows: Array<[string, QsoMufStation | null]> = conditions
     ? [
         ['Min station', conditions.propagation.mufFof2.ownNearestStation],
         ['Midtpunkt', conditions.propagation.mufFof2.midpointNearestStation],

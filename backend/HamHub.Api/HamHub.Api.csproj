@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HamHub.Infrastructure\HamHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\HamHub.WsjtxCore\HamHub.WsjtxCore.csproj" />
   </ItemGroup>
 
 </Project>

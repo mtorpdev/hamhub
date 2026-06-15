@@ -8,6 +8,7 @@ using Hardcodet.Wpf.TaskbarNotification;
 using HamHub.WsjtxCore;
 using HamHub.WsjtxCore.Models;
 using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace HamHub.WsjtxTray;
 
@@ -23,6 +24,7 @@ public class TrayOrchestrator : IDisposable
     private DecodeBuffer? _decodeBuffer;
     private MessageParser? _parser;
     private StatusCache? _statusCache;
+    private WsjtxCommandSender? _commandSender;
     private readonly LogBuffer _logBuffer = new();
     private CancellationTokenSource _cts = new();
     private ConnectionState _state = ConnectionState.Disconnected;
@@ -37,6 +39,15 @@ public class TrayOrchestrator : IDisposable
         UpdateIcon(ConnectionState.Disconnected);
         BuildContextMenu();
         _runTask = StartAsync(_cts.Token);
+        _ = _runTask.ContinueWith(t =>
+        {
+            var ex = t.Exception?.GetBaseException();
+            if (ex != null)
+            {
+                _logBuffer.Add($"[ERROR] Agent stopped: {ex.Message}");
+                Log.Error(ex, "Tray agent stopped unexpectedly");
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private void BuildContextMenu()
@@ -117,7 +128,7 @@ public class TrayOrchestrator : IDisposable
 
     private async Task StartAsync(CancellationToken ct)
     {
-        using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+        using var loggerFactory = LoggerFactory.Create(b => b.AddConsole().AddSerilog());
 
         // Login with retry — one HttpClient for the entire retry loop
         _httpClient = new HttpClient();
@@ -154,6 +165,8 @@ public class TrayOrchestrator : IDisposable
             loggerFactory.CreateLogger<UdpListener>());
         _parser = new MessageParser(
             loggerFactory.CreateLogger<MessageParser>(), _statusCache);
+        _commandSender = new WsjtxCommandSender(_config,
+            loggerFactory.CreateLogger<WsjtxCommandSender>());
 
         _parser.DecodeReceived += (_, decode) =>
         {
@@ -177,7 +190,10 @@ public class TrayOrchestrator : IDisposable
             }
 
             _decodeBuffer.Enqueue(new WsjtxDecodeDto(
+                WsjtxId: decode.Id,
+                WsjtxTimeMs: decode.TimeMs,
                 SpotterCallsign: status.DeCall,
+                SpotterGrid: status.DeGrid,
                 Message: decode.Message,
                 DxCallsign: dxCall,
                 DxGrid: dxGrid,
@@ -186,6 +202,7 @@ public class TrayOrchestrator : IDisposable
                 DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
                 Mode: string.IsNullOrWhiteSpace(status.Mode) ? decode.Mode : status.Mode,
+                LowConfidence: decode.LowConfidence,
                 DecodedAt: DateTime.UtcNow
             ));
             _logBuffer.Add($"[DECODE] {decode.Message} SNR={decode.Snr}");
@@ -225,9 +242,84 @@ public class TrayOrchestrator : IDisposable
             }
         }, CancellationToken.None);
 
-        _udpListener.MessageReceived += (_, data) => _parser.Parse(data);
-        _decodeBuffer.Start(ct);
-        _udpListener.Start(ct);
+        _udpListener.DatagramReceived += (_, datagram) =>
+        {
+            _commandSender.SetTarget(datagram.RemoteEndPoint);
+            _parser.Parse(datagram.Data);
+        };
+        try
+        {
+            _decodeBuffer.Start(ct);
+            _udpListener.Start(ct);
+            _logBuffer.Add($"[UDP] Listening on port {_config.UdpPort}");
+            _ = Task.Run(() => PollCommandsAsync(_statusCache, _commandSender, ct), CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logBuffer.Add($"[ERROR] WSJT-X listener failed: {ex.Message}");
+            Application.Current.Dispatcher.Invoke(
+                () => UpdateIcon(ConnectionState.Error));
+        }
+    }
+
+    private async Task PollCommandsAsync(StatusCache statusCache, WsjtxCommandSender commandSender, CancellationToken ct)
+    {
+        if (_apiClient == null) return;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (!ct.IsCancellationRequested && await timer.WaitForNextTickAsync(ct))
+        {
+            WsjtxAgentCommand? command;
+            try
+            {
+                command = await _apiClient.GetNextCommandAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logBuffer.Add($"[ERROR] Command poll failed: {ex.Message}");
+                continue;
+            }
+            if (command is null) continue;
+
+            var success = false;
+            var message = string.Empty;
+            try
+            {
+                switch (command.Type)
+                {
+                    case WsjtxCommandType.Reply when command.Reply is not null:
+                        await commandSender.SendReplyAsync(command.Reply, ct);
+                        success = true;
+                        message = "Reply sendt til WSJT-X.";
+                        break;
+                    case WsjtxCommandType.StartCq:
+                        if (!statusCache.TryGetLatest(out var wsjtxId, out _))
+                        {
+                            message = "WSJT-X har ikke sendt status endnu.";
+                            break;
+                        }
+                        if (string.IsNullOrWhiteSpace(command.CqCallsign))
+                        {
+                            message = "Mangler kaldesignal til CQ.";
+                            break;
+                        }
+                        await commandSender.SendStartCqAsync(wsjtxId, command.CqCallsign, ct);
+                        success = true;
+                        message = "CQ sendt til WSJT-X.";
+                        break;
+                    default:
+                        message = "Ukendt WSJT-X kommando.";
+                        break;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                message = ex.Message;
+                _logBuffer.Add($"[ERROR] Command failed: {ex.Message}");
+            }
+
+            await _apiClient.CompleteCommandAsync(command.Id, command.Type, success, message, ct);
+            _logBuffer.Add($"[COMMAND] {message}");
+        }
     }
 
     private async Task RestartAsync()

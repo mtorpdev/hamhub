@@ -1,5 +1,12 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
+function wsjtxReplyMode(mode: string) {
+  const normalized = mode.toUpperCase()
+  if (normalized === 'FT8') return '~'
+  if (normalized === 'FT4') return '+'
+  return mode
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const headers: Record<string, string> = {
@@ -188,6 +195,32 @@ export const api = {
       request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
     saveCredentials: (username: string, password: string) =>
       request<{ username: string }>('/api/users/me/qrz-credentials', { method: 'PUT', body: JSON.stringify({ username, password }) }),
+  },
+  wsjtx: {
+    getRecentDecodes: (limit = 200) =>
+      request<import('./types').WsjtxDecodeItem[]>(`/api/wsjtx/decodes?limit=${limit}`),
+    callDecode: (decode: import('./types').WsjtxDecodeItem) =>
+      request<{ id: string; type: string }>('/api/wsjtx/commands/reply', {
+        method: 'POST',
+        body: JSON.stringify({
+          wsjtxId: decode.wsjtxId,
+          timeMs: decode.wsjtxTimeMs,
+          snr: decode.snr,
+          deltaTime: decode.deltaTime,
+          deltaFreqHz: decode.deltaFreqHz,
+          mode: wsjtxReplyMode(decode.mode),
+          message: decode.message,
+          lowConfidence: decode.lowConfidence,
+        }),
+      }),
+    startCq: () =>
+      request<{ id: string; type: string }>('/api/wsjtx/commands/cq', { method: 'POST' }),
+    stopTx: () =>
+      request<{ id: string; type: string }>('/api/wsjtx/commands/stop', { method: 'POST' }),
+    getCommandResults: () =>
+      request<import('./types').WsjtxCommandResult[]>('/api/wsjtx/commands/results'),
+    getStatus: async () =>
+      (await request<import('./types').WsjtxStatus | undefined>('/api/wsjtx/status')) ?? null,
   },
   eqsl: {
     status: () =>

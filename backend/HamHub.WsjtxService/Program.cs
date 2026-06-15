@@ -3,6 +3,7 @@ using HamHub.WsjtxCore.Models;
 using HamHub.WsjtxService;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.Net.Http;
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(new ConfigurationBuilder()
@@ -26,6 +27,13 @@ try
                 var logger = sp.GetRequiredService<ILogger<HamHubApiClient>>();
                 return new HamHubApiClient(http, config, logger);
             });
+            services.AddSingleton(sp =>
+            {
+                var config = sp.GetRequiredService<IOptions<HamHubConfig>>().Value;
+                var logger = sp.GetRequiredService<ILogger<WsjtxCommandSender>>();
+                return new WsjtxCommandSender(config, logger);
+            });
+            services.AddSingleton<WsjtxUiController>();
             services.AddHostedService<Worker>();
         })
         .Build();

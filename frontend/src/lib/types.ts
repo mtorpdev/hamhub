@@ -273,7 +273,10 @@ export interface DashboardStats {
 
 export interface WsjtxDecodeItem {
   id: number
+  wsjtxId: string
+  wsjtxTimeMs: number
   spotterCallsign: string
+  spotterGrid: string | null
   message: string
   dxCallsign: string | null
   dxGrid: string | null
@@ -282,7 +285,31 @@ export interface WsjtxDecodeItem {
   deltaFreqHz: number
   frequencyMhz: number
   mode: string
+  lowConfidence: boolean
+  isCallable: boolean
   decodedAt: string
+}
+
+export interface WsjtxCommandResult {
+  id: string
+  type: 'Reply' | 'StartCq' | number
+  success: boolean
+  message: string
+  completedAtUtc: string
+}
+
+export interface WsjtxStatus {
+  wsjtxId: string
+  dxCall: string
+  dxGrid: string
+  mode: string
+  txEnabled: boolean
+  transmitting: boolean
+  decoding: boolean
+  txWatchdog: boolean
+  rxDf: number
+  txDf: number
+  updatedAtUtc: string
 }
 
 export interface QrzStatus {

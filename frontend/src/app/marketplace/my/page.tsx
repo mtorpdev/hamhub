@@ -72,7 +72,7 @@ export default function MyListingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Link href={`/marketplace/${l.id}`} className="text-white font-semibold hover:text-blue-400 truncate">{l.title}</Link>
-                      {l.isSold && <Badge variant="secondary">Solgt</Badge>}
+                      {l.isSold && <Badge variant="warning">Solgt</Badge>}
                     </div>
                     <p className="text-green-400 font-bold">{l.price.toLocaleString('da-DK')} {l.currency}</p>
                     <p className="text-gray-500 text-xs">{l.categoryName} · {l.conditionName} · {formatUtcDate(l.createdAt)}</p>

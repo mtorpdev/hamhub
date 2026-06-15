@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { gridToLatLng } from '@/lib/maidenhead'
 
 interface MapMarker {
   lat: number
@@ -13,14 +14,7 @@ interface MapProps {
   height?: string
 }
 
-// Maidenhead grid square to lat/lng center
-export function gridToLatLng(grid: string): { lat: number; lng: number } | null {
-  if (!grid || grid.length < 4) return null
-  const g = grid.toUpperCase()
-  const lng = (g.charCodeAt(0) - 65) * 20 - 180 + (parseInt(g[2]) * 2) + 1
-  const lat = (g.charCodeAt(1) - 65) * 10 - 90 + parseInt(g[3]) + 0.5
-  return { lat, lng }
-}
+export { gridToLatLng }
 
 export default function Map({ markers, height = '400px' }: MapProps) {
   const ref = useRef<HTMLDivElement>(null)

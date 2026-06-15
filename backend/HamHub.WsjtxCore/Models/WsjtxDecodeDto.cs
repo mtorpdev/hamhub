@@ -1,7 +1,10 @@
 namespace HamHub.WsjtxCore.Models;
 
 public record WsjtxDecodeDto(
+    string WsjtxId,
+    uint WsjtxTimeMs,
     string SpotterCallsign,
+    string? SpotterGrid,
     string Message,
     string? DxCallsign,
     string? DxGrid,
@@ -10,5 +13,6 @@ public record WsjtxDecodeDto(
     int DeltaFreqHz,
     double FrequencyMhz,
     string Mode,
+    bool LowConfidence,
     DateTime DecodedAt
 );

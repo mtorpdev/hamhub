@@ -75,6 +75,8 @@ builder.Services.AddRateLimiter(options =>
 
 
 builder.Services.AddSingleton<HamHub.Api.Services.WsjtxBroadcaster>();
+builder.Services.AddSingleton<HamHub.Api.Services.WsjtxCommandQueue>();
+builder.Services.AddSingleton<HamHub.Api.Services.WsjtxStatusCache>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();
