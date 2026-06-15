@@ -11,6 +11,9 @@ frontend/.next/
 frontend/.env.local
 frontend/next-env.d.ts
 
+# Logs
+logs/
+
 # OS
 .DS_Store
 Thumbs.db
