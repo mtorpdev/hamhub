@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { ListingCategoryLabels, ListingConditionLabels, type Listing } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { ImageDropzone } from '@/components/marketplace/ImageDropzone'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -115,10 +116,12 @@ export default function EditListingPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Tilføj billeder</label>
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e => setNewImages(Array.from(e.target.files || []))} className="text-sm text-gray-400" />
-            </div>
+            <ImageDropzone
+              files={newImages}
+              onChange={setNewImages}
+              existingCount={listing?.images.length ?? 0}
+              label="Tilføj billeder"
+            />
 
             <div className="flex gap-3">
               <Button type="submit" disabled={saving}>{saving ? 'Gemmer...' : 'Gem ændringer'}</Button>
