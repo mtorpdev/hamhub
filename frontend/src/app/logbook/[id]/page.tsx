@@ -254,7 +254,7 @@ export default function EditQsoPage() {
         ['Min station', conditions.propagation.mufFof2.ownNearestStation],
         ['Midtpunkt', conditions.propagation.mufFof2.midpointNearestStation],
         ['Kontakt', conditions.propagation.mufFof2.workedNearestStation],
-      ]
+      ] as const
     : []
 
   return (

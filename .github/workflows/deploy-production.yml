@@ -1,0 +1,48 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy source to Web1
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azr --delete --exclude=.git/ --exclude=frontend/node_modules/ --exclude=frontend/.next/ --exclude=backend/**/bin/ --exclude=backend/**/obj/
+          path: ./
+          remote_path: /data/websites/hamhub.dk/app/
+          remote_host: ${{ secrets.WEB1_SSH_HOST }}
+          remote_user: ${{ secrets.WEB1_SSH_USER }}
+          remote_key: ${{ secrets.WEB1_SSH_KEY }}
+
+      - name: Build and restart containers
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.WEB1_SSH_HOST }}
+          username: ${{ secrets.WEB1_SSH_USER }}
+          key: ${{ secrets.WEB1_SSH_KEY }}
+          script: |
+            set -e
+            cd /data/websites/hamhub.dk/app
+            cat > .env.production <<'ENVEOF'
+            ConnectionStrings__DefaultConnection=${{ secrets.HAMHUB_DB_CONNECTION_STRING }}
+            JwtSettings__Secret=${{ secrets.HAMHUB_JWT_SECRET }}
+            JwtSettings__Issuer=HamHub
+            JwtSettings__Audience=HamHub
+            JwtSettings__ExpiryMinutes=1440
+            Cors__AllowedOrigins__0=https://hamhub.dk
+            Cors__AllowedOrigins__1=https://www.hamhub.dk
+            Qrz__DefaultApiKey=${{ secrets.QRZ_DEFAULT_API_KEY }}
+            ENVEOF
+            docker compose -f docker-compose.production.yml up -d --build --remove-orphans
+            docker image prune -f

@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/HamHub.Api/Dockerfile
+    image: hamhub-api:latest
+    container_name: hamhub-api
+    restart: always
+    env_file:
+      - .env.production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "127.0.0.1:8096:8080"
+    volumes:
+      - hamhub_api_uploads:/app/wwwroot/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://api.hamhub.dk
+    image: hamhub-web:latest
+    container_name: hamhub-web
+    restart: always
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "127.0.0.1:8095:3000"
+    depends_on:
+      - api
+
+volumes:
+  hamhub_api_uploads:
