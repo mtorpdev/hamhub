@@ -271,12 +271,17 @@ public class WsjtxController : ControllerBase
 
     [Authorize]
     [HttpPost("commands/reply")]
-    public IActionResult QueueReply([FromBody] WsjtxReplyCommand command)
+    public async Task<IActionResult> QueueReply([FromBody] WsjtxReplyCommand command)
     {
-        if (!IsCallableMessage(command.Message))
-            return BadRequest("Kun CQ/QRZ decodes kan kaldes via WSJT-X Reply.");
-
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        var ownCallsign = await _db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.Callsign)
+            .FirstOrDefaultAsync();
+
+        if (!CanReplyToMessage(command.Message, ownCallsign))
+            return BadRequest("Kun CQ/QRZ decodes eller beskeder der kalder dit kaldesignal kan svares via WSJT-X Reply.");
+
         var queued = _commands.EnqueueReply(userId, command);
         return Accepted(new { queued.Id, queued.Type });
     }
@@ -391,6 +396,20 @@ public class WsjtxController : ControllerBase
         var trimmed = message.TrimStart();
         return trimmed.StartsWith("CQ ", StringComparison.OrdinalIgnoreCase)
             || trimmed.StartsWith("QRZ ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CanReplyToMessage(string message, string? ownCallsign)
+    {
+        if (IsCallableMessage(message)) return true;
+        if (string.IsNullOrWhiteSpace(ownCallsign)) return false;
+
+        var normalizedOwnCallsign = ownCallsign.Trim().ToUpperInvariant();
+        var tokens = message
+            .ToUpperInvariant()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(token => token.Trim(',', '.', ':', ';', '!', '?', '<', '>', '[', ']', '(', ')'));
+
+        return tokens.Contains(normalizedOwnCallsign);
     }
 }
 

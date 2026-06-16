@@ -25,6 +25,7 @@ type DecodeRow = WsjtxDecodeItem & {
   displayMode: string
   country: string
   callsMe: boolean
+  canRespond: boolean
 }
 
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
@@ -393,6 +394,7 @@ export default function DecodePage() {
         displayMode: normalizeDecodeMode(d),
         country: countryFromCallsign(d.dxCallsign),
         callsMe: decodeCallsMe(d.message, ownCallsign),
+        canRespond: d.isCallable || decodeCallsMe(d.message, ownCallsign),
       }))
       .filter(row => rowMatchesMessageFilter(row, messageFilter))
       .filter(row => !onlyWithGrid || Boolean(row.dxGrid))
@@ -412,7 +414,7 @@ export default function DecodePage() {
         lng: position.lng,
         label: row.dxCallsign ?? row.dxGrid ?? row.message,
         variant: row.callsMe ? 'calling-me' : row.logStatus,
-        actionLabel: row.isCallable ? 'Åbn QSO' : 'Se decode',
+        actionLabel: row.canRespond ? 'Svar' : 'Se decode',
         tooltip: [
           row.dxCallsign ?? row.message,
           row.dxGrid ? `Grid ${row.dxGrid}` : null,
@@ -572,12 +574,12 @@ export default function DecodePage() {
     'hamhub-row-worked': params => params.data?.logStatus === 'worked',
     'hamhub-row-new-grid': params => params.data?.logStatus === 'new-grid',
     'hamhub-row-new-station': params => params.data?.logStatus === 'new-station',
-    'hamhub-callable-row': params => Boolean(params.data?.isCallable),
+    'hamhub-callable-row': params => Boolean(params.data?.canRespond),
     'hamhub-calling-me-row': params => Boolean(params.data?.callsMe),
   }), [])
 
   const handleGridRowClick = (event: RowClickedEvent<DecodeRow>) => {
-    if (event.data?.isCallable) {
+    if (event.data?.canRespond) {
       setSelectedDecode(event.data)
       setCommandStatus(null)
     }
@@ -593,7 +595,7 @@ export default function DecodePage() {
   }, [rows])
 
   const handleCallDecode = async (decode: DecodeRow) => {
-    if (!decode.isCallable || pendingCommand) return
+    if (!decode.canRespond || pendingCommand) return
     try {
       setPendingCommand(true)
       const call = decode.dxCallsign?.toUpperCase()
@@ -601,9 +603,9 @@ export default function DecodePage() {
         setTxCountByCall(current => ({ ...current, [call]: 0 }))
         lastTxRef.current = { call, transmitting: false }
       }
-      setCommandStatus(`Kalder ${decode.dxCallsign ?? decode.message}...`)
+      setCommandStatus(`${decode.callsMe ? 'Svarer' : 'Kalder'} ${decode.dxCallsign ?? decode.message}...`)
       await api.wsjtx.callDecode(decode)
-      setCommandStatus(`Kald sendt til WSJT-X: ${decode.dxCallsign ?? decode.message}`)
+      setCommandStatus(`Reply sendt til WSJT-X: ${decode.dxCallsign ?? decode.message}`)
     } catch (err) {
       setCommandStatus(err instanceof Error ? err.message : 'Kunne ikke sende kald til WSJT-X')
     } finally {
@@ -834,10 +836,10 @@ export default function DecodePage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleCallDecode(selectedDecode)}
-                    disabled={pendingCommand || !selectedDecode.isCallable}
+                    disabled={pendingCommand || !selectedDecode.canRespond}
                     className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400"
                   >
-                    Kald station
+                    {selectedDecode.callsMe ? 'Svar i WSJT-X' : 'Kald station'}
                   </button>
                   <button
                     onClick={handleStopTx}
