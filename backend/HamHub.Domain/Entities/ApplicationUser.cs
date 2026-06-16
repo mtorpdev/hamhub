@@ -31,4 +31,5 @@ public class ApplicationUser : IdentityUser
     public ICollection<QsoEntry> QsoEntries { get; set; } = new List<QsoEntry>();
     public ICollection<DxSpot> DxSpots { get; set; } = new List<DxSpot>();
     public ICollection<Article> Articles { get; set; } = new List<Article>();
+    public ICollection<ChatMessage> ChatMessages { get; set; } = new List<ChatMessage>();
 }

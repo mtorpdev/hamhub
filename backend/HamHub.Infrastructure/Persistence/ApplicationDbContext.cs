@@ -18,6 +18,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Listing> Listings => Set<Listing>();
     public DbSet<ListingImage> ListingImages => Set<ListingImage>();
     public DbSet<CommunityRoom> CommunityRooms => Set<CommunityRoom>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<PostImage> PostImages => Set<PostImage>();
@@ -44,5 +45,24 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(r => r.Posts)
             .HasForeignKey(p => p.CommunityRoomId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<ChatMessage>()
+            .HasIndex(m => new { m.CommunityRoomId, m.CreatedAt });
+
+        builder.Entity<ChatMessage>()
+            .Property(m => m.Content)
+            .HasMaxLength(1000);
+
+        builder.Entity<ChatMessage>()
+            .HasOne(m => m.CommunityRoom)
+            .WithMany(r => r.ChatMessages)
+            .HasForeignKey(m => m.CommunityRoomId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<ChatMessage>()
+            .HasOne(m => m.User)
+            .WithMany(u => u.ChatMessages)
+            .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

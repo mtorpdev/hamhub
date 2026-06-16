@@ -4,6 +4,8 @@ backend/**/obj/
 backend/**/*.user
 backend/**/publish/
 backend/HamHub.Api/appsettings.Development.json
+.env*
+!.env.example
 
 # Frontend
 frontend/node_modules/

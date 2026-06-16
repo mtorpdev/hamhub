@@ -429,6 +429,17 @@ export interface CommunityContact {
   country: string | null
 }
 
+export interface ChatMessage {
+  id: number
+  userId: string
+  authorCallsign: string | null
+  communityRoomId: number | null
+  communityRoomSlug: string | null
+  communityRoomName: string | null
+  content: string
+  createdAt: string
+}
+
 export interface Post {
   id: number
   userId: string

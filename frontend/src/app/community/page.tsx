@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { type CommunityContact, type CommunityRoom, type Message, type Post, type PostComment } from '@/lib/types'
+import { type ChatMessage, type CommunityContact, type CommunityRoom, type Message, type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
@@ -149,6 +150,157 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
   )
 }
 
+function RoomChatPanel({ roomSlug, roomName }: { roomSlug: string; roomName: string }) {
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatText, setChatText] = useState('')
+  const [loadingChat, setLoadingChat] = useState(true)
+  const [sendingChat, setSendingChat] = useState(false)
+  const [isLive, setIsLive] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadMessages() {
+      setLoadingChat(true)
+      try {
+        const messages = await api.chat.getRoomMessages(roomSlug)
+        if (!cancelled) setChatMessages(messages)
+      } catch {
+        if (!cancelled) setChatMessages([])
+      } finally {
+        if (!cancelled) setLoadingChat(false)
+      }
+    }
+
+    loadMessages()
+    return () => { cancelled = true }
+  }, [roomSlug])
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    if (!token) return
+
+    let stopped = false
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${API_URL}/hubs/community-chat`, { accessTokenFactory: () => token })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build()
+
+    connection.on('RoomMessageCreated', (message: ChatMessage) => {
+      setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message])
+    })
+
+    async function start() {
+      try {
+        await connection.start()
+        if (stopped) return
+        await connection.invoke('JoinRoom', roomSlug)
+        if (!stopped) setIsLive(connection.state === HubConnectionState.Connected)
+      } catch {
+        if (!stopped) setIsLive(false)
+      }
+    }
+
+    connection.onreconnected(async () => {
+      try {
+        await connection.invoke('JoinRoom', roomSlug)
+        setIsLive(true)
+      } catch {
+        setIsLive(false)
+      }
+    })
+    connection.onreconnecting(() => setIsLive(false))
+    connection.onclose(() => setIsLive(false))
+    start()
+
+    return () => {
+      stopped = true
+      setIsLive(false)
+      void connection.invoke('LeaveRoom', roomSlug).catch(() => undefined)
+        .finally(() => connection.stop().catch(() => undefined))
+    }
+  }, [roomSlug])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [chatMessages.length])
+
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const content = chatText.trim()
+    if (!content) return
+    setSendingChat(true)
+    try {
+      const message = await api.chat.sendRoomMessage(roomSlug, content)
+      setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message])
+      setChatText('')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende chatbesked', 'error')
+    } finally {
+      setSendingChat(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Live chat</h2>
+          <p className="text-xs text-gray-500">{roomName}</p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-xs ${isLive ? 'bg-green-500/15 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
+          {isLive ? 'Live' : 'Offline'}
+        </span>
+      </div>
+
+      <div className="mb-3 flex max-h-80 min-h-64 flex-col gap-2 overflow-y-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
+        {loadingChat ? (
+          <p className="text-sm text-gray-500">Indlæser chat...</p>
+        ) : chatMessages.length === 0 ? (
+          <p className="text-sm text-gray-500">Ingen chatbeskeder i dette rum endnu.</p>
+        ) : (
+          chatMessages.map(message => {
+            const mine = message.userId === user?.id
+            return (
+              <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-md px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100'}`}>
+                  <div className={`mb-1 flex items-center gap-2 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
+                    <span className="font-mono font-semibold">{message.authorCallsign || 'Ukendt'}</span>
+                    <span>{new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="whitespace-pre-wrap break-words text-sm">{message.content}</div>
+                </div>
+              </div>
+            )
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <form onSubmit={handleSendChat} className="flex flex-col gap-2">
+        <textarea
+          rows={2}
+          maxLength={1000}
+          value={chatText}
+          onChange={e => setChatText(e.target.value)}
+          placeholder={`Skriv i ${roomName}...`}
+          className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-gray-600">{chatText.length}/1000</span>
+          <Button type="submit" size="sm" disabled={sendingChat || !chatText.trim()}>
+            {sendingChat ? 'Sender...' : 'Send'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function CommunityPage() {
   const { isLoading } = useRequireAuth()
   const { isAuthenticated, user } = useAuth()
@@ -159,14 +311,12 @@ export default function CommunityPage() {
   const [contacts, setContacts] = useState<CommunityContact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
-  const [chatText, setChatText] = useState('')
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [newContent, setNewContent] = useState('')
   const [newImages, setNewImages] = useState<File[]>([])
   const [posting, setPosting] = useState(false)
-  const [sendingMessage, setSendingMessage] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const selectedRoomInfo = useMemo(
@@ -237,26 +387,6 @@ export default function CommunityPage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Fejl', 'error')
     } finally { setPosting(false) }
-  }
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedContact || !chatText.trim()) return
-    setSendingMessage(true)
-    try {
-      await api.messages.send({
-        recipientId: selectedContact.id,
-        subject: 'HamHub chat',
-        body: chatText.trim(),
-      })
-      setChatText('')
-      setMessages(await api.messages.getInbox().catch(() => messages))
-      toast('Besked sendt')
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende besked', 'error')
-    } finally {
-      setSendingMessage(false)
-    }
   }
 
   const handleDelete = async (postId: number) => {
@@ -411,29 +541,7 @@ export default function CommunityPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-            <h2 className="text-sm font-semibold text-white mb-3">Chat</h2>
-            {selectedContact ? (
-              <form onSubmit={handleSendMessage} className="flex flex-col gap-3">
-                <div className="rounded-md bg-gray-800/70 px-3 py-2">
-                  <div className="text-sm font-medium text-white">{selectedContact.callsign || selectedContact.email}</div>
-                  <div className="text-xs text-gray-500">{selectedContact.name || selectedContact.gridLocator || 'Send en hurtig besked'}</div>
-                </div>
-                <textarea
-                  rows={3}
-                  value={chatText}
-                  onChange={e => setChatText(e.target.value)}
-                  placeholder="Skriv en besked..."
-                  className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
-                />
-                <Button type="submit" size="sm" disabled={sendingMessage || !chatText.trim()}>
-                  {sendingMessage ? 'Sender...' : 'Send besked'}
-                </Button>
-              </form>
-            ) : (
-              <p className="text-sm text-gray-500">Vælg en kontakt for at sende en besked.</p>
-            )}
-          </div>
+          <RoomChatPanel roomSlug={selectedRoom} roomName={selectedRoomInfo?.name ?? 'Alle opslag'} />
 
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <h2 className="text-sm font-semibold text-white mb-3">Seneste beskeder</h2>

@@ -170,6 +170,17 @@ export const api = {
     getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),
     getContacts: () => request<import('./types').CommunityContact[]>('/api/community/contacts'),
   },
+  chat: {
+    getRoomMessages: (roomSlug: string, limit = 60) =>
+      request<import('./types').ChatMessage[]>(
+        `/api/chat/rooms/${encodeURIComponent(roomSlug)}/messages?limit=${limit}`
+      ),
+    sendRoomMessage: (roomSlug: string, content: string) =>
+      request<import('./types').ChatMessage>(
+        `/api/chat/rooms/${encodeURIComponent(roomSlug)}/messages`,
+        { method: 'POST', body: JSON.stringify({ content }) }
+      ),
+  },
   posts: {
     getFeed: (page = 1, roomSlug?: string) =>
       request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(
