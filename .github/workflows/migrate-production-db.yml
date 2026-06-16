@@ -91,4 +91,19 @@ jobs:
                   ON DELETE SET NULL;
               END IF;
           END $$;
+
+          ALTER TABLE "WsjtxDecodes"
+              ADD COLUMN IF NOT EXISTS "LowConfidence" boolean NOT NULL DEFAULT false,
+              ADD COLUMN IF NOT EXISTS "SpotterGrid" character varying(10),
+              ADD COLUMN IF NOT EXISTS "WsjtxId" character varying(80) NOT NULL DEFAULT '',
+              ADD COLUMN IF NOT EXISTS "WsjtxTimeMs" bigint NOT NULL DEFAULT 0;
+
+          ALTER TABLE "WsjtxDecodes"
+              ALTER COLUMN "Message" TYPE character varying(40);
+
+          INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+          VALUES
+              ('20260613154709_IncreaseWsjtxMessageLength', '8.0.15'),
+              ('20260615160905_AddWsjtxDecodeCommandMetadata', '8.0.15')
+          ON CONFLICT ("MigrationId") DO NOTHING;
           SQL

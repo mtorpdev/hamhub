@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, type ColDef, type RowClassRules, type RowClickedEvent } from 'ag-grid-community'
@@ -10,7 +10,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useLocalOnlyFeatures } from '@/hooks/useLocalOnlyFeatures'
 import { api } from '@/lib/api'
-import { distanceKm } from '@/lib/maidenhead'
+import { distanceKm, gridToLatLng } from '@/lib/maidenhead'
+import LeafletMap, { type MapMarker } from '@/components/ui/Map'
 import type { Qso, WsjtxDecodeItem, WsjtxStatus } from '@/lib/types'
 
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -27,6 +28,10 @@ type DecodeRow = WsjtxDecodeItem & {
 
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
 type MessageFilter = 'all' | 'CQ' | '73'
+type DecodeView = 'grid' | 'map'
+type DecodeMapMarker = MapMarker & {
+  decodeId: number
+}
 
 type LogbookIndex = {
   callsigns: Set<string>
@@ -200,6 +205,15 @@ function rowMatchesQuickSearch(row: DecodeRow, search: string) {
   return haystack.includes(search.toUpperCase())
 }
 
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? '-')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export default function DecodePage() {
   const { isLoading } = useRequireAuth()
   const router = useRouter()
@@ -207,6 +221,7 @@ export default function DecodePage() {
   const gridRef = useRef<AgGridReact<DecodeRow>>(null)
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
   const [messageFilter, setMessageFilter] = useState<MessageFilter>('all')
+  const [activeView, setActiveView] = useState<DecodeView>('grid')
   const [quickSearch, setQuickSearch] = useState('')
   const [onlyWithGrid, setOnlyWithGrid] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -287,6 +302,31 @@ export default function DecodePage() {
       .filter(row => !onlyWithGrid || Boolean(row.dxGrid))
       .filter(row => rowMatchesQuickSearch(row, quickSearch))
   }, [decodes, logbook, messageFilter, onlyWithGrid, quickSearch])
+
+  const mapRows = useMemo(() => rows.filter(row => Boolean(gridToLatLng(row.dxGrid))), [rows])
+
+  const mapMarkers = useMemo<DecodeMapMarker[]>(() => {
+    return mapRows.map(row => {
+      const position = gridToLatLng(row.dxGrid)!
+      const distance = row.distanceKm ? `${row.distanceKm.toLocaleString('da-DK')} km` : '-'
+      return {
+        id: String(row.id),
+        decodeId: row.id,
+        lat: position.lat,
+        lng: position.lng,
+        label: row.dxCallsign ?? row.dxGrid ?? row.message,
+        popup: [
+          `<b>${escapeHtml(row.dxCallsign ?? row.message)}</b>`,
+          `<br/>Grid: <span style="font-family: monospace">${escapeHtml(row.dxGrid)}</span>`,
+          `<br/>Land: ${escapeHtml(row.country)}`,
+          `<br/>SNR: <span style="font-family: monospace">${escapeHtml(snrText(row.snr))}</span>`,
+          `<br/>Afstand: ${escapeHtml(distance)}`,
+          `<br/>Mode: ${escapeHtml(row.displayMode)}`,
+          `<br/><span style="font-family: monospace">${escapeHtml(row.message)}</span>`,
+        ].join(''),
+      }
+    })
+  }, [mapRows])
 
   const selectedTrail = useMemo(() => {
     if (!selectedDecode) return []
@@ -421,6 +461,15 @@ export default function DecodePage() {
     }
   }
 
+  const handleMapMarkerClick = useCallback((marker: MapMarker) => {
+    const decodeMarker = marker as DecodeMapMarker
+    const row = rows.find(item => item.id === decodeMarker.decodeId)
+    if (row) {
+      setSelectedDecode(row)
+      setCommandStatus(null)
+    }
+  }, [rows])
+
   const handleCallDecode = async (decode: DecodeRow) => {
     if (!decode.isCallable || pendingCommand) return
     try {
@@ -518,30 +567,67 @@ export default function DecodePage() {
         </button>
       </div>
 
+      <div className="mb-4 flex border-b border-gray-800">
+        {([
+          ['grid', 'Grid'],
+          ['map', 'Kort'],
+        ] as const).map(([view, label]) => (
+          <button
+            key={view}
+            onClick={() => setActiveView(view)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors ${activeView === view ? 'border-blue-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {commandStatus && (
         <div className="mb-4 border border-gray-800 bg-gray-900/60 px-3 py-2 text-sm text-gray-300">
           {commandStatus}
         </div>
       )}
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="ag-theme-quartz-dark hamhub-decode-grid h-[70vh] w-full">
-            <AgGridReact<DecodeRow>
-              ref={gridRef}
-              rowData={rows}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              animateRows
-              rowHeight={38}
-              headerHeight={42}
-              floatingFiltersHeight={36}
-              onRowClicked={handleGridRowClick}
-              rowClassRules={rowClassRules}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {activeView === 'grid' ? (
+        <Card>
+          <CardContent className="p-0">
+            <div className="ag-theme-quartz-dark hamhub-decode-grid h-[70vh] w-full">
+              <AgGridReact<DecodeRow>
+                ref={gridRef}
+                rowData={rows}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                animateRows
+                rowHeight={38}
+                headerHeight={42}
+                floatingFiltersHeight={36}
+                onRowClicked={handleGridRowClick}
+                rowClassRules={rowClassRules}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-400">
+              <span>
+                Viser <span className="font-semibold text-white">{mapMarkers.length}</span> decodes med gyldigt grid
+              </span>
+              <span>
+                {rows.length - mapMarkers.length > 0 ? `${rows.length - mapMarkers.length} decodes mangler grid` : 'Alle filtrerede decodes har grid'}
+              </span>
+            </div>
+            {mapMarkers.length > 0 ? (
+              <LeafletMap markers={mapMarkers} height="70vh" onMarkerClick={handleMapMarkerClick} />
+            ) : (
+              <div className="flex h-[70vh] items-center justify-center border border-gray-800 bg-gray-950 text-sm text-gray-500">
+                Ingen filtrerede decodes med gyldigt grid endnu.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {selectedDecode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -606,7 +692,7 @@ export default function DecodePage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleCallDecode(selectedDecode)}
-                    disabled={pendingCommand}
+                    disabled={pendingCommand || !selectedDecode.isCallable}
                     className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400"
                   >
                     Kald station
