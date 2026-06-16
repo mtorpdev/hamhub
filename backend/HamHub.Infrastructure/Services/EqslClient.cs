@@ -98,7 +98,10 @@ public class EqslClient
         if (normalized.Contains("Error - Result: QSO rejected by recipient", StringComparison.OrdinalIgnoreCase))
             return new EqslVerificationResult(false, false, "QSO er afvist af modtageren på eQSL.");
 
-        if (normalized.Contains("Information - CallsignTo not on file", StringComparison.OrdinalIgnoreCase))
+        if (normalized.Contains("CallsignFrom not on file", StringComparison.OrdinalIgnoreCase))
+            return new EqslVerificationResult(false, false, "Afsender-kaldesignalet er ikke registreret hos eQSL, så status kan ikke verificeres.");
+
+        if (normalized.Contains("CallsignTo not on file", StringComparison.OrdinalIgnoreCase))
             return new EqslVerificationResult(false, false, "Modpartens kaldesignal er ikke registreret hos eQSL.");
 
         var errorLine = FirstResultLine(text, "Error -");

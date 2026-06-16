@@ -27,6 +27,9 @@ public class QsoEntry
     public double? TxPower { get; set; }       // TX_PWR in watts
     public string? Comment { get; set; }       // COMMENT
     public string? QrzId { get; set; }         // QRZ internal log record ID; null = not yet synced
+    public string? QrzConfirmationStatus { get; set; }
+    public DateTime? QrzConfirmedAt { get; set; }
+    public DateTime? QrzQslDate { get; set; }
     public DateTime? EqslSentAt { get; set; }
     public DateTime? EqslConfirmedAt { get; set; }
     public string? EqslLastResult { get; set; }

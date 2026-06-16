@@ -139,6 +139,24 @@ public class EqslClientTests
         Assert.Contains("ikke fundet", result.Message);
     }
 
+    [Theory]
+    [InlineData("Error - CallsignFrom not on file", "Afsender-kaldesignalet er ikke registreret")]
+    [InlineData("Error - CallsignTo not on file", "Modpartens kaldesignal er ikke registreret")]
+    [InlineData("Information - CallsignTo not on file", "Modpartens kaldesignal er ikke registreret")]
+    public async Task VerifyQsoReturnsFriendlyNotOnFileMessages(string body, string expected)
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(body)
+        });
+        var client = new EqslClient(new HttpClient(handler));
+
+        var result = await client.VerifyQsoAsync(TestVerificationQso(), CancellationToken.None);
+
+        Assert.False(result.OnFile);
+        Assert.Contains(expected, result.Message);
+    }
+
     private static EqslAdifQso TestQso() => new(
         Call: "OZ1ABC",
         TimeOn: new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc),

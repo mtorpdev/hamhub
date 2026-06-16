@@ -1,0 +1,43 @@
+using HamHub.Infrastructure.Services;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace HamHub.Api.Tests;
+
+public class QrzClientTests
+{
+    [Fact]
+    public async Task FetchLogParsesQrzConfirmationFields()
+    {
+        var adif = "<CALL:5>F5RRS<QSO_DATE:8>20260614<TIME_ON:4>1122<BAND:3>20M<MODE:3>FT8<APP_QRZLOG_LOGID:9>123456789<APP_QRZLOG_STATUS:1>C<APP_QRZLOG_QSLDATE:8>20260616<EOR>";
+        var body = $"RESULT=OK&COUNT=1&ADIF={System.Net.WebUtility.HtmlEncode(adif)}";
+        var client = new QrzClient(
+            new HttpClient(new CapturingHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(body)
+            })),
+            new MemoryCache(new MemoryCacheOptions()),
+            NullLogger<QrzClient>.Instance);
+
+        var qsos = await client.FetchLogAsync("logbook-key", CancellationToken.None);
+
+        var qso = Assert.Single(qsos);
+        Assert.Equal("123456789", qso.LogId);
+        Assert.Equal("C", qso.QrzStatus);
+        Assert.Equal(new DateTime(2026, 6, 16, 0, 0, 0, DateTimeKind.Utc), qso.QrzQslDate);
+    }
+
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _handle;
+
+        public CapturingHandler(Func<HttpRequestMessage, HttpResponseMessage> handle)
+        {
+            _handle = handle;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(_handle(request));
+    }
+}

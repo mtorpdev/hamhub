@@ -36,7 +36,9 @@ public record AdifQso(
     string? Qth,
     double? TxPower,
     string? Comment,
-    string? LogId
+    string? LogId,
+    string? QrzStatus,
+    DateTime? QrzQslDate
 );
 
 public class QrzClient
@@ -223,10 +225,20 @@ public class QrzClient
                 TxPower: double.TryParse(GetField(rec, "TX_PWR"), System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture, out var pwrVal) ? pwrVal : null,
                 Comment: GetField(rec, "COMMENT") ?? GetField(rec, "NOTES"),
-                LogId: GetField(rec, "APP_QRZLOG_LOGID")
+                LogId: GetField(rec, "APP_QRZLOG_LOGID"),
+                QrzStatus: GetField(rec, "APP_QRZLOG_STATUS"),
+                QrzQslDate: ParseAdifDate(GetField(rec, "APP_QRZLOG_QSLDATE"))
             ));
         }
         return result;
+    }
+
+    private static DateTime? ParseAdifDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return DateTime.TryParseExact(value, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var date)
+            ? new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Utc)
+            : null;
     }
 
     private static string? GetField(string record, string name)

@@ -88,6 +88,9 @@ export interface Qso {
   txPower: number | null
   comment: string | null
   qrzId: string | null
+  qrzConfirmationStatus: string | null
+  qrzConfirmedAt: string | null
+  qrzQslDate: string | null
   eqslSentAt: string | null
   eqslConfirmedAt: string | null
   eqslLastResult: string | null

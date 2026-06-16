@@ -59,6 +59,29 @@ public class QsoExternalLogStatusBuilderTests
     }
 
     [Fact]
+    public void BuildMarksQrzConfirmedWhenQrzStatusIsConfirmed()
+    {
+        var qso = new QsoEntry
+        {
+            QrzId = "12345",
+            QrzConfirmationStatus = "C",
+            QrzQslDate = new DateTime(2026, 6, 16, 0, 0, 0, DateTimeKind.Utc),
+            QrzConfirmedAt = new DateTime(2026, 6, 16, 0, 0, 0, DateTimeKind.Utc)
+        };
+        var user = new ApplicationUser { QrzApiKey = "protected" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user);
+
+        var qrz = Assert.Single(statuses, status => status.Provider == "QRZ");
+        Assert.Equal("confirmed", qrz.Status);
+        Assert.Equal("Bekræftet på QRZ", qrz.Label);
+        Assert.False(qrz.CanSend);
+        Assert.True(qrz.CanFetch);
+        Assert.Equal(qso.QrzConfirmedAt, qrz.LastUpdatedAt);
+        Assert.Contains("Confirmed", qrz.LastResult);
+    }
+
+    [Fact]
     public void BuildMarksEqslReadyWhenCredentialsExistAndQsoIsNotSent()
     {
         var qso = new QsoEntry();

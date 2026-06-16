@@ -145,6 +145,9 @@ public class QrzSyncService : BackgroundService
                         TxPower = qrzQso.TxPower,
                         Comment = qrzQso.Comment,
                         QrzId = qrzQso.LogId,
+                        QrzConfirmationStatus = qrzQso.QrzStatus,
+                        QrzQslDate = qrzQso.QrzQslDate,
+                        QrzConfirmedAt = IsQrzConfirmed(qrzQso.QrzStatus) ? qrzQso.QrzQslDate ?? DateTime.UtcNow : null,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     });
@@ -177,7 +180,9 @@ public class QrzSyncService : BackgroundService
                                 Qth: match.Qth,
                                 TxPower: match.TxPower,
                                 Comment: match.Comment,
-                                LogId: null
+                                LogId: null,
+                                QrzStatus: null,
+                                QrzQslDate: null
                             );
                             match.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
                         }
@@ -195,10 +200,14 @@ public class QrzSyncService : BackgroundService
                         match.Country = qrzQso.Country ?? match.Country;
                         match.QrzId = qrzQso.LogId;
                     }
+                    ApplyQrzConfirmation(match, qrzQso);
                     match.UpdatedAt = DateTime.UtcNow;
                 }
-                // else: already synced (QrzId != null) — local is source of truth; changes are
-                // propagated via the "upload unsynced" pass below (QrzId cleared on edit in QsosController)
+                else
+                {
+                    ApplyQrzConfirmation(match, qrzQso);
+                    match.UpdatedAt = DateTime.UtcNow;
+                }
             }
 
             // Upload any local QSOs that have never been synced to QRZ
@@ -229,7 +238,9 @@ public class QrzSyncService : BackgroundService
                         Qth: qso.Qth,
                         TxPower: qso.TxPower,
                         Comment: qso.Comment,
-                        LogId: null
+                        LogId: null,
+                        QrzStatus: null,
+                        QrzQslDate: null
                     );
                     qso.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
                     qso.UpdatedAt = DateTime.UtcNow;
@@ -253,4 +264,16 @@ public class QrzSyncService : BackgroundService
             _logger.LogError(ex, "Unexpected error during QRZ sync for user {UserId}", userId);
         }
     }
+
+    private static void ApplyQrzConfirmation(QsoEntry qso, AdifQso qrzQso)
+    {
+        qso.QrzConfirmationStatus = qrzQso.QrzStatus;
+        qso.QrzQslDate = qrzQso.QrzQslDate;
+        qso.QrzConfirmedAt = IsQrzConfirmed(qrzQso.QrzStatus)
+            ? qrzQso.QrzQslDate ?? qso.QrzConfirmedAt ?? DateTime.UtcNow
+            : null;
+    }
+
+    private static bool IsQrzConfirmed(string? status) =>
+        string.Equals(status, "C", StringComparison.OrdinalIgnoreCase);
 }

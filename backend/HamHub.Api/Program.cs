@@ -170,6 +170,7 @@ using (var scope = app.Services.CreateScope())
     await EnsureFriendshipSchemaAsync(context);
     await EnsureSafetySchemaAsync(context);
     await EnsureArticleFeedSchemaAsync(context);
+    await EnsureQsoExternalStatusSchemaAsync(context);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
 
     var importer = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.ArticleFeedImportService>();
@@ -315,6 +316,16 @@ static async Task EnsureArticleFeedSchemaAsync(ApplicationDbContext context)
 
         CREATE INDEX IF NOT EXISTS "IX_Articles_FeedGuid" ON "Articles" ("FeedGuid");
         CREATE INDEX IF NOT EXISTS "IX_Articles_OriginalUrl" ON "Articles" ("OriginalUrl");
+        """);
+}
+
+static async Task EnsureQsoExternalStatusSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "QsoEntries"
+        ADD COLUMN IF NOT EXISTS "QrzConfirmationStatus" character varying(1),
+        ADD COLUMN IF NOT EXISTS "QrzConfirmedAt" timestamp with time zone,
+        ADD COLUMN IF NOT EXISTS "QrzQslDate" timestamp with time zone;
         """);
 }
 

@@ -321,6 +321,9 @@ public class QsosController : ControllerBase
         qso.UpdatedAt = DateTime.UtcNow;
         // Clear QrzId so the sync service re-uploads the edited record to QRZ as a new entry.
         qso.QrzId = null;
+        qso.QrzConfirmationStatus = null;
+        qso.QrzConfirmedAt = null;
+        qso.QrzQslDate = null;
 
         await _context.SaveChangesAsync();
         _trigger.NotifyQsoChanged(userId!);

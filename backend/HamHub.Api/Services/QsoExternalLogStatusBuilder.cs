@@ -28,6 +28,8 @@ public static class QsoExternalLogStatusBuilder
         var qrzStored = !string.IsNullOrWhiteSpace(user.QrzApiKey);
         var qrzConfigured = qrzStored && (qrzCredentialReadable ?? true);
         var qrzUnreadable = qrzStored && qrzCredentialReadable == false;
+        var qrzConfirmed = qso.QrzConfirmedAt.HasValue || string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase);
+        var qrzStatus = QrzStatusText(qso.QrzConfirmationStatus);
         var eqslConfigured = !string.IsNullOrWhiteSpace(user.EqslUsername) && !string.IsNullOrWhiteSpace(user.EqslPassword);
         var eqslReady = eqslConfigured && (eqslCredentialReadable ?? true);
         var eqslUnreadable = eqslConfigured && eqslCredentialReadable == false;
@@ -40,8 +42,8 @@ public static class QsoExternalLogStatusBuilder
         {
             new QsoExternalLogStatusDto(
                 Provider: "QRZ",
-                Status: qrzUnreadable ? "credential-error" : !qrzConfigured ? "not-configured" : qrzSynced ? "synced" : "ready",
-                Label: qrzUnreadable ? "QRZ nøgle skal gemmes igen" : !qrzConfigured ? "QRZ Logbook ikke sat op" : qrzSynced ? "Registreret på QRZ" : "Klar til QRZ sync",
+                Status: qrzUnreadable ? "credential-error" : !qrzConfigured ? "not-configured" : qrzConfirmed ? "confirmed" : qrzSynced ? "synced" : "ready",
+                Label: qrzUnreadable ? "QRZ nøgle skal gemmes igen" : !qrzConfigured ? "QRZ Logbook ikke sat op" : qrzConfirmed ? "Bekræftet på QRZ" : qrzSynced ? "Registreret på QRZ" : "Klar til QRZ sync",
                 ExternalId: qso.QrzId,
                 CanSend: qrzConfigured && !qrzSynced,
                 CanFetch: qrzConfigured,
@@ -49,14 +51,16 @@ public static class QsoExternalLogStatusBuilder
                     ? "Den gemte QRZ Logbook API nøgle kan ikke læses efter serverens nøgleskift. Gem QRZ nøglen igen på profilen."
                     : !qrzConfigured
                     ? "Gem QRZ Logbook API nøglen på profilen for at synkronisere QSO'er med QRZ."
+                    : qrzConfirmed
+                    ? $"Modparten har et matchende QRZ Logbook QSO, så kontakten er bekræftet{(qso.QrzQslDate.HasValue ? $" {qso.QrzQslDate.Value:yyyy-MM-dd} UTC" : "")}."
                     : qrzSynced
-                    ? "Denne QSO er koblet til en QRZ Logbook post."
+                    ? "Denne QSO er koblet til en QRZ Logbook post, men er ikke bekræftet af modparten endnu."
                     : "QRZ sync henter først din logbog og sender derefter lokale QSO'er, der mangler en QRZ reference.",
                 IsConfigured: qrzConfigured,
                 SendActionLabel: qrzConfigured ? "Synkroniser QRZ" : "Opsæt QRZ",
                 FetchActionLabel: "Hent/sync QRZ",
-                LastUpdatedAt: user.QrzLastSyncedAt,
-                LastResult: qrzSynced ? "QSO er koblet til QRZ Logbook." : null),
+                LastUpdatedAt: qso.QrzConfirmedAt ?? qso.QrzQslDate ?? user.QrzLastSyncedAt,
+                LastResult: qrzSynced ? qrzStatus : null),
             new QsoExternalLogStatusDto(
                 Provider: "LoTW",
                 Status: "not-configured",
@@ -95,4 +99,15 @@ public static class QsoExternalLogStatusBuilder
                 LastResult: qso.EqslLastResult),
         };
     }
+
+    private static string QrzStatusText(string? status) => status?.ToUpperInvariant() switch
+    {
+        "C" => "QRZ status: Confirmed af modparten.",
+        "A" => "QRZ status: reserveret/ukendt QRZ-status.",
+        "N" => "QRZ status: ikke bekræftet endnu.",
+        "2" => "QRZ status: confirmation requested.",
+        "S" => "QRZ status: confirmation requested, set af modparten.",
+        "R" => "QRZ status: confirmation request afvist.",
+        _ => "QRZ status: QSO er koblet til QRZ Logbook."
+    };
 }
