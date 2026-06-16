@@ -14,6 +14,8 @@ import { useToast } from '@/contexts/ToastContext'
 
 const PAGE_SIZE = 25
 
+type QslBadgeTone = 'confirmed' | 'pending' | 'missing'
+
 const BAND_ADIF: Record<Band, string> = {
   [Band.M160]: '160M', [Band.M80]: '80M', [Band.M60]: '60M', [Band.M40]: '40M',
   [Band.M30]: '30M', [Band.M20]: '20M', [Band.M17]: '17M', [Band.M15]: '15M',
@@ -55,6 +57,44 @@ function exportAdif(qsos: Qso[]) {
   URL.revokeObjectURL(a.href)
 }
 
+function QslStatusBadge({ label, tone, title }: { label: string; tone: QslBadgeTone; title: string }) {
+  const classes: Record<QslBadgeTone, string> = {
+    confirmed: 'border-green-700/60 bg-green-950/40 text-green-200',
+    pending: 'border-yellow-700/60 bg-yellow-950/40 text-yellow-200',
+    missing: 'border-red-800/60 bg-red-950/30 text-red-200',
+  }
+
+  return (
+    <span title={title} className={`inline-flex min-w-12 items-center justify-center rounded border px-2 py-0.5 text-[11px] font-semibold ${classes[tone]}`}>
+      {label}
+    </span>
+  )
+}
+
+function qrzTone(qso: Qso): QslBadgeTone {
+  if (qso.qrzConfirmedAt || qso.qrzConfirmationStatus?.toUpperCase() === 'C') return 'confirmed'
+  if (qso.qrzId) return 'pending'
+  return 'missing'
+}
+
+function qrzTitle(qso: Qso) {
+  if (qrzTone(qso) === 'confirmed') return 'QRZ bekræftet af modparten'
+  if (qso.qrzId) return 'QRZ registreret, men ikke bekræftet endnu'
+  return 'QRZ mangler eller er ikke synkroniseret'
+}
+
+function eqslTone(qso: Qso): QslBadgeTone {
+  if (qso.eqslConfirmedAt) return 'confirmed'
+  if (qso.eqslSentAt) return 'pending'
+  return 'missing'
+}
+
+function eqslTitle(qso: Qso) {
+  if (qso.eqslConfirmedAt) return 'eQSL bekræftet af modparten'
+  if (qso.eqslSentAt) return 'eQSL sendt, men ikke bekræftet endnu'
+  return 'eQSL mangler eller er ikke sendt endnu'
+}
+
 export default function LogbookPage() {
   useRequireAuth()
   const { toast } = useToast()
@@ -71,7 +111,18 @@ export default function LogbookPage() {
     api.qsos.getMine(s).then(setQsos).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+    api.qsos.getMine()
+      .then(items => {
+        if (!cancelled) setQsos(items)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [])
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -139,7 +190,7 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QRZ', ''].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QSL', ''].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -159,9 +210,10 @@ export default function LogbookPage() {
                       <td className="px-4 py-3 text-gray-400">{q.rstSent}/{q.rstReceived}</td>
                       <td className="px-4 py-3 text-gray-400">{q.country || '—'}</td>
                       <td className="px-4 py-3">
-                        {q.qrzId && (
-                          <span className="text-xs text-green-400 font-medium">QRZ ✓</span>
-                        )}
+                        <div className="flex flex-wrap gap-1.5">
+                          <QslStatusBadge label="QRZ" tone={qrzTone(q)} title={qrzTitle(q)} />
+                          <QslStatusBadge label="eQSL" tone={eqslTone(q)} title={eqslTitle(q)} />
+                        </div>
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
