@@ -364,6 +364,10 @@ export default function ProfilePage() {
                     {qrzSyncing ? 'Synkroniserer...' : 'Synkroniser nu'}
                   </Button>
                 </div>
+              ) : qrzStatus?.credentialError ? (
+                <p className="text-yellow-300 text-sm mb-3">
+                  QRZ Logbook nøglen skal gemmes igen. Den gamle krypterede værdi kan ikke læses efter serverens nøgleskift.
+                </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ Logbook.</p>
               )}
@@ -393,6 +397,10 @@ export default function ProfilePage() {
               {qrzStatus?.xmlConnected ? (
                 <p className="text-green-400 text-sm mb-3">
                   Tilsluttet som {qrzStatus.qrzUsername}
+                </p>
+              ) : qrzStatus?.xmlCredentialError ? (
+                <p className="text-yellow-300 text-sm mb-3">
+                  QRZ XML login skal gemmes igen. Den gamle krypterede adgangskode kan ikke læses.
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
@@ -436,6 +444,10 @@ export default function ProfilePage() {
                       Sidst brugt: {new Date(eqslStatus.lastSyncedAt).toLocaleString('da-DK')}
                     </span>
                   )}
+                </p>
+              ) : eqslStatus?.credentialError ? (
+                <p className="text-yellow-300 text-sm mb-3">
+                  eQSL login skal gemmes igen. Den gamle krypterede adgangskode kan ikke læses efter serverens nøgleskift.
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">

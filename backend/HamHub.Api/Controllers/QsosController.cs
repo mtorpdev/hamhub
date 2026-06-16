@@ -24,6 +24,7 @@ public class QsosController : ControllerBase
     private readonly IQrzSyncTrigger _trigger;
     private readonly EqslClient _eqslClient;
     private readonly IDataProtector _eqslProtector;
+    private readonly IDataProtector _qrzProtector;
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
 
@@ -43,6 +44,7 @@ public class QsosController : ControllerBase
         _weatherService = weatherService;
         _propagationService = propagationService;
         _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
+        _qrzProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
     }
 
     [HttpGet]
@@ -78,7 +80,10 @@ public class QsosController : ControllerBase
         if (qso == null) return NotFound();
         if (qso.UserId != userId && !User.IsInRole("Admin")) return Forbid();
 
-        return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User));
+        var qrzReadable = CanUnprotect(qso.User.QrzApiKey, _qrzProtector);
+        var eqslReadable = CanUnprotect(qso.User.EqslPassword, _eqslProtector);
+
+        return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User, qrzReadable, eqslReadable));
     }
 
     [HttpGet("{id}/conditions")]
@@ -176,6 +181,20 @@ public class QsosController : ControllerBase
         Submode: qso.Submode,
         Gridsquare: qso.Locator,
         Comment: qso.Comment);
+
+    private static bool? CanUnprotect(string? protectedValue, IDataProtector protector)
+    {
+        if (string.IsNullOrWhiteSpace(protectedValue)) return null;
+        try
+        {
+            protector.Unprotect(protectedValue);
+            return true;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
 
     private static string BandToAdif(Band band) => band switch
     {

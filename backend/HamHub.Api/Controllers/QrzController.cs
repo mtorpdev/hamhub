@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace HamHub.Api.Controllers;
 
@@ -87,13 +88,25 @@ public class QrzController : ControllerBase
         var user = await _context.Users.FindAsync([userId], ct);
         if (user == null) return NotFound();
 
+        var logbookCredentialReadable = CanRead(user.QrzApiKey, _logbookProtector);
+        var xmlCredentialReadable = CanRead(user.QrzXmlPassword, _xmlProtector);
+        var logbookCredentialError = user.QrzApiKey != null && logbookCredentialReadable == false;
+        var xmlCredentialError = user.QrzXmlPassword != null && xmlCredentialReadable == false;
+
         return Ok(new
         {
-            connected = user.QrzApiKey != null,
+            connected = user.QrzApiKey != null && logbookCredentialReadable != false,
             lastSyncedAt = user.QrzLastSyncedAt,
             qrzCallsign = user.Callsign,
-            xmlConnected = user.QrzUsername != null,
-            qrzUsername = user.QrzUsername
+            xmlConnected = user.QrzUsername != null && xmlCredentialReadable != false,
+            qrzUsername = user.QrzUsername,
+            credentialReadable = logbookCredentialReadable,
+            credentialError = logbookCredentialError,
+            xmlCredentialReadable,
+            xmlCredentialError,
+            statusMessage = logbookCredentialError || xmlCredentialError
+                ? "Gem QRZ oplysningerne igen på profilen. De gamle krypterede værdier kan ikke læses i dette miljø."
+                : null
         });
     }
 
@@ -104,5 +117,19 @@ public class QrzController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         _trigger.NotifyQsoChanged(userId);
         return Accepted();
+    }
+
+    private static bool? CanRead(string? protectedValue, IDataProtector protector)
+    {
+        if (string.IsNullOrWhiteSpace(protectedValue)) return null;
+        try
+        {
+            protector.Unprotect(protectedValue);
+            return true;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 }

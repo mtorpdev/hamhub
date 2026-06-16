@@ -11,10 +11,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      DataProtection__KeysPath: /app/keys
     ports:
       - "127.0.0.1:8096:8080"
     volumes:
       - hamhub_api_uploads:/app/wwwroot/uploads
+      - hamhub_api_keys:/app/keys
 
   web:
     build:
@@ -37,3 +39,4 @@ services:
 
 volumes:
   hamhub_api_uploads:
+  hamhub_api_keys:

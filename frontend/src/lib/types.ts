@@ -367,6 +367,11 @@ export interface QrzStatus {
   qrzCallsign: string | null
   xmlConnected: boolean
   qrzUsername: string | null
+  credentialReadable: boolean | null
+  credentialError: boolean
+  xmlCredentialReadable: boolean | null
+  xmlCredentialError: boolean
+  statusMessage: string | null
 }
 
 export interface EqslStatus {
@@ -374,6 +379,9 @@ export interface EqslStatus {
   username: string | null
   qthNickname: string | null
   lastSyncedAt: string | null
+  credentialReadable: boolean | null
+  credentialError: boolean
+  statusMessage: string | null
 }
 
 export enum ListingCategory {

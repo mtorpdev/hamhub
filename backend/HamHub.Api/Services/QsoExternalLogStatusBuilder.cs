@@ -18,23 +18,33 @@ public sealed record QsoExternalLogStatusDto(
 
 public static class QsoExternalLogStatusBuilder
 {
-    public static IReadOnlyList<QsoExternalLogStatusDto> Build(QsoEntry qso, ApplicationUser user)
+    public static IReadOnlyList<QsoExternalLogStatusDto> Build(
+        QsoEntry qso,
+        ApplicationUser user,
+        bool? qrzCredentialReadable = null,
+        bool? eqslCredentialReadable = null)
     {
         var qrzSynced = !string.IsNullOrWhiteSpace(qso.QrzId);
-        var qrzConfigured = !string.IsNullOrWhiteSpace(user.QrzApiKey);
+        var qrzStored = !string.IsNullOrWhiteSpace(user.QrzApiKey);
+        var qrzConfigured = qrzStored && (qrzCredentialReadable ?? true);
+        var qrzUnreadable = qrzStored && qrzCredentialReadable == false;
         var eqslConfigured = !string.IsNullOrWhiteSpace(user.EqslUsername) && !string.IsNullOrWhiteSpace(user.EqslPassword);
+        var eqslReady = eqslConfigured && (eqslCredentialReadable ?? true);
+        var eqslUnreadable = eqslConfigured && eqslCredentialReadable == false;
         var eqslSent = qso.EqslSentAt.HasValue;
 
         return new[]
         {
             new QsoExternalLogStatusDto(
                 Provider: "QRZ",
-                Status: !qrzConfigured ? "not-configured" : qrzSynced ? "synced" : "ready",
-                Label: !qrzConfigured ? "QRZ Logbook ikke sat op" : qrzSynced ? "Registreret på QRZ" : "Klar til QRZ sync",
+                Status: qrzUnreadable ? "credential-error" : !qrzConfigured ? "not-configured" : qrzSynced ? "synced" : "ready",
+                Label: qrzUnreadable ? "QRZ nøgle skal gemmes igen" : !qrzConfigured ? "QRZ Logbook ikke sat op" : qrzSynced ? "Registreret på QRZ" : "Klar til QRZ sync",
                 ExternalId: qso.QrzId,
                 CanSend: qrzConfigured && !qrzSynced,
                 CanFetch: qrzConfigured,
-                Description: !qrzConfigured
+                Description: qrzUnreadable
+                    ? "Den gemte QRZ Logbook API nøgle kan ikke læses efter serverens nøgleskift. Gem QRZ nøglen igen på profilen."
+                    : !qrzConfigured
                     ? "Gem QRZ Logbook API nøglen på profilen for at synkronisere QSO'er med QRZ."
                     : qrzSynced
                     ? "Denne QSO er koblet til en QRZ Logbook post."
@@ -59,18 +69,20 @@ public static class QsoExternalLogStatusBuilder
                 LastResult: "Ikke aktiv endnu, fordi LoTW kræver certifikat og station location i TQSL."),
             new QsoExternalLogStatusDto(
                 Provider: "eQSL",
-                Status: !eqslConfigured ? "not-configured" : eqslSent ? "sent" : "ready",
-                Label: !eqslConfigured ? "Ikke sat op" : eqslSent ? "Sendt til eQSL" : "Klar til eQSL",
+                Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslSent ? "sent" : "ready",
+                Label: eqslUnreadable ? "eQSL login skal gemmes igen" : !eqslReady ? "Ikke sat op" : eqslSent ? "Sendt til eQSL" : "Klar til eQSL",
                 ExternalId: null,
-                CanSend: eqslConfigured && !eqslSent,
+                CanSend: eqslReady && !eqslSent,
                 CanFetch: false,
-                Description: !eqslConfigured
+                Description: eqslUnreadable
+                    ? "Det gemte eQSL login kan ikke læses efter serverens nøgleskift. Gem eQSL login igen på profilen, så bliver det krypteret med den nye persistente nøgle."
+                    : !eqslReady
                     ? "Gem eQSL brugernavn og adgangskode på profilen for at sende QSO'er til eQSL."
                     : eqslSent
                         ? $"Denne QSO er sendt til eQSL{(qso.EqslSentAt.HasValue ? $" {qso.EqslSentAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
                         : "Denne QSO kan sendes direkte til eQSL via real-time ADIF upload.",
-                IsConfigured: eqslConfigured,
-                SendActionLabel: eqslSent ? "Sendt" : eqslConfigured ? "Send til eQSL" : "Opsæt eQSL",
+                IsConfigured: eqslReady,
+                SendActionLabel: eqslSent ? "Sendt" : eqslReady ? "Send til eQSL" : "Opsæt eQSL",
                 FetchActionLabel: "Opdater status",
                 LastUpdatedAt: qso.EqslSentAt ?? user.EqslLastSyncedAt,
                 LastResult: qso.EqslLastResult),

@@ -96,4 +96,36 @@ public class QsoExternalLogStatusBuilderTests
         Assert.Equal(qso.EqslSentAt, eqsl.LastUpdatedAt);
         Assert.Equal(qso.EqslLastResult, eqsl.LastResult);
     }
+
+    [Fact]
+    public void BuildMarksEqslCredentialErrorWhenStoredPasswordCannotBeRead()
+    {
+        var qso = new QsoEntry();
+        var user = new ApplicationUser { EqslUsername = "OZ1ABC", EqslPassword = "old-keyring-value" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user, eqslCredentialReadable: false);
+
+        var eqsl = Assert.Single(statuses, status => status.Provider == "eQSL");
+        Assert.Equal("credential-error", eqsl.Status);
+        Assert.Equal("eQSL login skal gemmes igen", eqsl.Label);
+        Assert.False(eqsl.CanSend);
+        Assert.False(eqsl.IsConfigured);
+        Assert.Contains("Gem eQSL login igen", eqsl.Description);
+    }
+
+    [Fact]
+    public void BuildMarksQrzCredentialErrorWhenStoredApiKeyCannotBeRead()
+    {
+        var qso = new QsoEntry();
+        var user = new ApplicationUser { QrzApiKey = "old-keyring-value" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user, qrzCredentialReadable: false);
+
+        var qrz = Assert.Single(statuses, status => status.Provider == "QRZ");
+        Assert.Equal("credential-error", qrz.Status);
+        Assert.Equal("QRZ nøgle skal gemmes igen", qrz.Label);
+        Assert.False(qrz.CanSend);
+        Assert.False(qrz.CanFetch);
+        Assert.False(qrz.IsConfigured);
+    }
 }
