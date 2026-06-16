@@ -265,7 +265,12 @@ export default function EditQsoPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-bold text-white mb-8">Rediger QSO</h1>
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-bold text-white">Rediger QSO</h1>
+        <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>
+          Tilbage til logbog
+        </Button>
+      </div>
       <Card>
         <CardContent className="py-6">
           <div className="mb-6 flex gap-1 rounded-lg border border-gray-700 bg-gray-900/50 p-1">
