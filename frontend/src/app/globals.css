@@ -67,6 +67,15 @@ body {
   cursor: pointer;
 }
 
+.hamhub-decode-grid .hamhub-calling-me-row .ag-cell {
+  background: #fecaca;
+  color: #450a0a;
+}
+
+.hamhub-decode-grid .hamhub-calling-me-row .ag-cell:first-child {
+  border-left-color: #dc2626;
+}
+
 .hamhub-decode-grid .hamhub-row-worked .ag-cell {
   background: #bbf7d0;
   color: #052e16;

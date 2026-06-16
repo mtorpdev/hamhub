@@ -10,7 +10,7 @@ export interface MapMarker {
   label: string
   popup?: string
   tooltip?: string
-  variant?: 'worked' | 'new-grid' | 'new-station' | 'unknown'
+  variant?: 'worked' | 'new-grid' | 'new-station' | 'calling-me' | 'unknown'
   actionLabel?: string
 }
 
@@ -26,6 +26,7 @@ function markerStyle(variant: MapMarker['variant']) {
   if (variant === 'worked') return { color: '#166534', fillColor: '#22c55e' }
   if (variant === 'new-grid') return { color: '#b45309', fillColor: '#f59e0b' }
   if (variant === 'new-station') return { color: '#0369a1', fillColor: '#0ea5e9' }
+  if (variant === 'calling-me') return { color: '#991b1b', fillColor: '#ef4444' }
   return { color: '#475569', fillColor: '#64748b' }
 }
 

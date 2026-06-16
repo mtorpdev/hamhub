@@ -24,10 +24,11 @@ type DecodeRow = WsjtxDecodeItem & {
   logStatus: DecodeLogStatus
   displayMode: string
   country: string
+  callsMe: boolean
 }
 
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
-type MessageFilter = 'all' | 'CQ' | '73'
+type MessageFilter = 'all' | 'CQ' | 'me' | '73'
 type DecodeView = 'grid' | 'map'
 type DecodeMapMarker = MapMarker & {
   decodeId: number
@@ -232,8 +233,22 @@ function formatWsjtxStatus(
 function rowMatchesMessageFilter(row: DecodeRow, messageFilter: MessageFilter) {
   const message = row.message.toUpperCase()
   if (messageFilter === 'CQ') return message.startsWith('CQ ') || message.includes(' CQ ')
+  if (messageFilter === 'me') return row.callsMe
   if (messageFilter === '73') return message.includes('73')
   return true
+}
+
+function decodeCallsMe(message: string, callsign: string | null | undefined) {
+  const ownCallsign = callsign?.trim().toUpperCase()
+  if (!ownCallsign) return false
+
+  const tokens = message
+    .toUpperCase()
+    .split(/\s+/)
+    .map(token => token.replace(/^[^A-Z0-9/]+|[^A-Z0-9/]+$/g, ''))
+    .filter(Boolean)
+
+  return tokens.includes(ownCallsign)
 }
 
 function rowMatchesQuickSearch(row: DecodeRow, search: string) {
@@ -317,7 +332,8 @@ export default function DecodePage() {
   const [qsoSaving, setQsoSaving] = useState(false)
   const [qsoSaveStatus, setQsoSaveStatus] = useState<string | null>(null)
   const lastTxRef = useRef({ call: '', transmitting: false })
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const ownCallsign = user?.callsign?.toUpperCase() ?? ''
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -376,11 +392,12 @@ export default function DecodePage() {
         logStatus: getDecodeLogStatus(d, logbook),
         displayMode: normalizeDecodeMode(d),
         country: countryFromCallsign(d.dxCallsign),
+        callsMe: decodeCallsMe(d.message, ownCallsign),
       }))
       .filter(row => rowMatchesMessageFilter(row, messageFilter))
       .filter(row => !onlyWithGrid || Boolean(row.dxGrid))
       .filter(row => rowMatchesQuickSearch(row, quickSearch))
-  }, [decodes, logbook, messageFilter, onlyWithGrid, quickSearch])
+  }, [decodes, logbook, messageFilter, onlyWithGrid, ownCallsign, quickSearch])
 
   const mapRows = useMemo(() => rows.filter(row => Boolean(gridToLatLng(row.dxGrid))), [rows])
 
@@ -394,7 +411,7 @@ export default function DecodePage() {
         lat: position.lat,
         lng: position.lng,
         label: row.dxCallsign ?? row.dxGrid ?? row.message,
-        variant: row.logStatus,
+        variant: row.callsMe ? 'calling-me' : row.logStatus,
         actionLabel: row.isCallable ? 'Åbn QSO' : 'Se decode',
         tooltip: [
           row.dxCallsign ?? row.message,
@@ -408,14 +425,15 @@ export default function DecodePage() {
           `<br/>Grid: <span style="font-family: monospace">${escapeHtml(row.dxGrid)}</span>`,
           `<br/>Land: ${escapeHtml(row.country)}`,
           `<br/>Status: ${escapeHtml(logStatusLabel(row.logStatus))}`,
+          row.callsMe ? `<br/><b>Kalder ${escapeHtml(ownCallsign)}</b>` : null,
           `<br/>SNR: <span style="font-family: monospace">${escapeHtml(snrText(row.snr))}</span>`,
           `<br/>Afstand: ${escapeHtml(distance)}`,
           `<br/>Mode: ${escapeHtml(row.displayMode)}`,
           `<br/><span style="font-family: monospace">${escapeHtml(row.message)}</span>`,
-        ].join(''),
+        ].filter(Boolean).join(''),
       }
     })
-  }, [mapRows])
+  }, [mapRows, ownCallsign])
 
   const selectedTrail = useMemo(() => {
     if (!selectedDecode) return []
@@ -499,6 +517,7 @@ export default function DecodePage() {
       cellRenderer: ({ data, value }: { data?: DecodeRow; value?: string }) => (
         <span className="font-mono font-semibold text-inherit">
           {value ?? '-'}
+          {data?.callsMe && <span className="ml-2 rounded border border-red-700 bg-red-950 px-1.5 py-0.5 text-[11px] text-red-100">Mig</span>}
           {data?.isCallable && <span className="ml-2 rounded border border-blue-700 bg-blue-950 px-1.5 py-0.5 text-[11px] text-blue-100">Call</span>}
         </span>
       ),
@@ -554,6 +573,7 @@ export default function DecodePage() {
     'hamhub-row-new-grid': params => params.data?.logStatus === 'new-grid',
     'hamhub-row-new-station': params => params.data?.logStatus === 'new-station',
     'hamhub-callable-row': params => Boolean(params.data?.isCallable),
+    'hamhub-calling-me-row': params => Boolean(params.data?.callsMe),
   }), [])
 
   const handleGridRowClick = (event: RowClickedEvent<DecodeRow>) => {
@@ -656,13 +676,13 @@ export default function DecodePage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-4">
         <div className="flex gap-1 border-b border-gray-700">
-          {(['all', 'CQ', '73'] as const).map(f => (
+          {(['all', 'CQ', 'me', '73'] as const).map(f => (
             <button
               key={f}
               onClick={() => setMessageFilter(f)}
               className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${messageFilter === f ? 'border-cyan-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
             >
-              {f === 'all' ? 'Alle beskeder' : f}
+              {f === 'all' ? 'Alle beskeder' : f === 'me' ? `Kalder ${ownCallsign || 'mig'}` : f}
             </button>
           ))}
         </div>
