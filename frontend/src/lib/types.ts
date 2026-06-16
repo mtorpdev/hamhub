@@ -410,6 +410,40 @@ export interface Message {
   createdAt: string
 }
 
+export enum FriendshipStatus {
+  Pending = 1,
+  Accepted = 2,
+  Declined = 3
+}
+
+export interface Friendship {
+  id: number
+  otherUserId: string
+  otherCallsign: string | null
+  otherEmail: string | null
+  otherName: string | null
+  otherGridLocator: string | null
+  status: FriendshipStatus
+  direction: 'incoming' | 'outgoing' | string
+  createdAt: string
+  respondedAt: string | null
+}
+
+export interface FriendRequests {
+  incoming: Friendship[]
+  outgoing: Friendship[]
+}
+
+export interface FriendCandidate {
+  userId: string
+  callsign: string | null
+  email: string | null
+  name: string | null
+  gridLocator: string | null
+  friendshipStatus: FriendshipStatus | null
+  friendshipDirection: 'incoming' | 'outgoing' | string | null
+}
+
 export interface CommunityRoom {
   id: number
   name: string

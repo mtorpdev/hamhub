@@ -54,6 +54,35 @@ public class MessagesController : ControllerBase
         return Ok(new { count });
     }
 
+    // GET /api/messages/conversation/{userId}
+    [HttpGet("conversation/{otherUserId}")]
+    public async Task<IActionResult> GetConversation(string otherUserId, [FromQuery] int limit = 100)
+    {
+        var other = await _context.Users.FindAsync(otherUserId);
+        if (other == null) return NotFound("Bruger ikke fundet");
+        if (!await FriendsController.AreFriendsAsync(_context, UserId, otherUserId)) return Forbid();
+
+        var messages = await _context.Messages
+            .Include(m => m.Sender)
+            .Include(m => m.Recipient)
+            .Where(m =>
+                ((m.SenderId == UserId && m.RecipientId == otherUserId && !m.SenderDeleted) ||
+                 (m.SenderId == otherUserId && m.RecipientId == UserId && !m.RecipientDeleted)))
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(Math.Clamp(limit, 1, 200))
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync();
+
+        var unread = messages.Where(m => m.RecipientId == UserId && !m.IsRead).ToList();
+        if (unread.Count > 0)
+        {
+            foreach (var message in unread) message.IsRead = true;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(messages.Select(MapDto).ToList());
+    }
+
     // GET /api/messages/{id}
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
@@ -83,13 +112,16 @@ public class MessagesController : ControllerBase
         var recipient = await _context.Users.FindAsync(req.RecipientId);
         if (recipient == null) return BadRequest("Modtager ikke fundet");
         if (req.RecipientId == UserId) return BadRequest("Du kan ikke sende beskeder til dig selv");
+        if (!await FriendsController.AreFriendsAsync(_context, UserId, req.RecipientId))
+            return Forbid();
+        if (string.IsNullOrWhiteSpace(req.Body)) return BadRequest("Besked må ikke være tom");
 
         var message = new Message
         {
             SenderId = UserId,
             RecipientId = req.RecipientId,
-            Subject = req.Subject,
-            Body = req.Body,
+            Subject = string.IsNullOrWhiteSpace(req.Subject) ? "Privat besked" : req.Subject.Trim(),
+            Body = req.Body.Trim(),
         };
         _context.Messages.Add(message);
         await _context.SaveChangesAsync();

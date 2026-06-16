@@ -34,8 +34,13 @@ public class CommunityController : ControllerBase
     public async Task<IActionResult> GetContacts([FromQuery] int limit = 50)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var friendIds = await _context.Friendships
+            .Where(f => f.Status == HamHub.Domain.Enums.FriendshipStatus.Accepted && (f.RequesterId == userId || f.AddresseeId == userId))
+            .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+            .ToListAsync();
+
         var contacts = await _context.Users
-            .Where(u => u.Id != userId)
+            .Where(u => friendIds.Contains(u.Id))
             .OrderBy(u => u.Callsign ?? u.Email)
             .Take(Math.Clamp(limit, 1, 100))
             .Select(u => new CommunityContactDto(

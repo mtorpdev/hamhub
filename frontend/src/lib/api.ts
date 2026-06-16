@@ -162,9 +162,20 @@ export const api = {
     getSent: () => request<import('./types').Message[]>('/api/messages/sent'),
     getUnreadCount: () => request<{ count: number }>('/api/messages/unread-count'),
     getById: (id: number) => request<import('./types').Message>(`/api/messages/${id}`),
+    getConversation: (userId: string) => request<import('./types').Message[]>(`/api/messages/conversation/${userId}`),
     send: (data: { recipientId: string; subject: string; body: string }) =>
       request<import('./types').Message>('/api/messages', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/messages/${id}`, { method: 'DELETE' }),
+  },
+  friends: {
+    getAll: () => request<import('./types').Friendship[]>('/api/friends'),
+    getRequests: () => request<import('./types').FriendRequests>('/api/friends/requests'),
+    search: (q: string) => request<import('./types').FriendCandidate[]>(`/api/friends/search?q=${encodeURIComponent(q)}`),
+    sendRequest: (userId: string) =>
+      request<import('./types').Friendship>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ userId }) }),
+    accept: (id: number) => request<import('./types').Friendship>(`/api/friends/requests/${id}/accept`, { method: 'POST' }),
+    decline: (id: number) => request<import('./types').Friendship>(`/api/friends/requests/${id}/decline`, { method: 'POST' }),
+    remove: (friendId: string) => request<void>(`/api/friends/${friendId}`, { method: 'DELETE' }),
   },
   community: {
     getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),

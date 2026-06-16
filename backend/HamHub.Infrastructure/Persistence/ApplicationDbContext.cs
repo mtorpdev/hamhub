@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ListingImage> ListingImages => Set<ListingImage>();
     public DbSet<CommunityRoom> CommunityRooms => Set<CommunityRoom>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<PostImage> PostImages => Set<PostImage>();
@@ -63,6 +64,25 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(m => m.User)
             .WithMany(u => u.ChatMessages)
             .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Friendship>()
+            .HasIndex(f => new { f.RequesterId, f.AddresseeId })
+            .IsUnique();
+
+        builder.Entity<Friendship>()
+            .HasIndex(f => new { f.AddresseeId, f.RequesterId });
+
+        builder.Entity<Friendship>()
+            .HasOne(f => f.Requester)
+            .WithMany(u => u.SentFriendRequests)
+            .HasForeignKey(f => f.RequesterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Friendship>()
+            .HasOne(f => f.Addressee)
+            .WithMany(u => u.ReceivedFriendRequests)
+            .HasForeignKey(f => f.AddresseeId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
