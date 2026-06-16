@@ -1,16 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, type ColDef, type RowClassRules, type RowClickedEvent } from 'ag-grid-community'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
 import { distanceKm, gridToLatLng } from '@/lib/maidenhead'
 import LeafletMap, { type MapMarker } from '@/components/ui/Map'
-import type { Qso, WsjtxDecodeItem, WsjtxStatus } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -35,6 +37,52 @@ type LogbookIndex = {
   callsigns: Set<string>
   grids: Set<string>
   byCallsign: Map<string, Qso>
+}
+
+type QsoEditForm = {
+  dateUtc: string
+  ownCallsign: string
+  workedCallsign: string
+  band: Band | string
+  frequency: string
+  mode: Mode | string
+  rstSent: string
+  rstReceived: string
+  submode: string
+  locator: string
+  myGridsquare: string
+  country: string
+  dxcc: string
+  continent: string
+  state: string
+  iota: string
+  name: string
+  qth: string
+  txPower: string
+  comment: string
+}
+
+const EMPTY_QSO_FORM: QsoEditForm = {
+  dateUtc: '',
+  ownCallsign: '',
+  workedCallsign: '',
+  band: Band.M20,
+  frequency: '',
+  mode: Mode.FT8,
+  rstSent: '',
+  rstReceived: '',
+  submode: '',
+  locator: '',
+  myGridsquare: '',
+  country: '',
+  dxcc: '',
+  continent: '',
+  state: '',
+  iota: '',
+  name: '',
+  qth: '',
+  txPower: '',
+  comment: '',
 }
 
 const EMPTY_LOGBOOK_INDEX: LogbookIndex = {
@@ -203,6 +251,43 @@ function rowMatchesQuickSearch(row: DecodeRow, search: string) {
   return haystack.includes(search.toUpperCase())
 }
 
+function qsoToEditForm(qso: Qso): QsoEditForm {
+  return {
+    dateUtc: new Date(qso.dateUtc).toISOString().slice(0, 16),
+    ownCallsign: qso.ownCallsign,
+    workedCallsign: qso.workedCallsign,
+    band: qso.band,
+    frequency: qso.frequency?.toString() ?? '',
+    mode: qso.mode,
+    rstSent: qso.rstSent ?? '',
+    rstReceived: qso.rstReceived ?? '',
+    submode: qso.submode ?? '',
+    locator: qso.locator ?? '',
+    myGridsquare: qso.myGridsquare ?? '',
+    country: qso.country ?? '',
+    dxcc: qso.dxcc?.toString() ?? '',
+    continent: qso.continent ?? '',
+    state: qso.state ?? '',
+    iota: qso.iota ?? '',
+    name: qso.name ?? '',
+    qth: qso.qth ?? '',
+    txPower: qso.txPower?.toString() ?? '',
+    comment: qso.comment ?? '',
+  }
+}
+
+function qsoFormPayload(form: QsoEditForm) {
+  return {
+    ...form,
+    dateUtc: new Date(form.dateUtc).toISOString(),
+    band: Number(form.band),
+    mode: Number(form.mode),
+    frequency: form.frequency ? parseFloat(form.frequency) : undefined,
+    dxcc: form.dxcc ? parseInt(form.dxcc, 10) : undefined,
+    txPower: form.txPower ? parseFloat(form.txPower) : undefined,
+  }
+}
+
 function escapeHtml(value: string | number | null | undefined) {
   return String(value ?? '-')
     .replace(/&/g, '&amp;')
@@ -227,6 +312,10 @@ export default function DecodePage() {
   const [selectedDecode, setSelectedDecode] = useState<DecodeRow | null>(null)
   const [wsjtxStatus, setWsjtxStatus] = useState<WsjtxStatus | null>(null)
   const [txCountByCall, setTxCountByCall] = useState<Record<string, number>>({})
+  const [qsoForm, setQsoForm] = useState<QsoEditForm>(EMPTY_QSO_FORM)
+  const [qsoFormQsoId, setQsoFormQsoId] = useState<number | null>(null)
+  const [qsoSaving, setQsoSaving] = useState(false)
+  const [qsoSaveStatus, setQsoSaveStatus] = useState<string | null>(null)
   const lastTxRef = useRef({ call: '', transmitting: false })
   const { isAuthenticated } = useAuth()
 
@@ -343,6 +432,19 @@ export default function DecodePage() {
   const wsjtxIsOnSelectedCall = Boolean(selectedCall && wsjtxStatusCall === selectedCall)
   const wsjtxIsSendingSelectedCall = Boolean(wsjtxIsOnSelectedCall && wsjtxStatus?.transmitting)
   const selectedTxCount = selectedCall ? txCountByCall[selectedCall] ?? 0 : 0
+
+  useEffect(() => {
+    if (!selectedLoggedQso) {
+      setQsoForm(EMPTY_QSO_FORM)
+      setQsoFormQsoId(null)
+      setQsoSaveStatus(null)
+      return
+    }
+    if (qsoFormQsoId === selectedLoggedQso.id) return
+    setQsoForm(qsoToEditForm(selectedLoggedQso))
+    setQsoFormQsoId(selectedLoggedQso.id)
+    setQsoSaveStatus('QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.')
+  }, [qsoFormQsoId, selectedLoggedQso])
 
   useEffect(() => {
     if (!selectedCall) return
@@ -503,6 +605,26 @@ export default function DecodePage() {
     }
   }
 
+  const setQsoField = (key: keyof QsoEditForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setQsoForm(current => ({ ...current, [key]: event.target.value }))
+  }
+
+  const handleSaveLoggedQso = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!selectedLoggedQso || qsoSaving) return
+    try {
+      setQsoSaving(true)
+      setQsoSaveStatus('Gemmer QSO...')
+      const updated = await api.qsos.update(selectedLoggedQso.id, qsoFormPayload(qsoForm))
+      setQsos(current => mergeQsos(current, [updated]))
+      setQsoSaveStatus('QSO gemt i HamHub.')
+    } catch (err) {
+      setQsoSaveStatus(err instanceof Error ? err.message : 'Kunne ikke gemme QSO')
+    } finally {
+      setQsoSaving(false)
+    }
+  }
+
   const clearGridFilters = () => {
     setMessageFilter('all')
     setQuickSearch('')
@@ -631,7 +753,7 @@ export default function DecodePage() {
 
       {selectedDecode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="max-h-[88vh] w-full max-w-3xl overflow-hidden border border-gray-700 bg-gray-950 shadow-2xl">
+          <div className="max-h-[88vh] w-full max-w-4xl overflow-auto border border-gray-700 bg-gray-950 shadow-2xl">
             <div className="flex items-start justify-between border-b border-gray-800 px-5 py-4">
               <div>
                 <p className="text-xs uppercase text-gray-500">QSO kandidat</p>
@@ -725,6 +847,73 @@ export default function DecodePage() {
                 )}
               </div>
             </div>
+
+            {selectedLoggedQso && (
+              <form onSubmit={handleSaveLoggedQso} className="border-t border-gray-800 px-5 py-4">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Logget QSO</h3>
+                    <p className="mt-1 text-sm text-gray-400">
+                      QSO #{selectedLoggedQso.id} er logget fra WSJT-X. Ret felterne og gem i HamHub.
+                    </p>
+                  </div>
+                  <Button type="button" variant="secondary" onClick={() => window.open(`/logbook/${selectedLoggedQso.id}`, '_blank')}>
+                    Åbn fuld QSO
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input label="Dato/tid UTC" type="datetime-local" value={qsoForm.dateUtc} onChange={setQsoField('dateUtc')} required />
+                  <Input label="Eget kaldesignal" value={qsoForm.ownCallsign} onChange={setQsoField('ownCallsign')} required />
+                  <Input label="Kontaktens kaldesignal" value={qsoForm.workedCallsign} onChange={setQsoField('workedCallsign')} required />
+                  <Input label="Frekvens (MHz)" type="number" step="0.001" value={qsoForm.frequency} onChange={setQsoField('frequency')} />
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-4">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-gray-300">Band</label>
+                    <select value={qsoForm.band} onChange={setQsoField('band')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
+                      {Object.entries(BandLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-medium text-gray-300">Mode</label>
+                    <select value={qsoForm.mode} onChange={setQsoField('mode')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
+                      {Object.entries(ModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                  <Input label="RST sendt" value={qsoForm.rstSent} onChange={setQsoField('rstSent')} />
+                  <Input label="RST modtaget" value={qsoForm.rstReceived} onChange={setQsoField('rstReceived')} />
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <Input label="Kontaktens grid" value={qsoForm.locator} onChange={setQsoField('locator')} />
+                  <Input label="Mit grid" value={qsoForm.myGridsquare} onChange={setQsoField('myGridsquare')} />
+                  <Input label="Land" value={qsoForm.country} onChange={setQsoField('country')} />
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <Input label="Navn" value={qsoForm.name} onChange={setQsoField('name')} />
+                  <Input label="QTH" value={qsoForm.qth} onChange={setQsoField('qth')} />
+                  <Input label="TX effekt (W)" type="number" step="0.1" value={qsoForm.txPower} onChange={setQsoField('txPower')} />
+                </div>
+
+                <div className="mt-3 flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-300">Kommentar</label>
+                  <textarea
+                    rows={2}
+                    value={qsoForm.comment}
+                    onChange={setQsoField('comment')}
+                    className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                  />
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  {qsoSaveStatus && <p className="text-sm text-gray-300">{qsoSaveStatus}</p>}
+                  <Button type="submit" disabled={qsoSaving}>{qsoSaving ? 'Gemmer...' : 'Gem QSO'}</Button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
