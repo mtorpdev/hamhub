@@ -1,7 +1,9 @@
+using HamHub.Api.Hubs;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -13,10 +15,12 @@ namespace HamHub.Api.Controllers;
 public class MessagesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<PrivateMessagesHub>? _hubContext;
 
-    public MessagesController(ApplicationDbContext context)
+    public MessagesController(ApplicationDbContext context, IHubContext<PrivateMessagesHub>? hubContext = null)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -131,7 +135,18 @@ public class MessagesController : ControllerBase
             .Include(m => m.Recipient)
             .FirstAsync(m => m.Id == message.Id);
 
-        return CreatedAtAction(nameof(GetById), new { id = message.Id }, MapDto(created));
+        var dto = MapDto(created);
+        if (_hubContext != null)
+        {
+            await _hubContext.Clients
+                .Groups(PrivateMessagesHub.UserGroup(created.SenderId), PrivateMessagesHub.UserGroup(created.RecipientId))
+                .SendAsync("PrivateMessageCreated", dto);
+            await _hubContext.Clients
+                .Group(PrivateMessagesHub.UserGroup(created.RecipientId))
+                .SendAsync("NotificationSummaryChanged");
+        }
+
+        return CreatedAtAction(nameof(GetById), new { id = message.Id }, dto);
     }
 
     // DELETE /api/messages/{id}

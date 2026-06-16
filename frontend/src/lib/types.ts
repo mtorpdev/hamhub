@@ -410,6 +410,12 @@ export interface Message {
   createdAt: string
 }
 
+export interface NotificationSummary {
+  unreadMessages: number
+  incomingFriendRequests: number
+  total: number
+}
+
 export enum FriendshipStatus {
   Pending = 1,
   Accepted = 2,

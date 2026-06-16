@@ -67,7 +67,8 @@ builder.Services.AddAuthentication(options =>
             {
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/community-chat"))
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/hubs/community-chat") || path.StartsWithSegments("/hubs/private-messages")))
                 {
                     context.Token = accessToken;
                 }
@@ -139,6 +140,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<CommunityChatHub>("/hubs/community-chat");
+app.MapHub<PrivateMessagesHub>("/hubs/private-messages");
 
 // Ensure upload directories exist
 var uploadsRoot = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads");

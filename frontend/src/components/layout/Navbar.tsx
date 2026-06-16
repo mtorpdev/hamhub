@@ -2,15 +2,78 @@
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
+import { api } from '@/lib/api'
+import { type NotificationSummary } from '@/lib/types'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
+
+function Badge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 export function Navbar() {
   const { isAuthenticated, user, logout, isAdmin } = useAuth()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [summary, setSummary] = useState<NotificationSummary>({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+
+  const loadSummary = useCallback(async () => {
+    if (!isAuthenticated) {
+      setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+      return
+    }
+
+    try {
+      setSummary(await api.notifications.summary())
+    } catch {
+      setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    void Promise.resolve().then(loadSummary)
+  }, [loadSummary])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const timer = window.setInterval(loadSummary, 30_000)
+    return () => window.clearInterval(timer)
+  }, [isAuthenticated, loadSummary])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    if (!token) return
+
+    let stopped = false
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${API_URL}/hubs/private-messages`, { accessTokenFactory: () => token })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build()
+
+    connection.on('PrivateMessageCreated', loadSummary)
+    connection.on('FriendshipChanged', loadSummary)
+    connection.on('NotificationSummaryChanged', loadSummary)
+
+    connection.start().catch(() => undefined)
+
+    return () => {
+      stopped = true
+      if (stopped) void connection.stop().catch(() => undefined)
+    }
+  }, [isAuthenticated, loadSummary])
 
   const handleLogout = () => {
     logout()
+    setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
     router.push('/')
   }
 
@@ -32,7 +95,9 @@ export function Navbar() {
               <Link href="/community" className="text-gray-300 hover:text-white text-sm">Community</Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">Beskeder</Link>
+              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">
+                Beskeder<Badge count={summary.total} />
+              </Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">Admin</Link>}
             </>}
           </div>
@@ -72,7 +137,9 @@ export function Navbar() {
               <Link href="/community" className="text-gray-300 text-sm py-1">Community</Link>
               <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 text-sm py-1">Beskeder</Link>
+              <Link href="/messages" className="text-gray-300 text-sm py-1">
+                Beskeder<Badge count={summary.total} />
+              </Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 text-sm py-1">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-300 text-sm py-1 text-left">Log ud</button>
             </> : <>

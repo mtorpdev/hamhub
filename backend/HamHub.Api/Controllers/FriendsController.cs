@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using HamHub.Api.Hubs;
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace HamHub.Api.Controllers;
@@ -14,10 +16,12 @@ namespace HamHub.Api.Controllers;
 public class FriendsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<PrivateMessagesHub>? _hubContext;
 
-    public FriendsController(ApplicationDbContext context)
+    public FriendsController(ApplicationDbContext context, IHubContext<PrivateMessagesHub>? hubContext = null)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -107,7 +111,9 @@ public class FriendsController : ControllerBase
                 existing.CreatedAt = DateTime.UtcNow;
                 existing.RespondedAt = null;
                 await _context.SaveChangesAsync();
-                return CreatedAtAction(nameof(GetRequests), new { id = existing.Id }, MapDto(await LoadFriendshipAsync(existing.Id)));
+                var dto = MapDto(await LoadFriendshipAsync(existing.Id));
+                await BroadcastFriendshipChangedAsync(existing.RequesterId, existing.AddresseeId);
+                return CreatedAtAction(nameof(GetRequests), new { id = existing.Id }, dto);
             }
 
             return BadRequest(existing.Status == FriendshipStatus.Accepted
@@ -123,6 +129,7 @@ public class FriendsController : ControllerBase
         };
         _context.Friendships.Add(friendship);
         await _context.SaveChangesAsync();
+        await BroadcastFriendshipChangedAsync(friendship.RequesterId, friendship.AddresseeId);
 
         return CreatedAtAction(nameof(GetRequests), new { id = friendship.Id }, MapDto(await LoadFriendshipAsync(friendship.Id)));
     }
@@ -138,6 +145,7 @@ public class FriendsController : ControllerBase
         friendship.Status = FriendshipStatus.Accepted;
         friendship.RespondedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+        await BroadcastFriendshipChangedAsync(friendship.RequesterId, friendship.AddresseeId);
         return Ok(MapDto(friendship));
     }
 
@@ -152,6 +160,7 @@ public class FriendsController : ControllerBase
         friendship.Status = FriendshipStatus.Declined;
         friendship.RespondedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+        await BroadcastFriendshipChangedAsync(friendship.RequesterId, friendship.AddresseeId);
         return Ok(MapDto(friendship));
     }
 
@@ -164,6 +173,7 @@ public class FriendsController : ControllerBase
 
         _context.Friendships.Remove(friendship);
         await _context.SaveChangesAsync();
+        await BroadcastFriendshipChangedAsync(friendship.RequesterId, friendship.AddresseeId);
         return NoContent();
     }
 
@@ -223,6 +233,18 @@ public class FriendsController : ControllerBase
     {
         var name = $"{user.FirstName} {user.LastName}".Trim();
         return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    private async Task BroadcastFriendshipChangedAsync(string requesterId, string addresseeId)
+    {
+        if (_hubContext == null) return;
+
+        await _hubContext.Clients
+            .Groups(PrivateMessagesHub.UserGroup(requesterId), PrivateMessagesHub.UserGroup(addresseeId))
+            .SendAsync("FriendshipChanged");
+        await _hubContext.Clients
+            .Groups(PrivateMessagesHub.UserGroup(requesterId), PrivateMessagesHub.UserGroup(addresseeId))
+            .SendAsync("NotificationSummaryChanged");
     }
 }
 

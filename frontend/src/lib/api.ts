@@ -167,6 +167,9 @@ export const api = {
       request<import('./types').Message>('/api/messages', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/messages/${id}`, { method: 'DELETE' }),
   },
+  notifications: {
+    summary: () => request<import('./types').NotificationSummary>('/api/notifications/summary'),
+  },
   friends: {
     getAll: () => request<import('./types').Friendship[]>('/api/friends'),
     getRequests: () => request<import('./types').FriendRequests>('/api/friends/requests'),

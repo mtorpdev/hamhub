@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +12,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 
 type Tab = 'inbox' | 'sent' | 'friends' | 'requests'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 function friendLabel(friend: Friendship | FriendCandidate) {
   if ('otherCallsign' in friend) return friend.otherCallsign || friend.otherEmail || 'Ukendt'
@@ -88,6 +90,44 @@ export default function MessagesPage() {
     }, 250)
     return () => window.clearTimeout(timer)
   }, [search])
+
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    if (!token || !user?.id) return
+
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${API_URL}/hubs/private-messages`, { accessTokenFactory: () => token })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build()
+
+    connection.on('PrivateMessageCreated', (message: Message) => {
+      const otherUserId = message.senderId === user.id ? message.recipientId : message.senderId
+      if (selectedFriendId === otherUserId) {
+        void api.messages.getConversation(otherUserId)
+          .then(setConversation)
+          .catch(() => setConversation(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message]))
+      }
+
+      if (tab === 'inbox' && message.recipientId === user.id) {
+        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [message, ...prev])
+      }
+      if (tab === 'sent' && message.senderId === user.id) {
+        setMessages(prev => prev.some(item => item.id === message.id) ? prev : [message, ...prev])
+      }
+    })
+
+    connection.on('FriendshipChanged', () => {
+      void loadFriends().catch(() => undefined)
+    })
+    connection.on('NotificationSummaryChanged', () => {
+      if (tab === 'inbox') void loadMessages('inbox').catch(() => undefined)
+    })
+
+    connection.start().catch(() => undefined)
+    return () => { void connection.stop().catch(() => undefined) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFriendId, tab, user?.id])
 
   const refreshAll = async () => {
     await Promise.all([loadMessages(tab), loadFriends()])
