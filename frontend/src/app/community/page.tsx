@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { type ChatMessage, type CommunityContact, type CommunityRoom, type Message, type Post, type PostComment } from '@/lib/types'
+import { FriendshipStatus, type ChatMessage, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type Message, type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
@@ -150,7 +150,7 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
   )
 }
 
-function RoomChatPanel({ roomSlug, roomName }: { roomSlug: string; roomName: string }) {
+function RoomChatPanel({ roomSlug, roomName, onPresenceChanged }: { roomSlug: string; roomName: string; onPresenceChanged?: () => void }) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -193,6 +193,9 @@ function RoomChatPanel({ roomSlug, roomName }: { roomSlug: string; roomName: str
     connection.on('RoomMessageCreated', (message: ChatMessage) => {
       setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message])
     })
+    connection.on('CommunityPresenceChanged', () => {
+      onPresenceChanged?.()
+    })
 
     async function start() {
       try {
@@ -223,7 +226,7 @@ function RoomChatPanel({ roomSlug, roomName }: { roomSlug: string; roomName: str
       void connection.invoke('LeaveRoom', roomSlug).catch(() => undefined)
         .finally(() => connection.stop().catch(() => undefined))
     }
-  }, [roomSlug])
+  }, [roomSlug, onPresenceChanged])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -309,8 +312,10 @@ export default function CommunityPage() {
   const [selectedRoom, setSelectedRoom] = useState('alle')
   const [posts, setPosts] = useState<Post[]>([])
   const [contacts, setContacts] = useState<CommunityContact[]>([])
+  const [onlineUsers, setOnlineUsers] = useState<CommunityOnlineUser[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [requestingUserId, setRequestingUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -324,6 +329,14 @@ export default function CommunityPage() {
     [rooms, selectedRoom]
   )
   const selectedContact = contacts.find(c => c.id === selectedContactId) ?? contacts[0]
+
+  const loadOnlineUsers = useCallback(async () => {
+    try {
+      setOnlineUsers(await api.community.getOnlineUsers())
+    } catch {
+      setOnlineUsers([])
+    }
+  }, [])
 
   const loadFeed = async (p = 1, roomSlug = selectedRoom) => {
     setLoading(true)
@@ -343,10 +356,11 @@ export default function CommunityPage() {
     async function loadCommunity() {
       setLoading(true)
       try {
-        const [roomData, feedData, contactData, inboxData] = await Promise.all([
+        const [roomData, feedData, contactData, onlineData, inboxData] = await Promise.all([
           api.community.getRooms().catch(() => fallbackRooms),
           api.posts.getFeed(1, selectedRoom),
           api.community.getContacts().catch(() => []),
+          api.community.getOnlineUsers().catch(() => []),
           api.messages.getInbox().catch(() => []),
         ])
         if (cancelled) return
@@ -355,6 +369,7 @@ export default function CommunityPage() {
         setTotal(feedData.total)
         setPage(1)
         setContacts(contactData)
+        setOnlineUsers(onlineData)
         setMessages(inboxData)
         setSelectedContactId(contactData[0]?.id ?? null)
       } finally {
@@ -365,6 +380,12 @@ export default function CommunityPage() {
     loadCommunity()
     return () => { cancelled = true }
   }, [isAuthenticated, selectedRoom])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const timer = window.setInterval(loadOnlineUsers, 15_000)
+    return () => window.clearInterval(timer)
+  }, [isAuthenticated, loadOnlineUsers])
 
   const handleSelectRoom = (slug: string) => {
     setSelectedRoom(slug)
@@ -396,6 +417,29 @@ export default function CommunityPage() {
       setPosts(ps => ps.filter(p => p.id !== postId))
       setTotal(t => t - 1)
     } catch { toast('Fejl', 'error') }
+  }
+
+  const handleOnlineUserClick = async (onlineUser: CommunityOnlineUser) => {
+    if (onlineUser.isFriend) {
+      setSelectedContactId(onlineUser.id)
+      return
+    }
+    if (onlineUser.friendshipStatus === FriendshipStatus.Pending) return
+
+    setRequestingUserId(onlineUser.id)
+    try {
+      await api.friends.sendRequest(onlineUser.id)
+      setOnlineUsers(users => users.map(item =>
+        item.id === onlineUser.id
+          ? { ...item, friendshipStatus: FriendshipStatus.Pending, friendshipDirection: 'outgoing' }
+          : item
+      ))
+      toast(`Venneanmodning sendt til ${onlineUser.callsign || onlineUser.name || onlineUser.email}.`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende venneanmodning', 'error')
+    } finally {
+      setRequestingUserId(null)
+    }
   }
 
   if (isLoading || !isAuthenticated) return null
@@ -514,6 +558,53 @@ export default function CommunityPage() {
 
         <aside className="flex flex-col gap-4 xl:sticky xl:top-20">
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Online nu</h2>
+              <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs text-green-300">{onlineUsers.length}</span>
+            </div>
+            <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+              {onlineUsers.map(onlineUser => {
+                const label = onlineUser.callsign || onlineUser.name || onlineUser.email || 'Ukendt bruger'
+                const alreadyPending = onlineUser.friendshipStatus === FriendshipStatus.Pending
+                const buttonText = onlineUser.isFriend
+                  ? 'Åbn'
+                  : alreadyPending
+                    ? onlineUser.friendshipDirection === 'incoming' ? 'Svar' : 'Sendt'
+                    : requestingUserId === onlineUser.id ? 'Sender...' : 'Tilføj'
+
+                return (
+                  <button
+                    key={onlineUser.id}
+                    type="button"
+                    onClick={() => handleOnlineUserClick(onlineUser)}
+                    disabled={requestingUserId === onlineUser.id || alreadyPending}
+                    className="flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-800 disabled:cursor-default disabled:hover:bg-transparent"
+                  >
+                    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-green-200">
+                      {label.slice(0, 2).toUpperCase()}
+                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-gray-900 bg-green-400" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-gray-200">{label}</span>
+                      <span className="block truncate text-xs text-gray-500">{onlineUser.gridLocator || onlineUser.country || onlineUser.name || 'Online medlem'}</span>
+                    </span>
+                    <span className={`shrink-0 rounded px-2 py-1 text-xs ${
+                      onlineUser.isFriend
+                        ? 'bg-blue-500/15 text-blue-200'
+                        : alreadyPending
+                          ? 'bg-yellow-500/10 text-yellow-200'
+                          : 'bg-gray-800 text-gray-200'
+                    }`}>
+                      {buttonText}
+                    </span>
+                  </button>
+                )
+              })}
+              {onlineUsers.length === 0 && <p className="text-sm text-gray-500">Ingen andre online lige nu.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-white">Kontakter</h2>
               <span className="text-xs text-gray-500">{contacts.length}</span>
@@ -541,7 +632,11 @@ export default function CommunityPage() {
             </div>
           </div>
 
-          <RoomChatPanel roomSlug={selectedRoom} roomName={selectedRoomInfo?.name ?? 'Alle opslag'} />
+          <RoomChatPanel
+            roomSlug={selectedRoom}
+            roomName={selectedRoomInfo?.name ?? 'Alle opslag'}
+            onPresenceChanged={loadOnlineUsers}
+          />
 
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <h2 className="text-sm font-semibold text-white mb-3">Seneste beskeder</h2>

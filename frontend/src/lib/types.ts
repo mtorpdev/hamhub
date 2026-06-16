@@ -463,6 +463,19 @@ export interface CommunityContact {
   country: string | null
 }
 
+export interface CommunityOnlineUser {
+  id: string
+  callsign: string | null
+  email: string | null
+  name: string | null
+  profileImageUrl: string | null
+  gridLocator: string | null
+  country: string | null
+  isFriend: boolean
+  friendshipStatus: FriendshipStatus | null
+  friendshipDirection: 'incoming' | 'outgoing' | string | null
+}
+
 export interface ChatMessage {
   id: number
   userId: string

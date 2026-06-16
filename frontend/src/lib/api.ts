@@ -180,6 +180,7 @@ export const api = {
   community: {
     getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),
     getContacts: () => request<import('./types').CommunityContact[]>('/api/community/contacts'),
+    getOnlineUsers: () => request<import('./types').CommunityOnlineUser[]>('/api/community/online'),
   },
   chat: {
     getRoomMessages: (roomSlug: string, limit = 60) =>
