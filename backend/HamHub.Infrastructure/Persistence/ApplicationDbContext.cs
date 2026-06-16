@@ -20,6 +20,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CommunityRoom> CommunityRooms => Set<CommunityRoom>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
+    public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
+    public DbSet<ContentReport> ContentReports => Set<ContentReport>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<PostImage> PostImages => Set<PostImage>();
@@ -84,5 +86,44 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany(u => u.ReceivedFriendRequests)
             .HasForeignKey(f => f.AddresseeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<UserBlock>()
+            .HasIndex(b => new { b.BlockerId, b.BlockedId })
+            .IsUnique();
+
+        builder.Entity<UserBlock>()
+            .HasOne(b => b.Blocker)
+            .WithMany()
+            .HasForeignKey(b => b.BlockerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<UserBlock>()
+            .HasOne(b => b.Blocked)
+            .WithMany()
+            .HasForeignKey(b => b.BlockedId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<ContentReport>()
+            .HasIndex(r => new { r.Status, r.CreatedAt });
+
+        builder.Entity<ContentReport>()
+            .Property(r => r.TargetType)
+            .HasMaxLength(50);
+
+        builder.Entity<ContentReport>()
+            .Property(r => r.Reason)
+            .HasMaxLength(1000);
+
+        builder.Entity<ContentReport>()
+            .HasOne(r => r.Reporter)
+            .WithMany()
+            .HasForeignKey(r => r.ReporterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<ContentReport>()
+            .HasOne(r => r.TargetUser)
+            .WithMany()
+            .HasForeignKey(r => r.TargetUserId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

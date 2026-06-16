@@ -284,6 +284,26 @@ export interface DashboardStats {
   totalArticles: number
 }
 
+export enum ReportStatus {
+  Open = 1,
+  Resolved = 2,
+  Dismissed = 3
+}
+
+export interface ContentReport {
+  id: number
+  reporterId: string
+  reporterCallsign: string | null
+  targetType: string
+  targetUserId: string | null
+  targetUserCallsign: string | null
+  targetId: number | null
+  reason: string
+  status: ReportStatus
+  createdAt: string
+  resolvedAt: string | null
+}
+
 export interface WsjtxDecodeItem {
   id: number
   wsjtxId: string

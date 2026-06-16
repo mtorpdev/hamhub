@@ -125,6 +125,10 @@ export const api = {
   admin: {
     dashboard: () => request<import('./types').DashboardStats>('/api/admin/dashboard'),
     stats: () => request<import('./types').DashboardStats>('/api/admin/stats'),
+    reports: (status?: import('./types').ReportStatus) =>
+      request<import('./types').ContentReport[]>(`/api/admin/reports${status ? `?status=${status}` : ''}`),
+    resolveReport: (id: number) => request<void>(`/api/admin/reports/${id}/resolve`, { method: 'POST' }),
+    dismissReport: (id: number) => request<void>(`/api/admin/reports/${id}/dismiss`, { method: 'POST' }),
   },
   listings: {
     getAll: (category?: number, search?: string) => {
@@ -169,6 +173,12 @@ export const api = {
   },
   notifications: {
     summary: () => request<import('./types').NotificationSummary>('/api/notifications/summary'),
+  },
+  safety: {
+    blockUser: (userId: string) => request<void>('/api/safety/blocks', { method: 'POST', body: JSON.stringify({ userId }) }),
+    unblockUser: (userId: string) => request<void>(`/api/safety/blocks/${userId}`, { method: 'DELETE' }),
+    report: (data: { targetType: string; targetUserId?: string | null; targetId?: number | null; reason: string }) =>
+      request<import('./types').ContentReport>('/api/safety/reports', { method: 'POST', body: JSON.stringify(data) }),
   },
   friends: {
     getAll: () => request<import('./types').Friendship[]>('/api/friends'),

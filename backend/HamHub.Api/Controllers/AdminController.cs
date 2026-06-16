@@ -1,4 +1,5 @@
 using HamHub.Application.Admin.DTOs;
+using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,5 +44,44 @@ public class AdminController : ControllerBase
             TotalArticles: await _context.Articles.CountAsync()
         );
         return Ok(stats);
+    }
+
+    [HttpGet("reports")]
+    public async Task<IActionResult> GetReports([FromQuery] ReportStatus? status = null)
+    {
+        var query = _context.ContentReports
+            .Include(r => r.Reporter)
+            .Include(r => r.TargetUser)
+            .AsQueryable();
+        if (status != null) query = query.Where(r => r.Status == status);
+
+        var reports = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(200)
+            .Select(r => SafetyController.MapReportDto(r))
+            .ToListAsync();
+        return Ok(reports);
+    }
+
+    [HttpPost("reports/{id:int}/resolve")]
+    public async Task<IActionResult> ResolveReport(int id)
+    {
+        var report = await _context.ContentReports.FindAsync(id);
+        if (report == null) return NotFound();
+        report.Status = ReportStatus.Resolved;
+        report.ResolvedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("reports/{id:int}/dismiss")]
+    public async Task<IActionResult> DismissReport(int id)
+    {
+        var report = await _context.ContentReports.FindAsync(id);
+        if (report == null) return NotFound();
+        report.Status = ReportStatus.Dismissed;
+        report.ResolvedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 }

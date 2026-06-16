@@ -4,11 +4,12 @@ import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/s
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { FriendshipStatus, type ChatMessage, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type Message, type Post, type PostComment } from '@/lib/types'
+import { FriendshipStatus, type ChatMessage, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type FriendRequests, type Message, type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
+import { UserProfileCard, type ProfileCardUser } from '@/components/community/UserProfileCard'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -69,6 +70,17 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
     } catch { toast('Fejl', 'error') }
   }
 
+  const handleReportPost = async () => {
+    const reason = window.prompt('Hvad skal moderator kigge på?')
+    if (!reason?.trim()) return
+    try {
+      await api.safety.report({ targetType: 'post', targetUserId: post.userId, targetId: post.id, reason: reason.trim() })
+      toast('Rapport sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+    }
+  }
+
   return (
     <Card>
       <CardContent className="py-5">
@@ -87,6 +99,9 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
           </div>
           {currentUserId === post.userId && (
             <button onClick={onDelete} className="text-gray-600 hover:text-red-400 text-xs">Slet</button>
+          )}
+          {currentUserId && currentUserId !== post.userId && (
+            <button onClick={handleReportPost} className="text-gray-600 hover:text-yellow-300 text-xs">Rapportér</button>
           )}
         </div>
 
@@ -248,6 +263,17 @@ function RoomChatPanel({ roomSlug, roomName, onPresenceChanged }: { roomSlug: st
     }
   }
 
+  const handleReportChat = async (message: ChatMessage) => {
+    const reason = window.prompt('Hvad skal moderator kigge på?')
+    if (!reason?.trim()) return
+    try {
+      await api.safety.report({ targetType: 'chat', targetUserId: message.userId, targetId: message.id, reason: reason.trim() })
+      toast('Rapport sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+    }
+  }
+
   return (
     <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -276,6 +302,11 @@ function RoomChatPanel({ roomSlug, roomName, onPresenceChanged }: { roomSlug: st
                     <span>{new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <div className="whitespace-pre-wrap break-words text-sm">{message.content}</div>
+                  {!mine && (
+                    <button type="button" onClick={() => handleReportChat(message)} className={`mt-1 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500 hover:text-yellow-300'}`}>
+                      Rapportér
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -313,8 +344,10 @@ export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [contacts, setContacts] = useState<CommunityContact[]>([])
   const [onlineUsers, setOnlineUsers] = useState<CommunityOnlineUser[]>([])
+  const [friendRequests, setFriendRequests] = useState<FriendRequests>({ incoming: [], outgoing: [] })
   const [messages, setMessages] = useState<Message[]>([])
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [profileUser, setProfileUser] = useState<ProfileCardUser | null>(null)
   const [requestingUserId, setRequestingUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -356,11 +389,12 @@ export default function CommunityPage() {
     async function loadCommunity() {
       setLoading(true)
       try {
-        const [roomData, feedData, contactData, onlineData, inboxData] = await Promise.all([
+        const [roomData, feedData, contactData, onlineData, requestData, inboxData] = await Promise.all([
           api.community.getRooms().catch(() => fallbackRooms),
           api.posts.getFeed(1, selectedRoom),
           api.community.getContacts().catch(() => []),
           api.community.getOnlineUsers().catch(() => []),
+          api.friends.getRequests().catch(() => ({ incoming: [], outgoing: [] })),
           api.messages.getInbox().catch(() => []),
         ])
         if (cancelled) return
@@ -370,6 +404,7 @@ export default function CommunityPage() {
         setPage(1)
         setContacts(contactData)
         setOnlineUsers(onlineData)
+        setFriendRequests(requestData)
         setMessages(inboxData)
         setSelectedContactId(contactData[0]?.id ?? null)
       } finally {
@@ -422,9 +457,29 @@ export default function CommunityPage() {
   const handleOnlineUserClick = async (onlineUser: CommunityOnlineUser) => {
     if (onlineUser.isFriend) {
       setSelectedContactId(onlineUser.id)
+      setProfileUser(onlineUser)
       return
     }
-    if (onlineUser.friendshipStatus === FriendshipStatus.Pending) return
+    if (onlineUser.friendshipStatus === FriendshipStatus.Pending && onlineUser.friendshipDirection === 'incoming') {
+      const request = friendRequests.incoming.find(item => item.otherUserId === onlineUser.id)
+      if (request) {
+        setRequestingUserId(onlineUser.id)
+        try {
+          await api.friends.accept(request.id)
+          toast('Venneanmodning accepteret')
+          await Promise.all([loadOnlineUsers(), api.community.getContacts().then(setContacts), api.friends.getRequests().then(setFriendRequests)])
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Kunne ikke acceptere anmodning', 'error')
+        } finally {
+          setRequestingUserId(null)
+        }
+      }
+      return
+    }
+    if (onlineUser.friendshipStatus === FriendshipStatus.Pending) {
+      setProfileUser(onlineUser)
+      return
+    }
 
     setRequestingUserId(onlineUser.id)
     try {
@@ -435,6 +490,7 @@ export default function CommunityPage() {
           : item
       ))
       toast(`Venneanmodning sendt til ${onlineUser.callsign || onlineUser.name || onlineUser.email}.`)
+      setFriendRequests(await api.friends.getRequests())
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Kunne ikke sende venneanmodning', 'error')
     } finally {
@@ -446,6 +502,20 @@ export default function CommunityPage() {
 
   return (
     <div className="mx-auto max-w-[1520px] px-4 py-6">
+      {profileUser && (
+        <UserProfileCard
+          user={profileUser}
+          incomingRequestId={friendRequests.incoming.find(item => item.otherUserId === profileUser.id)?.id}
+          onClose={() => setProfileUser(null)}
+          onChanged={() => {
+            void Promise.all([
+              loadOnlineUsers(),
+              api.community.getContacts().then(setContacts),
+              api.friends.getRequests().then(setFriendRequests),
+            ])
+          }}
+        />
+      )}
       <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,720px)_320px] gap-5 items-start">
         <aside className="hidden xl:flex flex-col gap-4 sticky top-20">
           <div>
@@ -575,9 +645,9 @@ export default function CommunityPage() {
                 return (
                   <button
                     key={onlineUser.id}
-                    type="button"
-                    onClick={() => handleOnlineUserClick(onlineUser)}
-                    disabled={requestingUserId === onlineUser.id || alreadyPending}
+                  type="button"
+                  onClick={() => handleOnlineUserClick(onlineUser)}
+                  disabled={requestingUserId === onlineUser.id || (alreadyPending && onlineUser.friendshipDirection !== 'incoming')}
                     className="flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-gray-800 disabled:cursor-default disabled:hover:bg-transparent"
                   >
                     <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-green-200">
@@ -614,7 +684,10 @@ export default function CommunityPage() {
                 <button
                   key={contact.id}
                   type="button"
-                  onClick={() => setSelectedContactId(contact.id)}
+                  onClick={() => {
+                    setSelectedContactId(contact.id)
+                    setProfileUser({ ...contact, isFriend: true, friendshipStatus: FriendshipStatus.Accepted })
+                  }}
                   className={`flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${
                     selectedContact?.id === contact.id ? 'bg-blue-500/15' : 'hover:bg-gray-800'
                   }`}

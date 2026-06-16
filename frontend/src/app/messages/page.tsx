@@ -11,7 +11,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 
-type Tab = 'inbox' | 'sent' | 'friends' | 'requests'
+type Tab = 'inbox' | 'sent' | 'friends' | 'requests' | 'conversations'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 function friendLabel(friend: Friendship | FriendCandidate) {
@@ -191,6 +191,29 @@ export default function MessagesPage() {
     }
   }
 
+  const reportSelectedFriend = async () => {
+    if (!selectedFriend) return
+    const reason = window.prompt('Hvad skal moderator kigge på?')
+    if (!reason?.trim()) return
+    try {
+      await api.safety.report({ targetType: 'user', targetUserId: selectedFriend.otherUserId, reason: reason.trim() })
+      toast('Rapport sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+    }
+  }
+
+  const blockSelectedFriend = async () => {
+    if (!selectedFriend) return
+    if (!confirm(`Blokér ${friendLabel(selectedFriend)}? I kan ikke sende private beskeder til hinanden.`)) return
+    try {
+      await api.safety.blockUser(selectedFriend.otherUserId)
+      toast('Bruger blokeret')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke blokere bruger', 'error')
+    }
+  }
+
   const unread = messages.filter(m => !m.isRead && tab === 'inbox').length
 
   return (
@@ -208,6 +231,7 @@ export default function MessagesPage() {
         {([
           ['inbox', 'Indbakke'],
           ['sent', 'Sendt'],
+          ['conversations', 'Samtaler'],
           ['friends', `Venner (${friends.length})`],
           ['requests', `Anmodninger (${requests.incoming.length})`],
         ] as const).map(([key, label]) => (
@@ -303,7 +327,7 @@ export default function MessagesPage() {
                       <div className="font-mono text-sm font-semibold text-white">{friendLabel(friend)}</div>
                       <div className="text-xs text-gray-500">{friend.otherName || friend.otherGridLocator || friend.otherEmail}</div>
                       <div className="mt-3 flex gap-2">
-                        <Button size="sm" onClick={() => { setSelectedFriendId(friend.otherUserId); setTab('requests') }}>Skriv</Button>
+                        <Button size="sm" onClick={() => { setSelectedFriendId(friend.otherUserId); setTab('conversations') }}>Skriv</Button>
                         <Button size="sm" variant="secondary" onClick={() => remove(friend)}>Fjern</Button>
                       </div>
                     </div>
@@ -355,22 +379,50 @@ export default function MessagesPage() {
 
           <Card>
             <CardContent className="py-4">
+              <h2 className="mb-2 text-sm font-semibold text-white">Samtaler</h2>
+              <p className="text-sm text-gray-500">Vælg fanen Samtaler for at skrive direkte med dine venner.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {tab === 'conversations' && (
+        <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <Card>
+            <CardContent className="py-4">
+              <h2 className="mb-3 text-sm font-semibold text-white">Venner</h2>
+              <div className="flex flex-col gap-1">
+                {friends.map(friend => (
+                  <button
+                    key={friend.id}
+                    type="button"
+                    onClick={() => setSelectedFriendId(friend.otherUserId)}
+                    className={`rounded-md px-3 py-2 text-left text-sm ${selectedFriend?.otherUserId === friend.otherUserId ? 'bg-blue-500/15 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
+                  >
+                    <span className="block truncate font-mono font-semibold">{friendLabel(friend)}</span>
+                    <span className="block truncate text-xs text-gray-500">{friend.otherGridLocator || friend.otherName || friend.otherEmail}</span>
+                  </button>
+                ))}
+                {friends.length === 0 && <p className="text-sm text-gray-500">Du skal have en ven før du kan skrive privat.</p>}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="py-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-white">Messenger</h2>
                   <p className="text-xs text-gray-500">{selectedFriend ? friendLabel(selectedFriend) : 'Vælg en ven'}</p>
                 </div>
+                {selectedFriend && (
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={reportSelectedFriend}>Rapportér</Button>
+                    <Button type="button" size="sm" variant="danger" onClick={blockSelectedFriend}>Blokér</Button>
+                  </div>
+                )}
               </div>
-              {friends.length > 0 && (
-                <select
-                  value={selectedFriend?.otherUserId ?? ''}
-                  onChange={e => setSelectedFriendId(e.target.value)}
-                  className="mb-3 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
-                >
-                  {friends.map(friend => <option key={friend.id} value={friend.otherUserId}>{friendLabel(friend)}</option>)}
-                </select>
-              )}
-              <div className="mb-3 flex min-h-80 max-h-96 flex-col gap-2 overflow-y-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
+              <div className="mb-3 flex min-h-96 max-h-[520px] flex-col gap-2 overflow-y-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
                 {conversation.length === 0 ? (
                   <p className="text-sm text-gray-500">Ingen private beskeder i samtalen endnu.</p>
                 ) : conversation.map(message => {

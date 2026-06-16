@@ -118,6 +118,8 @@ public class MessagesController : ControllerBase
         if (req.RecipientId == UserId) return BadRequest("Du kan ikke sende beskeder til dig selv");
         if (!await FriendsController.AreFriendsAsync(_context, UserId, req.RecipientId))
             return Forbid();
+        if (await SafetyController.IsBlockedAsync(_context, UserId, req.RecipientId))
+            return Forbid();
         if (string.IsNullOrWhiteSpace(req.Body)) return BadRequest("Besked må ikke være tom");
 
         var message = new Message
