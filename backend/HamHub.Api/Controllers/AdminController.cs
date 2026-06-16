@@ -58,9 +58,8 @@ public class AdminController : ControllerBase
         var reports = await query
             .OrderByDescending(r => r.CreatedAt)
             .Take(200)
-            .Select(r => SafetyController.MapReportDto(r))
             .ToListAsync();
-        return Ok(reports);
+        return Ok(await new SafetyController(_context).MapReportsWithContext(reports));
     }
 
     [HttpPost("reports/{id:int}/resolve")]

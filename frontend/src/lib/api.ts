@@ -175,6 +175,7 @@ export const api = {
     summary: () => request<import('./types').NotificationSummary>('/api/notifications/summary'),
   },
   safety: {
+    getBlockedUsers: () => request<import('./types').BlockedUser[]>('/api/safety/blocks'),
     blockUser: (userId: string) => request<void>('/api/safety/blocks', { method: 'POST', body: JSON.stringify({ userId }) }),
     unblockUser: (userId: string) => request<void>(`/api/safety/blocks/${userId}`, { method: 'DELETE' }),
     report: (data: { targetType: string; targetUserId?: string | null; targetId?: number | null; reason: string }) =>

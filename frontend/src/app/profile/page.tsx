@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility, type EqslStatus, type Friendship, type QrzStatus } from '@/lib/types'
+import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { useLocalOnlyFeatures } from '@/hooks/useLocalOnlyFeatures'
@@ -15,7 +15,7 @@ export default function ProfilePage() {
   useRequireAuth()
   const { toast } = useToast()
   const localOnlyFeatures = useLocalOnlyFeatures()
-  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps' | 'friends'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps' | 'friends' | 'blocks'>('profile')
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -35,6 +35,9 @@ export default function ProfilePage() {
   const [friends, setFriends] = useState<Friendship[]>([])
   const [friendsLoading, setFriendsLoading] = useState(false)
   const [removingFriendId, setRemovingFriendId] = useState<string | null>(null)
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
+  const [blocksLoading, setBlocksLoading] = useState(false)
+  const [unblockingUserId, setUnblockingUserId] = useState<string | null>(null)
 
   const loadFriends = useCallback(async () => {
     setFriendsLoading(true)
@@ -44,6 +47,17 @@ export default function ProfilePage() {
       toast(err instanceof Error ? err.message : 'Kunne ikke hente venner', 'error')
     } finally {
       setFriendsLoading(false)
+    }
+  }, [toast])
+
+  const loadBlockedUsers = useCallback(async () => {
+    setBlocksLoading(true)
+    try {
+      setBlockedUsers(await api.safety.getBlockedUsers())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke hente blokeringer', 'error')
+    } finally {
+      setBlocksLoading(false)
     }
   }, [toast])
 
@@ -72,6 +86,9 @@ export default function ProfilePage() {
       }).catch(() => {})
       api.friends.getAll().then(items => {
         if (!cancelled) setFriends(items)
+      }).catch(() => {})
+      api.safety.getBlockedUsers().then(items => {
+        if (!cancelled) setBlockedUsers(items)
       }).catch(() => {})
     }
 
@@ -211,6 +228,22 @@ export default function ProfilePage() {
     }
   }
 
+  const handleUnblock = async (blocked: BlockedUser) => {
+    const label = blocked.callsign || blocked.name || blocked.email || 'denne bruger'
+    if (!window.confirm(`Fjern blokering af ${label}?`)) return
+
+    setUnblockingUserId(blocked.userId)
+    try {
+      await api.safety.unblockUser(blocked.userId)
+      setBlockedUsers(items => items.filter(item => item.userId !== blocked.userId))
+      toast('Blokering fjernet.')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke fjerne blokering', 'error')
+    } finally {
+      setUnblockingUserId(null)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
@@ -221,6 +254,7 @@ export default function ProfilePage() {
           { id: 'integrations', label: 'Integrationer' },
           ...(localOnlyFeatures.enabled ? [{ id: 'apps', label: 'Apps' }] : []),
           { id: 'friends', label: 'Venner' },
+          { id: 'blocks', label: 'Blokeringer' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -526,6 +560,58 @@ export default function ProfilePage() {
                         disabled={removingFriendId === friend.otherUserId}
                       >
                         {removingFriendId === friend.otherUserId ? 'Fjerner...' : 'Fjern ven'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'blocks' && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Blokeringer</CardTitle>
+                <p className="text-sm text-gray-400 mt-1">
+                  Brugere på listen kan ikke sende private beskeder til dig.
+                </p>
+              </div>
+              <Button type="button" variant="secondary" onClick={loadBlockedUsers} disabled={blocksLoading}>
+                {blocksLoading ? 'Henter...' : 'Opdater'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {blocksLoading && blockedUsers.length === 0 ? (
+              <p className="text-gray-400 text-sm">Henter blokeringer...</p>
+            ) : blockedUsers.length === 0 ? (
+              <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                <p className="text-white font-medium">Ingen blokerede brugere</p>
+                <p className="text-gray-400 text-sm mt-1">Blokeringer du laver fra community eller beskeder vises her.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                {blockedUsers.map(blocked => {
+                  const displayName = blocked.callsign || blocked.name || blocked.email || 'Ukendt bruger'
+                  const details = [blocked.name && blocked.name !== displayName ? blocked.name : null, blocked.gridLocator, blocked.country, blocked.email].filter(Boolean)
+
+                  return (
+                    <div key={blocked.userId} className="flex flex-col gap-3 bg-gray-900/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-white font-semibold truncate">{displayName}</p>
+                        {details.length > 0 && <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' · ')}</p>}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => handleUnblock(blocked)}
+                        disabled={unblockingUserId === blocked.userId}
+                      >
+                        {unblockingUserId === blocked.userId ? 'Fjerner...' : 'Fjern blokering'}
                       </Button>
                     </div>
                   )

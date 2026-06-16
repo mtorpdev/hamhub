@@ -79,6 +79,12 @@ export default function AdminReportsPage() {
                     <span className="text-xs text-gray-500">{formatDate(report.createdAt)}</span>
                   </div>
                   <p className="mb-2 text-sm text-gray-300">{report.reason}</p>
+                  {report.context && (
+                    <div className="mb-3 rounded-md border border-gray-800 bg-gray-950/60 p-3">
+                      <div className="mb-1 text-xs uppercase tracking-wide text-gray-600">Rapporteret indhold</div>
+                      <p className="whitespace-pre-wrap text-sm text-gray-300">{report.context}</p>
+                    </div>
+                  )}
                   <p className="mb-3 text-xs text-gray-500">Rapporteret af {report.reporterCallsign || report.reporterId}</p>
                   {report.status === ReportStatus.Open && (
                     <div className="flex gap-2">

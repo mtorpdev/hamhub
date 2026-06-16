@@ -299,9 +299,20 @@ export interface ContentReport {
   targetUserCallsign: string | null
   targetId: number | null
   reason: string
+  context: string | null
   status: ReportStatus
   createdAt: string
   resolvedAt: string | null
+}
+
+export interface BlockedUser {
+  userId: string
+  callsign: string | null
+  email: string | null
+  name: string | null
+  gridLocator: string | null
+  country: string | null
+  createdAt: string
 }
 
 export interface WsjtxDecodeItem {

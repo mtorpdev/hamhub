@@ -49,6 +49,25 @@ public class SafetyController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("blocks")]
+    public async Task<IActionResult> GetBlockedUsers()
+    {
+        var blocks = await _context.UserBlocks
+            .Include(b => b.Blocked)
+            .Where(b => b.BlockerId == UserId)
+            .OrderBy(b => b.Blocked.Callsign ?? b.Blocked.Email)
+            .Select(b => new BlockedUserDto(
+                b.BlockedId,
+                b.Blocked.Callsign,
+                b.Blocked.Email,
+                FullName(b.Blocked),
+                b.Blocked.GridLocator,
+                b.Blocked.Country,
+                b.CreatedAt))
+            .ToListAsync();
+        return Ok(blocks);
+    }
+
     [HttpPost("reports")]
     public async Task<IActionResult> Report([FromBody] CreateReportRequest request)
     {
@@ -80,9 +99,8 @@ public class SafetyController : ControllerBase
             .Include(r => r.TargetUser)
             .Where(r => r.ReporterId == UserId)
             .OrderByDescending(r => r.CreatedAt)
-            .Select(r => MapReportDto(r))
             .ToListAsync();
-        return Ok(reports);
+        return Ok(await MapReportsWithContext(reports));
     }
 
     internal static Task<bool> IsBlockedAsync(ApplicationDbContext context, string userId, string otherUserId)
@@ -98,10 +116,10 @@ public class SafetyController : ControllerBase
             .Include(r => r.Reporter)
             .Include(r => r.TargetUser)
             .FirstAsync(r => r.Id == id);
-        return MapReportDto(report);
+        return (await MapReportsWithContext(new[] { report })).Single();
     }
 
-    internal static ContentReportDto MapReportDto(ContentReport report)
+    internal static ContentReportDto MapReportDto(ContentReport report, string? context = null)
     {
         return new ContentReportDto(
             report.Id,
@@ -112,14 +130,65 @@ public class SafetyController : ControllerBase
             report.TargetUser?.Callsign ?? report.TargetUser?.Email,
             report.TargetId,
             report.Reason,
+            context,
             report.Status,
             report.CreatedAt,
             report.ResolvedAt);
+    }
+
+    internal async Task<IReadOnlyList<ContentReportDto>> MapReportsWithContext(IEnumerable<ContentReport> reports)
+    {
+        var reportList = reports.ToList();
+        var postIds = reportList.Where(r => r.TargetType == "post" && r.TargetId != null).Select(r => r.TargetId!.Value).Distinct().ToList();
+        var commentIds = reportList.Where(r => r.TargetType == "comment" && r.TargetId != null).Select(r => r.TargetId!.Value).Distinct().ToList();
+        var messageIds = reportList.Where(r => r.TargetType == "message" && r.TargetId != null).Select(r => r.TargetId!.Value).Distinct().ToList();
+        var chatIds = reportList.Where(r => r.TargetType == "chat" && r.TargetId != null).Select(r => r.TargetId!.Value).Distinct().ToList();
+
+        var posts = postIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _context.Posts.Where(p => postIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Content);
+        var comments = commentIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _context.PostComments.Where(c => commentIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Content);
+        var messages = messageIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _context.Messages.Where(m => messageIds.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Body);
+        var chats = chatIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _context.ChatMessages.Where(m => chatIds.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Content);
+
+        return reportList.Select(report =>
+        {
+            string? context = report.TargetType switch
+            {
+                "post" when report.TargetId != null && posts.TryGetValue(report.TargetId.Value, out var value) => value,
+                "comment" when report.TargetId != null && comments.TryGetValue(report.TargetId.Value, out var value) => value,
+                "message" when report.TargetId != null && messages.TryGetValue(report.TargetId.Value, out var value) => value,
+                "chat" when report.TargetId != null && chats.TryGetValue(report.TargetId.Value, out var value) => value,
+                "user" => report.TargetUser?.ProfileDescription,
+                _ => null
+            };
+            return MapReportDto(report, context);
+        }).ToList();
+    }
+
+    private static string? FullName(ApplicationUser user)
+    {
+        var name = $"{user.FirstName} {user.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 }
 
 public record BlockUserRequest(string UserId);
 public record CreateReportRequest(string TargetType, string? TargetUserId, int? TargetId, string Reason);
+public record BlockedUserDto(
+    string UserId,
+    string? Callsign,
+    string? Email,
+    string? Name,
+    string? GridLocator,
+    string? Country,
+    DateTime CreatedAt);
 public record ContentReportDto(
     int Id,
     string ReporterId,
@@ -129,6 +198,7 @@ public record ContentReportDto(
     string? TargetUserCallsign,
     int? TargetId,
     string Reason,
+    string? Context,
     ReportStatus Status,
     DateTime CreatedAt,
     DateTime? ResolvedAt);
