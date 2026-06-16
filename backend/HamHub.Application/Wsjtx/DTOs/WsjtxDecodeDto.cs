@@ -16,6 +16,16 @@ public record WsjtxDecodeDto(
     string Mode,
     bool LowConfidence,
     bool IsCallable,
+    string? DxCountry,
+    string? DxContinent,
+    string? DxPrimaryPrefix,
+    string? DxMatchedPrefix,
+    string? DxWpxPrefix,
+    int? DxCqZone,
+    int? DxItuZone,
+    double? DxLatitude,
+    double? DxLongitude,
+    double? DxUtcOffset,
     DateTime DecodedAt
 );
 

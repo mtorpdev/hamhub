@@ -26,17 +26,20 @@ public class WsjtxController : ControllerBase
     private readonly WsjtxBroadcaster _broadcaster;
     private readonly WsjtxCommandQueue _commands;
     private readonly WsjtxStatusCache _statusCache;
+    private readonly DxccLookupService _dxccLookup;
 
     public WsjtxController(
         ApplicationDbContext db,
         WsjtxBroadcaster broadcaster,
         WsjtxCommandQueue commands,
-        WsjtxStatusCache statusCache)
+        WsjtxStatusCache statusCache,
+        DxccLookupService dxccLookup)
     {
         _db = db;
         _broadcaster = broadcaster;
         _commands = commands;
         _statusCache = statusCache;
+        _dxccLookup = dxccLookup;
     }
 
     [Authorize]
@@ -66,7 +69,7 @@ public class WsjtxController : ControllerBase
         foreach (var dto in dtos)
         {
             var id = await InsertDecodeCompatAsync(userId, dto, columns);
-            outDtos.Add(new WsjtxDecodeDto(
+            outDtos.Add(BuildDecodeDto(
                 id,
                 string.IsNullOrWhiteSpace(dto.WsjtxId) ? "WSJT-X" : dto.WsjtxId,
                 dto.WsjtxTimeMs,
@@ -155,7 +158,7 @@ public class WsjtxController : ControllerBase
             while (await reader.ReadAsync())
             {
                 var message = reader.GetString(5);
-                result.Add(new WsjtxDecodeDto(
+                result.Add(BuildDecodeDto(
                     reader.GetInt32(0),
                     reader.GetString(1),
                     Convert.ToUInt32(reader.GetInt64(2)),
@@ -268,6 +271,54 @@ public class WsjtxController : ControllerBase
 
     private static string TrimRequired(string? value, int maxLength, string fallback = "") =>
         TrimMax(string.IsNullOrWhiteSpace(value) ? fallback : value, maxLength) ?? fallback;
+
+    private WsjtxDecodeDto BuildDecodeDto(
+        int id,
+        string wsjtxId,
+        uint wsjtxTimeMs,
+        string spotterCallsign,
+        string? spotterGrid,
+        string message,
+        string? dxCallsign,
+        string? dxGrid,
+        int snr,
+        double deltaTime,
+        int deltaFreqHz,
+        double frequencyMhz,
+        string mode,
+        bool lowConfidence,
+        bool isCallable,
+        DateTime decodedAt)
+    {
+        var dxcc = _dxccLookup.Lookup(dxCallsign);
+        return new WsjtxDecodeDto(
+            id,
+            wsjtxId,
+            wsjtxTimeMs,
+            spotterCallsign,
+            spotterGrid,
+            message,
+            dxCallsign,
+            dxGrid,
+            snr,
+            deltaTime,
+            deltaFreqHz,
+            frequencyMhz,
+            mode,
+            lowConfidence,
+            isCallable,
+            dxcc?.Country,
+            dxcc?.Continent,
+            dxcc?.PrimaryPrefix,
+            dxcc?.MatchedPrefix,
+            dxcc?.WpxPrefix,
+            dxcc?.CqZone,
+            dxcc?.ItuZone,
+            dxcc?.Latitude,
+            dxcc?.Longitude,
+            dxcc?.UtcOffset,
+            decodedAt);
+    }
 
     [Authorize]
     [HttpPost("commands/reply")]

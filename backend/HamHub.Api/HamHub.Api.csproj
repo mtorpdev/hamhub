@@ -22,4 +22,8 @@
     <ProjectReference Include="..\HamHub.WsjtxCore\HamHub.WsjtxCore.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Data\cty.dat" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

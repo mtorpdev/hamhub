@@ -339,6 +339,16 @@ export interface WsjtxDecodeItem {
   mode: string
   lowConfidence: boolean
   isCallable: boolean
+  dxCountry: string | null
+  dxContinent: string | null
+  dxPrimaryPrefix: string | null
+  dxMatchedPrefix: string | null
+  dxWpxPrefix: string | null
+  dxCqZone: number | null
+  dxItuZone: number | null
+  dxLatitude: number | null
+  dxLongitude: number | null
+  dxUtcOffset: number | null
   decodedAt: string
 }
 

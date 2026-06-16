@@ -24,14 +24,19 @@ type DecodeRow = WsjtxDecodeItem & {
   logStatus: DecodeLogStatus
   displayMode: string
   country: string
+  continent: string
+  prefix: string
   callsMe: boolean
   canRespond: boolean
   isNewBandMode: boolean
   wantedReasons: WantedReason[]
+  awardReasons: AwardReason[]
 }
 
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
 type WantedReason = 'calling-me' | 'new-grid' | 'new-station' | 'new-band-mode' | 'worked'
+type AwardReason = 'dxcc' | 'continent' | 'grid' | 'wpx' | 'band-mode' | 'calling-me' | 'worked'
+type AwardFilter = 'dxcc' | 'continent' | 'grid' | 'wpx' | 'band-mode'
 type MessageFilter = 'all' | 'CQ' | 'me' | '73'
 type DecodeView = 'grid' | 'map' | 'wanted' | 'awards'
 type DecodeMapMarker = MapMarker & {
@@ -44,6 +49,7 @@ type LogbookIndex = {
   bandModeSlots: Set<string>
   countries: Set<string>
   continents: Set<string>
+  prefixes: Set<string>
   byCallsign: Map<string, Qso>
 }
 
@@ -109,7 +115,16 @@ const EMPTY_LOGBOOK_INDEX: LogbookIndex = {
   bandModeSlots: new Set(),
   countries: new Set(),
   continents: new Set(),
+  prefixes: new Set(),
   byCallsign: new Map(),
+}
+
+const DEFAULT_AWARD_FILTERS: Record<AwardFilter, boolean> = {
+  dxcc: true,
+  continent: true,
+  grid: true,
+  wpx: true,
+  'band-mode': true,
 }
 
 const CONTINENTS = ['EU', 'NA', 'SA', 'AF', 'AS', 'OC', 'AN'] as const
@@ -257,6 +272,7 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
   const bandModeSlots = new Set<string>()
   const countries = new Set<string>()
   const continents = new Set<string>()
+  const prefixes = new Set<string>()
   const byCallsign = new Map<string, Qso>()
 
   for (const qso of qsos) {
@@ -265,6 +281,8 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
       callsigns.add(call)
       if (!byCallsign.has(call)) byCallsign.set(call, qso)
       bandModeSlots.add(bandModeKey(call, qso.band, qso.mode))
+      const prefix = callsignPrefix(call)
+      if (prefix) prefixes.add(prefix)
     }
 
     const grid = qso.locator?.toUpperCase()
@@ -277,7 +295,7 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
     if (continent) continents.add(continent)
   }
 
-  return { callsigns, grids, bandModeSlots, countries, continents, byCallsign }
+  return { callsigns, grids, bandModeSlots, countries, continents, prefixes, byCallsign }
 }
 
 function getDecodeLogStatus(decode: WsjtxDecodeItem, logbook: LogbookIndex): DecodeLogStatus {
@@ -378,6 +396,44 @@ function getWantedReasons(
   return Array.from(new Set(reasons))
 }
 
+function callsignPrefix(callsign: string | null | undefined) {
+  const normalized = normalizeCallsignForCountry(callsign ?? null)
+  if (!normalized) return ''
+  const lastDigit = Math.max(...normalized.split('').map((character, index) => /\d/.test(character) ? index : -1))
+  return lastDigit >= 0 ? normalized.slice(0, lastDigit + 1) : normalized.slice(0, Math.min(3, normalized.length))
+}
+
+function getAwardReasons(
+  decode: WsjtxDecodeItem,
+  logbook: LogbookIndex,
+  callsMe: boolean,
+  displayMode: string,
+  country: string,
+  continent: string,
+  prefix: string,
+): AwardReason[] {
+  const reasons: AwardReason[] = []
+  const call = decode.dxCallsign?.toUpperCase()
+
+  if (callsMe) reasons.push('calling-me')
+  if (!call) return reasons
+
+  const normalizedCountry = countryKey(country)
+  const grid = decode.dxGrid?.toUpperCase()
+  const band = bandFromFrequency(decode.frequencyMhz)
+  const mode = modeToEnum(displayMode)
+  const isWorked = logbook.callsigns.has(call)
+
+  if (normalizedCountry && !logbook.countries.has(normalizedCountry)) reasons.push('dxcc')
+  if (continent && !logbook.continents.has(continent)) reasons.push('continent')
+  if (grid && !logbook.grids.has(grid)) reasons.push('grid')
+  if (prefix && !logbook.prefixes.has(prefix)) reasons.push('wpx')
+  if (band && mode && isWorked && !logbook.bandModeSlots.has(bandModeKey(call, band, mode))) reasons.push('band-mode')
+  if (isWorked) reasons.push('worked')
+
+  return Array.from(new Set(reasons))
+}
+
 function normalizeCallsignForCountry(callsign: string | null) {
   return callsign
     ?.toUpperCase()
@@ -413,6 +469,32 @@ function countryFromCallsign(callsign: string | null) {
   const normalized = normalizeCallsignForCountry(callsign)
   if (!normalized) return '-'
   return CALLSIGN_COUNTRY_PREFIXES.find(([pattern]) => pattern.test(normalized))?.[1] ?? 'Ukendt'
+}
+
+function awardReasonLabels(row: DecodeRow) {
+  const labels: Array<{ key: AwardReason; label: string; className: string }> = []
+  for (const reason of row.awardReasons) {
+    if (reason === 'calling-me') labels.push({ key: reason, label: 'Kalder mig', className: 'border-red-700 bg-red-950 text-red-100' })
+    if (reason === 'dxcc') labels.push({ key: reason, label: 'Ny DXCC', className: 'border-amber-700 bg-amber-950 text-amber-100' })
+    if (reason === 'continent') labels.push({ key: reason, label: 'Nyt kontinent', className: 'border-pink-700 bg-pink-950 text-pink-100' })
+    if (reason === 'grid') labels.push({ key: reason, label: 'Ny grid', className: 'border-sky-700 bg-sky-950 text-sky-100' })
+    if (reason === 'wpx') labels.push({ key: reason, label: 'Ny WPX', className: 'border-cyan-700 bg-cyan-950 text-cyan-100' })
+    if (reason === 'band-mode') labels.push({ key: reason, label: 'Ny band/mode', className: 'border-violet-700 bg-violet-950 text-violet-100' })
+    if (reason === 'worked') labels.push({ key: reason, label: 'Worked B4', className: 'border-green-800 bg-green-950 text-green-100' })
+  }
+  return labels
+}
+
+function awardScore(row: DecodeRow) {
+  return (
+    (row.awardReasons.includes('calling-me') ? 1000 : 0) +
+    (row.awardReasons.includes('dxcc') ? 500 : 0) +
+    (row.awardReasons.includes('continent') ? 400 : 0) +
+    (row.awardReasons.includes('grid') ? 300 : 0) +
+    (row.awardReasons.includes('wpx') ? 200 : 0) +
+    (row.awardReasons.includes('band-mode') ? 100 : 0) +
+    (row.awardReasons.includes('worked') ? 10 : 0)
+  )
 }
 
 function buildAwardCountryStatuses(rows: DecodeRow[], logbook: LogbookIndex): AwardCountryStatus[] {
@@ -575,6 +657,8 @@ export default function DecodePage() {
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
   const [messageFilter, setMessageFilter] = useState<MessageFilter>('all')
   const [activeView, setActiveView] = useState<DecodeView>('grid')
+  const [awardFilters, setAwardFilters] = useState<Record<AwardFilter, boolean>>(DEFAULT_AWARD_FILTERS)
+  const [onlyAwardNeeded, setOnlyAwardNeeded] = useState(true)
   const [quickSearch, setQuickSearch] = useState('')
   const [onlyWithGrid, setOnlyWithGrid] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -647,16 +731,23 @@ export default function DecodePage() {
         const callsMe = decodeCallsMe(d.message, ownCallsign)
         const displayMode = normalizeDecodeMode(d)
         const wantedReasons = getWantedReasons(d, logbook, callsMe, displayMode)
+        const country = normalizeCountry(d.dxCountry) || countryFromCallsign(d.dxCallsign)
+        const continent = d.dxContinent || continentFromCountry(country)
+        const prefix = d.dxWpxPrefix || callsignPrefix(d.dxCallsign)
+        const awardReasons = getAwardReasons(d, logbook, callsMe, displayMode, country, continent, prefix)
         return {
           ...d,
           distanceKm: distanceKm(d.spotterGrid, d.dxGrid),
           logStatus: getDecodeLogStatus(d, logbook),
           displayMode,
-          country: countryFromCallsign(d.dxCallsign),
+          country,
+          continent,
+          prefix,
           callsMe,
           canRespond: d.isCallable || callsMe,
           isNewBandMode: wantedReasons.includes('new-band-mode'),
           wantedReasons,
+          awardReasons,
         }
       })
       .filter(row => rowMatchesMessageFilter(row, messageFilter))
@@ -685,7 +776,7 @@ export default function DecodePage() {
   }), [rows])
   const awardCountries = useMemo(() => buildAwardCountryStatuses(rows, logbook), [rows, logbook])
   const awardContinents = useMemo(() => CONTINENTS.map(code => {
-    const liveRows = rows.filter(row => continentFromCountry(row.country) === code)
+    const liveRows = rows.filter(row => row.continent === code)
     const worked = logbook.continents.has(code)
     return {
       code,
@@ -703,6 +794,16 @@ export default function DecodePage() {
     workedCountries: awardCountries.filter(item => item.worked).length,
     liveNeededCountries: awardCountries.filter(item => item.liveNeeded).length,
   }), [awardContinents, awardCountries])
+
+  const awardHitRows = useMemo(() => {
+    const activeReasons = Object.entries(awardFilters)
+      .filter(([, enabled]) => enabled)
+      .map(([reason]) => reason as AwardReason)
+
+    return rows
+      .filter(row => activeReasons.some(reason => row.awardReasons.includes(reason)))
+      .sort((a, b) => awardScore(b) - awardScore(a) || new Date(b.decodedAt).getTime() - new Date(a.decodedAt).getTime())
+  }, [awardFilters, rows])
 
   const mapMarkers = useMemo<DecodeMapMarker[]>(() => {
     return mapRows.map(row => {
@@ -1136,12 +1237,102 @@ export default function DecodePage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-5">
+            <WantedStat label="Live award hits" value={awardHitRows.length} className="border-cyan-800 bg-cyan-950/30 text-cyan-100" />
             <WantedStat label="Kontinenter kørt" value={awardSummary.workedContinents} className="border-green-800 bg-green-950/30 text-green-100" />
             <WantedStat label="Kontinenter live needed" value={awardSummary.liveNeededContinents} className="border-red-800 bg-red-950/40 text-red-100" />
             <WantedStat label="Lande kørt" value={awardSummary.workedCountries} className="border-sky-800 bg-sky-950/30 text-sky-100" />
             <WantedStat label="Lande live needed" value={awardSummary.liveNeededCountries} className="border-amber-700 bg-amber-950/30 text-amber-100" />
           </div>
+
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {([
+                  ['dxcc', 'DXCC'],
+                  ['continent', 'Kontinent'],
+                  ['grid', 'Grid'],
+                  ['wpx', 'WPX'],
+                  ['band-mode', 'Band/mode'],
+                ] as const).map(([filter, label]) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setAwardFilters(current => ({ ...current, [filter]: !current[filter] }))}
+                    className={`border px-3 py-2 text-sm font-semibold transition-colors ${awardFilters[filter] ? 'border-cyan-600 bg-cyan-950/60 text-cyan-100' : 'border-gray-800 bg-gray-950 text-gray-500 hover:border-gray-600 hover:text-gray-300'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <label className="ml-auto flex items-center gap-2 text-sm text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={onlyAwardNeeded}
+                    onChange={event => setOnlyAwardNeeded(event.target.checked)}
+                    className="h-4 w-4 accent-cyan-500"
+                  />
+                  Kun needed
+                </label>
+              </div>
+
+              <div className="overflow-x-auto border border-gray-800 bg-black/20">
+                <div className="min-w-[920px]">
+                  <div className="grid grid-cols-[88px_120px_1.2fr_130px_120px_90px_1fr] gap-3 border-b border-gray-800 bg-gray-900/60 px-4 py-3 text-xs font-semibold uppercase text-gray-500">
+                    <span>Tid</span>
+                    <span>Call</span>
+                    <span>Årsag</span>
+                    <span>Land</span>
+                    <span>Zone</span>
+                    <span>SNR</span>
+                    <span>Besked</span>
+                  </div>
+                  <div className="max-h-[42vh] divide-y divide-gray-800 overflow-auto">
+                    {awardHitRows.length > 0 ? awardHitRows.slice(0, 120).map(row => (
+                      <button
+                        key={`award-${row.id}-${row.decodedAt}`}
+                        type="button"
+                        onClick={() => {
+                          if (row.canRespond) {
+                            setSelectedDecode(row)
+                            setCommandStatus(null)
+                          }
+                        }}
+                        className="grid w-full grid-cols-[88px_120px_1.2fr_130px_120px_90px_1fr] gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-gray-800/50"
+                      >
+                        <span className="font-mono text-xs text-gray-500">{formatTime(row.decodedAt)}</span>
+                        <span>
+                          <span className="block font-mono font-bold text-white">{row.dxCallsign ?? '-'}</span>
+                          <span className="font-mono text-xs text-gray-500">{row.dxGrid ?? row.prefix ?? '-'}</span>
+                        </span>
+                        <span className="flex flex-wrap gap-1">
+                          {awardReasonLabels(row)
+                            .filter(label => label.key !== 'worked' || !onlyAwardNeeded)
+                            .map(label => (
+                              <span key={label.key} className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${label.className}`}>
+                                {label.label}
+                              </span>
+                            ))}
+                        </span>
+                        <span>
+                          <span className="block font-semibold text-white">{row.country}</span>
+                          <span className="font-mono text-xs text-gray-500">{row.continent || '-'}</span>
+                        </span>
+                        <span className="font-mono text-xs text-gray-400">
+                          CQ {row.dxCqZone ?? '-'} / ITU {row.dxItuZone ?? '-'}
+                        </span>
+                        <span className="font-mono text-gray-300">{snrText(row.snr)} dB</span>
+                        <span className="truncate font-mono text-xs text-gray-400">{row.message}</span>
+                      </button>
+                    )) : (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        Ingen live award hits med de valgte filtre.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-3 md:grid-cols-7">
             {awardContinents.map(item => (
