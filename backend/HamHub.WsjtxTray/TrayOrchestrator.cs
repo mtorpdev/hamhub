@@ -24,6 +24,7 @@ public class TrayOrchestrator : IDisposable
     private MessageParser? _parser;
     private StatusCache? _statusCache;
     private WsjtxCommandSender? _commandSender;
+    private WsjtxUiController? _uiController;
     private readonly LogBuffer _logBuffer = new();
     private CancellationTokenSource _cts = new();
     private ConnectionState _state = ConnectionState.Disconnected;
@@ -160,6 +161,36 @@ public class TrayOrchestrator : IDisposable
             loggerFactory.CreateLogger<MessageParser>(), _statusCache);
         _commandSender = new WsjtxCommandSender(_config,
             loggerFactory.CreateLogger<WsjtxCommandSender>());
+        _uiController = new WsjtxUiController(
+            loggerFactory.CreateLogger<WsjtxUiController>());
+
+        _parser.StatusReceived += (_, status) =>
+        {
+            if (_apiClient == null) return;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _apiClient.PostStatusAsync(new WsjtxStatusDto(
+                        WsjtxId: status.Id,
+                        DxCall: status.Entry.DxCall,
+                        DxGrid: status.Entry.DxGrid,
+                        Mode: status.Entry.Mode,
+                        TxEnabled: status.Entry.TxEnabled,
+                        Transmitting: status.Entry.Transmitting,
+                        Decoding: status.Entry.Decoding,
+                        TxWatchdog: status.Entry.TxWatchdog,
+                        RxDf: status.Entry.RxDf,
+                        TxDf: status.Entry.TxDf,
+                        UpdatedAtUtc: DateTime.UtcNow), ct);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    _logBuffer.Add($"[ERROR] Status update failed: {ex.Message}");
+                }
+            }, CancellationToken.None);
+        };
 
         _parser.DecodeReceived += (_, decode) =>
         {
@@ -282,20 +313,17 @@ public class TrayOrchestrator : IDisposable
                         success = true;
                         message = "Reply sendt til WSJT-X.";
                         break;
-                    case WsjtxCommandType.StartCq:
-                        if (!statusCache.TryGetLatest(out var wsjtxId, out _))
+                    case WsjtxCommandType.StopTx:
+                        if (!statusCache.TryGetLatest(out var stopWsjtxId, out _))
                         {
                             message = "WSJT-X har ikke sendt status endnu.";
                             break;
                         }
-                        if (string.IsNullOrWhiteSpace(command.CqCallsign))
-                        {
-                            message = "Mangler kaldesignal til CQ.";
-                            break;
-                        }
-                        await commandSender.SendStartCqAsync(wsjtxId, command.CqCallsign, ct);
+                        await commandSender.SendHaltTxAsync(stopWsjtxId, ct);
+                        if (_uiController is not null)
+                            await _uiController.StopTxAsync(ct);
                         success = true;
-                        message = "CQ sendt til WSJT-X.";
+                        message = "Stop Tx sendt til WSJT-X.";
                         break;
                     default:
                         message = "Ukendt WSJT-X kommando.";

@@ -38,20 +38,6 @@ public class WsjtxCommandMessageBuilderTests
         Assert.Equal(0, datagram[pos]);
     }
 
-    [Fact]
-    public void BuildFreeTextWritesSendCommand()
-    {
-        var datagram = WsjtxCommandMessageBuilder.BuildFreeText("WSJT-X", "CQ OZ1ABC", send: true);
-
-        var pos = 0;
-        Assert.Equal(0xADBCCBDAu, ReadUInt32(datagram, ref pos));
-        Assert.Equal(2u, ReadUInt32(datagram, ref pos));
-        Assert.Equal(9u, ReadUInt32(datagram, ref pos));
-        Assert.Equal("WSJT-X", ReadString(datagram, ref pos));
-        Assert.Equal("CQ OZ1ABC", ReadString(datagram, ref pos));
-        Assert.True(ReadBool(datagram, ref pos));
-    }
-
     private static uint ReadUInt32(byte[] data, ref int pos)
     {
         var value = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(pos));

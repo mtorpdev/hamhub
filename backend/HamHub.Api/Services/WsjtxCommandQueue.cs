@@ -10,21 +10,14 @@ public class WsjtxCommandQueue
 
     public WsjtxAgentCommand EnqueueReply(string userId, WsjtxReplyCommand reply)
     {
-        var command = new WsjtxAgentCommand(Guid.NewGuid(), WsjtxCommandType.Reply, reply, null);
-        QueueFor(userId).Enqueue(command);
-        return command;
-    }
-
-    public WsjtxAgentCommand EnqueueStartCq(string userId, string callsign)
-    {
-        var command = new WsjtxAgentCommand(Guid.NewGuid(), WsjtxCommandType.StartCq, null, callsign);
+        var command = new WsjtxAgentCommand(Guid.NewGuid(), WsjtxCommandType.Reply, reply);
         QueueFor(userId).Enqueue(command);
         return command;
     }
 
     public WsjtxAgentCommand EnqueueStopTx(string userId)
     {
-        var command = new WsjtxAgentCommand(Guid.NewGuid(), WsjtxCommandType.StopTx, null, null);
+        var command = new WsjtxAgentCommand(Guid.NewGuid(), WsjtxCommandType.StopTx, null);
         QueueFor(userId).Enqueue(command);
         return command;
     }

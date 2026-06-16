@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -165,12 +166,12 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
     await context.Database.EnsureCreatedAsync();
-    await EnsureCommunitySchemaAsync(context);
-    await EnsureChatSchemaAsync(context);
-    await EnsureFriendshipSchemaAsync(context);
-    await EnsureSafetySchemaAsync(context);
-    await EnsureArticleFeedSchemaAsync(context);
-    await EnsureQsoExternalStatusSchemaAsync(context);
+    await TryEnsureSchemaAsync("community", () => EnsureCommunitySchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("chat", () => EnsureChatSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("friendships", () => EnsureFriendshipSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("safety", () => EnsureSafetySchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("article feed", () => EnsureArticleFeedSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("QSO external status", () => EnsureQsoExternalStatusSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
 
     var importer = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.ArticleFeedImportService>();
@@ -178,6 +179,18 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static async Task TryEnsureSchemaAsync(string schemaName, Func<Task> ensureSchema, ILogger logger)
+{
+    try
+    {
+        await ensureSchema();
+    }
+    catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InsufficientPrivilege)
+    {
+        logger.LogWarning("Skipping {SchemaName} schema guard because the configured database user does not have DDL privileges.", schemaName);
+    }
+}
 
 static async Task EnsureCommunitySchemaAsync(ApplicationDbContext context)
 {

@@ -12,19 +12,6 @@ public class WsjtxUiController
         _logger = logger;
     }
 
-    public Task StartCqAsync(CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        var root = GetMainWindow();
-        InvokeByAutomationId(root, "genStdMsgsPushButton", "Generate Std Medd");
-        SelectRadioByAutomationId(root, "txrb6", "Tx6 now");
-        EnsureToggleOn(root, "autoButton", "Aktiver Tx");
-
-        _logger.LogInformation("Activated WSJT-X Start CQ through local UI automation");
-        return Task.CompletedTask;
-    }
-
     public Task StopTxAsync(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

@@ -344,7 +344,7 @@ export interface WsjtxDecodeItem {
 
 export interface WsjtxCommandResult {
   id: string
-  type: 'Reply' | 'StartCq' | number
+  type: 'Reply' | 'StopTx' | number
   success: boolean
   message: string
   completedAtUtc: string

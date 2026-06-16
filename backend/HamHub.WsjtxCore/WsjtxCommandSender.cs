@@ -23,11 +23,10 @@ public class WsjtxCommandSender
         _logger.LogInformation("Sent WSJT-X Reply for {Message}", command.Message);
     }
 
-    public async Task SendStartCqAsync(string wsjtxId, string callsign, CancellationToken ct)
+    public async Task SendHaltTxAsync(string wsjtxId, CancellationToken ct)
     {
-        var text = $"CQ {callsign.Trim().ToUpperInvariant()}";
-        await SendAsync(WsjtxCommandMessageBuilder.BuildFreeText(wsjtxId, text, send: true), ct);
-        _logger.LogInformation("Sent WSJT-X CQ free-text command: {Text}", text);
+        await SendAsync(WsjtxCommandMessageBuilder.BuildHaltTx(wsjtxId, autoTxOnly: false), ct);
+        _logger.LogInformation("Sent WSJT-X Halt Tx command for {WsjtxId}", wsjtxId);
     }
 
     public void SetTarget(IPEndPoint targetEndPoint)

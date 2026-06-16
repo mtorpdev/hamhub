@@ -440,20 +440,6 @@ export default function DecodePage() {
     }
   }
 
-  const handleStartCq = async () => {
-    if (pendingCommand) return
-    try {
-      setPendingCommand(true)
-      setCommandStatus('Starter CQ i WSJT-X...')
-      await api.wsjtx.startCq()
-      setCommandStatus('CQ kommando sendt til WSJT-X')
-    } catch (err) {
-      setCommandStatus(err instanceof Error ? err.message : 'Kunne ikke starte CQ')
-    } finally {
-      setPendingCommand(false)
-    }
-  }
-
   const handleStopTx = async () => {
     if (pendingCommand) return
     try {
@@ -483,11 +469,11 @@ export default function DecodePage() {
         <h1 className="text-2xl font-bold text-white">Live Decodes</h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={handleStartCq}
+            onClick={handleStopTx}
             disabled={pendingCommand}
-            className="bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-400"
+            className="border border-red-800 bg-red-950 px-3 py-2 text-sm font-medium text-red-100 transition-colors hover:bg-red-900 disabled:border-gray-700 disabled:bg-gray-800 disabled:text-gray-500"
           >
-            Start CQ
+            Stop kald
           </button>
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <span className={`inline-block h-2 w-2 rounded-full ${connected ? 'animate-pulse bg-green-500' : 'bg-red-500'}`} />

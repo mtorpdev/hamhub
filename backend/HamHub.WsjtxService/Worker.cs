@@ -207,11 +207,6 @@ public class Worker : BackgroundService
                         success = true;
                         message = "Reply sendt og kald aktiveret i WSJT-X.";
                         break;
-                    case WsjtxCommandType.StartCq:
-                        await _uiController.StartCqAsync(ct);
-                        success = true;
-                        message = "Start CQ aktiveret i WSJT-X.";
-                        break;
                     case WsjtxCommandType.StopTx:
                         await _uiController.StopTxAsync(ct);
                         success = true;

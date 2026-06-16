@@ -20,7 +20,7 @@ public class WsjtxCommandQueueTests
             Mode: "FT8",
             Message: "CQ OZ1ABC JO55",
             LowConfidence: false));
-        queue.EnqueueStartCq("user-2", "OZ2XYZ");
+        queue.EnqueueStopTx("user-2");
 
         Assert.False(queue.TryDequeue("user-2", out var wrongUserCommand) && wrongUserCommand.Id == userCommand.Id);
         Assert.True(queue.TryDequeue("user-1", out var dequeued));
@@ -33,9 +33,9 @@ public class WsjtxCommandQueueTests
     public void CompleteStoresCommandResult()
     {
         var queue = new WsjtxCommandQueue();
-        var command = queue.EnqueueStartCq("user-1", "OZ1ABC");
+        var command = queue.EnqueueStopTx("user-1");
 
-        Assert.True(queue.Complete("user-1", command.Id, WsjtxCommandType.StartCq, true, "Sent"));
+        Assert.True(queue.Complete("user-1", command.Id, WsjtxCommandType.StopTx, true, "Sent"));
 
         var results = queue.GetRecentResults("user-1");
         Assert.Single(results);

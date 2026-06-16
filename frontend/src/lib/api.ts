@@ -264,8 +264,6 @@ export const api = {
           lowConfidence: decode.lowConfidence,
         }),
       }),
-    startCq: () =>
-      request<{ id: string; type: string }>('/api/wsjtx/commands/cq', { method: 'POST' }),
     stopTx: () =>
       request<{ id: string; type: string }>('/api/wsjtx/commands/stop', { method: 'POST' }),
     getCommandResults: () =>

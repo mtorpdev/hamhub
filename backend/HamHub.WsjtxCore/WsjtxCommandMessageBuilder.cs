@@ -9,7 +9,7 @@ public static class WsjtxCommandMessageBuilder
     private const uint Magic = 0xADBCCBDA;
     private const uint Schema = 2;
     private const uint ReplyType = 4;
-    private const uint FreeTextType = 9;
+    private const uint HaltTxType = 8;
 
     public static byte[] BuildReply(WsjtxReplyCommand command)
     {
@@ -27,13 +27,12 @@ public static class WsjtxCommandMessageBuilder
         return stream.ToArray();
     }
 
-    public static byte[] BuildFreeText(string wsjtxId, string text, bool send)
+    public static byte[] BuildHaltTx(string wsjtxId, bool autoTxOnly)
     {
         using var stream = new MemoryStream();
-        WriteHeader(stream, FreeTextType);
+        WriteHeader(stream, HaltTxType);
         WriteString(stream, wsjtxId);
-        WriteString(stream, text);
-        WriteBool(stream, send);
+        WriteBool(stream, autoTxOnly);
         return stream.ToArray();
     }
 

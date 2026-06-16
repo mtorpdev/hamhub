@@ -131,21 +131,6 @@ public class WsjtxController : ControllerBase
     }
 
     [Authorize]
-    [HttpPost("commands/cq")]
-    public IActionResult QueueStartCq()
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        var callsign = User.FindFirst("callsign")?.Value;
-        if (string.IsNullOrWhiteSpace(callsign))
-            callsign = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        if (string.IsNullOrWhiteSpace(callsign))
-            return BadRequest("Brugeren har ikke et kaldesignal.");
-
-        var queued = _commands.EnqueueStartCq(userId, callsign);
-        return Accepted(new { queued.Id, queued.Type });
-    }
-
-    [Authorize]
     [HttpPost("commands/stop")]
     public IActionResult QueueStopTx()
     {
