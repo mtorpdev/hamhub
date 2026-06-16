@@ -28,6 +28,7 @@ export default function EditQsoPage() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'details' | 'map' | 'conditions' | 'propagation' | 'qsl'>('details')
   const [externalStatuses, setExternalStatuses] = useState<QsoExternalLogStatus[]>([])
@@ -103,6 +104,20 @@ export default function EditQsoPage() {
       setError(err instanceof Error ? err.message : 'Fejl')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Slet denne QSO?')) return
+    setDeleting(true)
+    try {
+      await api.qsos.delete(Number(id))
+      toast('QSO slettet')
+      router.push('/logbook')
+    } catch {
+      toast('Sletning mislykkedes', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -267,9 +282,14 @@ export default function EditQsoPage() {
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold text-white">Rediger QSO</h1>
-        <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>
-          Tilbage til logbog
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>
+            Tilbage til logbog
+          </Button>
+          <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Sletter...' : 'Slet QSO'}
+          </Button>
+        </div>
       </div>
       <Card>
         <CardContent className="py-6">

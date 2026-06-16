@@ -86,13 +86,17 @@ function qrzTitle(qso: Qso) {
 function eqslTone(qso: Qso): QslBadgeTone {
   if (qso.eqslConfirmedAt) return 'confirmed'
   if (qso.eqslSentAt) return 'pending'
-  return 'missing'
+  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'missing'
+  if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'missing'
+  return 'pending'
 }
 
 function eqslTitle(qso: Qso) {
   if (qso.eqslConfirmedAt) return 'eQSL bekræftet af modparten'
   if (qso.eqslSentAt) return 'eQSL sendt, men ikke bekræftet endnu'
-  return 'eQSL mangler eller er ikke sendt endnu'
+  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'eQSL tjekket, men QSO er ikke fundet endnu'
+  if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'eQSL status kunne ikke verificeres'
+  return 'eQSL er klar eller ikke tjekket endnu'
 }
 
 export default function LogbookPage() {
@@ -137,17 +141,6 @@ export default function LogbookPage() {
     e.target.value = ''
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Slet QSO?')) return
-    try {
-      await api.qsos.delete(id)
-      toast('QSO slettet')
-      load(search)
-    } catch {
-      toast('Sletning mislykkedes', 'error')
-    }
-  }
-
   const handleQrzSync = async () => {
     setQrzSyncing(true)
     try {
@@ -190,7 +183,7 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QSL', ''].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QSL'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -214,9 +207,6 @@ export default function LogbookPage() {
                           <QslStatusBadge label="QRZ" tone={qrzTone(q)} title={qrzTitle(q)} />
                           <QslStatusBadge label="eQSL" tone={eqslTone(q)} title={eqslTitle(q)} />
                         </div>
-                      </td>
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
                       </td>
                     </tr>
                   ))}
