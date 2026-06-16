@@ -1,10 +1,10 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr'
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { FriendshipStatus, type ChatMessage, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type FriendRequests, type Message, type Post, type PostComment } from '@/lib/types'
+import { FriendshipStatus, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type FriendRequests, type Message, type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
@@ -165,109 +165,146 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
   )
 }
 
-function RoomChatPanel({ roomSlug, roomName, onPresenceChanged }: { roomSlug: string; roomName: string; onPresenceChanged?: () => void }) {
-  const { user } = useAuth()
+function contactLabel(contact: CommunityContact) {
+  return contact.callsign || contact.email || 'Ukendt'
+}
+
+function CommunityMessengerPanel({
+  contacts,
+  onlineUsers,
+  inboxMessages,
+  selectedContactId,
+  currentUserId,
+  onSelectContact,
+  onOpenProfile,
+  onInboxRefresh,
+}: {
+  contacts: CommunityContact[]
+  onlineUsers: CommunityOnlineUser[]
+  inboxMessages: Message[]
+  selectedContactId: string | null
+  currentUserId?: string
+  onSelectContact: (id: string) => void
+  onOpenProfile: (user: ProfileCardUser) => void
+  onInboxRefresh: () => Promise<void>
+}) {
   const { toast } = useToast()
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [chatText, setChatText] = useState('')
-  const [loadingChat, setLoadingChat] = useState(true)
-  const [sendingChat, setSendingChat] = useState(false)
-  const [isLive, setIsLive] = useState(false)
+  const [conversation, setConversation] = useState<Message[]>([])
+  const [messageText, setMessageText] = useState('')
+  const [loadingConversation, setLoadingConversation] = useState(false)
+  const [sendingMessage, setSendingMessage] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const selectedContact = useMemo(
+    () => contacts.find(contact => contact.id === selectedContactId) ?? contacts[0] ?? null,
+    [contacts, selectedContactId]
+  )
+
+  const onlineIds = useMemo(() => new Set(onlineUsers.map(onlineUser => onlineUser.id)), [onlineUsers])
+
+  const unreadByContact = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const message of inboxMessages) {
+      if (!message.isRead) map.set(message.senderId, (map.get(message.senderId) ?? 0) + 1)
+    }
+    return map
+  }, [inboxMessages])
+
+  const latestByContact = useMemo(() => {
+    const map = new Map<string, Message>()
+    for (const message of inboxMessages) {
+      const existing = map.get(message.senderId)
+      if (!existing || new Date(message.createdAt) > new Date(existing.createdAt)) {
+        map.set(message.senderId, message)
+      }
+    }
+    return map
+  }, [inboxMessages])
+
+  const loadConversation = useCallback(async (contactId: string | null) => {
+    if (!contactId) {
+      setConversation([])
+      return
+    }
+    setLoadingConversation(true)
+    try {
+      setConversation(await api.messages.getConversation(contactId))
+      await onInboxRefresh()
+    } catch {
+      setConversation([])
+    } finally {
+      setLoadingConversation(false)
+    }
+  }, [onInboxRefresh])
 
   useEffect(() => {
     let cancelled = false
+    const contactId = selectedContact?.id ?? null
 
-    async function loadMessages() {
-      setLoadingChat(true)
-      try {
-        const messages = await api.chat.getRoomMessages(roomSlug)
-        if (!cancelled) setChatMessages(messages)
-      } catch {
-        if (!cancelled) setChatMessages([])
-      } finally {
-        if (!cancelled) setLoadingChat(false)
-      }
+    async function run() {
+      await Promise.resolve()
+      if (!cancelled) void loadConversation(contactId)
     }
 
-    loadMessages()
+    void run()
     return () => { cancelled = true }
-  }, [roomSlug])
+  }, [loadConversation, selectedContact?.id])
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-    if (!token) return
+    if (!token || !currentUserId) return
 
-    let stopped = false
     const connection = new HubConnectionBuilder()
-      .withUrl(`${API_URL}/hubs/community-chat`, { accessTokenFactory: () => token })
+      .withUrl(`${API_URL}/hubs/private-messages`, { accessTokenFactory: () => token })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
       .build()
 
-    connection.on('RoomMessageCreated', (message: ChatMessage) => {
-      setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message])
-    })
-    connection.on('CommunityPresenceChanged', () => {
-      onPresenceChanged?.()
-    })
-
-    async function start() {
-      try {
-        await connection.start()
-        if (stopped) return
-        await connection.invoke('JoinRoom', roomSlug)
-        if (!stopped) setIsLive(connection.state === HubConnectionState.Connected)
-      } catch {
-        if (!stopped) setIsLive(false)
+    connection.on('PrivateMessageCreated', (message: Message) => {
+      const otherUserId = message.senderId === currentUserId ? message.recipientId : message.senderId
+      if (otherUserId === selectedContact?.id) {
+        setConversation(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message])
       }
-    }
-
-    connection.onreconnected(async () => {
-      try {
-        await connection.invoke('JoinRoom', roomSlug)
-        setIsLive(true)
-      } catch {
-        setIsLive(false)
-      }
+      void onInboxRefresh()
     })
-    connection.onreconnecting(() => setIsLive(false))
-    connection.onclose(() => setIsLive(false))
-    start()
+    connection.on('NotificationSummaryChanged', () => {
+      void onInboxRefresh()
+    })
 
-    return () => {
-      stopped = true
-      setIsLive(false)
-      void connection.invoke('LeaveRoom', roomSlug).catch(() => undefined)
-        .finally(() => connection.stop().catch(() => undefined))
-    }
-  }, [roomSlug, onPresenceChanged])
+    connection.start().catch(() => undefined)
+    return () => { void connection.stop().catch(() => undefined) }
+  }, [currentUserId, onInboxRefresh, selectedContact?.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [chatMessages.length])
+  }, [conversation.length, selectedContact?.id])
 
-  const handleSendChat = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    const content = chatText.trim()
-    if (!content) return
-    setSendingChat(true)
+    if (!selectedContact || !messageText.trim()) return
+    setSendingMessage(true)
     try {
-      const message = await api.chat.sendRoomMessage(roomSlug, content)
-      setChatMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message])
-      setChatText('')
+      const message = await api.messages.send({
+        recipientId: selectedContact.id,
+        subject: 'Privat besked',
+        body: messageText.trim(),
+      })
+      setConversation(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message])
+      setMessageText('')
+      await onInboxRefresh()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende chatbesked', 'error')
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende besked', 'error')
     } finally {
-      setSendingChat(false)
+      setSendingMessage(false)
     }
   }
 
-  const handleReportChat = async (message: ChatMessage) => {
+  const handleReportContact = async () => {
+    if (!selectedContact) return
     const reason = window.prompt('Hvad skal moderator kigge på?')
     if (!reason?.trim()) return
     try {
-      await api.safety.report({ targetType: 'chat', targetUserId: message.userId, targetId: message.id, reason: reason.trim() })
+      await api.safety.report({ targetType: 'user', targetUserId: selectedContact.id, reason: reason.trim() })
       toast('Rapport sendt')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
@@ -275,62 +312,117 @@ function RoomChatPanel({ roomSlug, roomName, onPresenceChanged }: { roomSlug: st
   }
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-white">Live chat</h2>
-          <p className="text-xs text-gray-500">{roomName}</p>
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-xs ${isLive ? 'bg-green-500/15 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
-          {isLive ? 'Live' : 'Offline'}
-        </span>
-      </div>
-
-      <div className="mb-3 flex max-h-80 min-h-64 flex-col gap-2 overflow-y-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
-        {loadingChat ? (
-          <p className="text-sm text-gray-500">Indlæser chat...</p>
-        ) : chatMessages.length === 0 ? (
-          <p className="text-sm text-gray-500">Ingen chatbeskeder i dette rum endnu.</p>
-        ) : (
-          chatMessages.map(message => {
-            const mine = message.userId === user?.id
-            return (
-              <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-md px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100'}`}>
-                  <div className={`mb-1 flex items-center gap-2 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
-                    <span className="font-mono font-semibold">{message.authorCallsign || 'Ukendt'}</span>
-                    <span>{new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  <div className="whitespace-pre-wrap break-words text-sm">{message.content}</div>
-                  {!mine && (
-                    <button type="button" onClick={() => handleReportChat(message)} className={`mt-1 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500 hover:text-yellow-300'}`}>
-                      Rapportér
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      <form onSubmit={handleSendChat} className="flex flex-col gap-2">
-        <textarea
-          rows={2}
-          maxLength={1000}
-          value={chatText}
-          onChange={e => setChatText(e.target.value)}
-          placeholder={`Skriv i ${roomName}...`}
-          className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
-        />
+    <div className="rounded-lg border border-gray-800 bg-gray-900/50">
+      <div className="border-b border-gray-800 p-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-gray-600">{chatText.length}/1000</span>
-          <Button type="submit" size="sm" disabled={sendingChat || !chatText.trim()}>
-            {sendingChat ? 'Sender...' : 'Send'}
-          </Button>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Messenger</h2>
+            <p className="text-xs text-gray-500">Private beskeder mellem venner</p>
+          </div>
+          <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-200">
+            {inboxMessages.filter(message => !message.isRead).length} ulæst
+          </span>
         </div>
-      </form>
+      </div>
+
+      <div className="grid min-h-[620px] grid-cols-1 md:grid-cols-[150px_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[150px_minmax(0,1fr)]">
+        <div className="border-b border-gray-800 md:border-b-0 md:border-r xl:border-b xl:border-r-0 2xl:border-b-0 2xl:border-r">
+          <div className="max-h-64 overflow-y-auto p-2 md:max-h-[620px] xl:max-h-56 2xl:max-h-[620px]">
+            {contacts.map(contact => {
+              const label = contactLabel(contact)
+              const latest = latestByContact.get(contact.id)
+              const unread = unreadByContact.get(contact.id) ?? 0
+              const isOnline = onlineIds.has(contact.id)
+
+              return (
+                <button
+                  key={contact.id}
+                  type="button"
+                  onClick={() => onSelectContact(contact.id)}
+                  className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors ${
+                    selectedContact?.id === contact.id ? 'bg-blue-500/15 text-white' : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-blue-200">
+                    {label.slice(0, 2).toUpperCase()}
+                    {isOnline && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-gray-900 bg-green-400" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <span className="truncate text-sm font-medium">{label}</span>
+                      {unread > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">{unread}</span>}
+                    </span>
+                    <span className="block truncate text-xs text-gray-500">{latest?.body ?? contact.gridLocator ?? contact.name ?? 'Privat samtale'}</span>
+                  </span>
+                </button>
+              )
+            })}
+            {contacts.length === 0 && (
+              <p className="px-2 py-6 text-sm text-gray-500">Du skal have en ven før du kan skrive privat.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-[420px] flex-col">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-800 p-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold text-white">{selectedContact ? contactLabel(selectedContact) : 'Vælg en ven'}</h3>
+              <p className="truncate text-xs text-gray-500">{selectedContact?.gridLocator || selectedContact?.country || selectedContact?.name || 'Privat besked'}</p>
+            </div>
+            {selectedContact && (
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => onOpenProfile({ ...selectedContact, isFriend: true, friendshipStatus: FriendshipStatus.Accepted })}>
+                  Profil
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={handleReportContact}>
+                  Rapportér
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-gray-950/40 p-3">
+            {loadingConversation ? (
+              <p className="text-sm text-gray-500">Indlæser samtale...</p>
+            ) : !selectedContact ? (
+              <p className="text-sm text-gray-500">Vælg en kontakt for at skrive privat.</p>
+            ) : conversation.length === 0 ? (
+              <p className="text-sm text-gray-500">Ingen private beskeder i samtalen endnu.</p>
+            ) : conversation.map(message => {
+              const mine = message.senderId === currentUserId
+              return (
+                <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] rounded-md px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100'}`}>
+                    <div className={`mb-1 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
+                      {new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="whitespace-pre-wrap break-words text-sm">{message.body}</div>
+                  </div>
+                </div>
+              )
+            })}
+            <div ref={bottomRef} />
+          </div>
+
+          <form onSubmit={handleSendMessage} className="border-t border-gray-800 p-3">
+            <textarea
+              rows={2}
+              maxLength={1000}
+              value={messageText}
+              onChange={e => setMessageText(e.target.value)}
+              placeholder={selectedContact ? `Skriv til ${contactLabel(selectedContact)}...` : 'Vælg en kontakt...'}
+              disabled={!selectedContact}
+              className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white disabled:opacity-50"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-xs text-gray-600">{messageText.length}/1000</span>
+              <Button type="submit" size="sm" disabled={sendingMessage || !selectedContact || !messageText.trim()}>
+                {sendingMessage ? 'Sender...' : 'Send'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }
@@ -361,13 +453,20 @@ export default function CommunityPage() {
     () => rooms.find(r => r.slug === selectedRoom) ?? rooms[0],
     [rooms, selectedRoom]
   )
-  const selectedContact = contacts.find(c => c.id === selectedContactId) ?? contacts[0]
 
   const loadOnlineUsers = useCallback(async () => {
     try {
       setOnlineUsers(await api.community.getOnlineUsers())
     } catch {
       setOnlineUsers([])
+    }
+  }, [])
+
+  const loadInboxMessages = useCallback(async () => {
+    try {
+      setMessages(await api.messages.getInbox())
+    } catch {
+      setMessages([])
     }
   }, [])
 
@@ -516,117 +615,132 @@ export default function CommunityPage() {
           }}
         />
       )}
-      <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,720px)_320px] gap-5 items-start">
-        <aside className="hidden xl:flex flex-col gap-4 sticky top-20">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Community</h1>
-            <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
-          </div>
-          <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-            <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine sider og fora</div>
-            <div className="flex flex-col gap-1">
-              {rooms.map(room => (
-                <button
-                  key={room.slug}
-                  type="button"
-                  onClick={() => handleSelectRoom(room.slug)}
-                  className={`text-left rounded-md px-3 py-2 text-sm transition-colors ${
-                    selectedRoom === room.slug
-                      ? 'bg-blue-500/15 text-white border border-blue-500/30'
-                      : 'text-gray-300 hover:bg-gray-800'
-                  }`}
-                >
-                  <span className="block font-medium">{room.name}</span>
-                  {room.description && <span className="block text-xs text-gray-500 truncate">{room.description}</span>}
-                </button>
-              ))}
-            </div>
-            <Button type="button" variant="secondary" className="mt-3 w-full" disabled>
-              Ny side
-            </Button>
-          </div>
-        </aside>
-
-        <main className="min-w-0">
-          <div className="xl:hidden mb-4">
-            <h1 className="text-3xl font-bold text-white mb-3">Community</h1>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {rooms.map(room => (
-                <button
-                  key={room.slug}
-                  type="button"
-                  onClick={() => handleSelectRoom(room.slug)}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${
-                    selectedRoom === room.slug
-                      ? 'border-blue-500 bg-blue-500/15 text-white'
-                      : 'border-gray-700 text-gray-300'
-                  }`}
-                >
-                  {room.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Card className="mb-5">
-            <CardContent className="py-5">
-              <div className="mb-3">
-                <div className="text-sm font-semibold text-white">{selectedRoomInfo?.name ?? 'Alle opslag'}</div>
-                <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? 'Del noget med HamHub community.'}</div>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-start">
+        <section className="min-w-0">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,760px)]">
+            <aside className="hidden lg:flex flex-col gap-4 sticky top-20">
+              <div>
+                <h1 className="text-2xl font-bold text-white">Community</h1>
+                <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
               </div>
-              <form onSubmit={handlePost} className="flex flex-col gap-3">
-                <textarea
-                  rows={3}
-                  value={newContent}
-                  onChange={e => setNewContent(e.target.value)}
-                  placeholder="Del noget med community..."
-                  className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm">
-                    Tilføj billeder
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={e => setNewImages(Array.from(e.target.files || []).slice(0, 4))}
-                    />
-                  </label>
-                  {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
-                  <Button type="submit" disabled={posting || !newContent.trim()} size="sm">
-                    {posting ? 'Poster...' : 'Post'}
-                  </Button>
+              <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine sider og fora</div>
+                <div className="flex flex-col gap-1">
+                  {rooms.map(room => (
+                    <button
+                      key={room.slug}
+                      type="button"
+                      onClick={() => handleSelectRoom(room.slug)}
+                      className={`text-left rounded-md px-3 py-2 text-sm transition-colors ${
+                        selectedRoom === room.slug
+                          ? 'bg-blue-500/15 text-white border border-blue-500/30'
+                          : 'text-gray-300 hover:bg-gray-800'
+                      }`}
+                    >
+                      <span className="block font-medium">{room.name}</span>
+                      {room.description && <span className="block text-xs text-gray-500 truncate">{room.description}</span>}
+                    </button>
+                  ))}
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {loading && posts.length === 0 ? (
-            <p className="text-gray-400">Indlæser...</p>
-          ) : posts.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-gray-400">Ingen opslag i dette rum endnu.</CardContent></Card>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {posts.map(p => (
-                <PostCard
-                  key={p.id}
-                  post={p}
-                  currentUserId={user?.id}
-                  onDelete={() => handleDelete(p.id)}
-                />
-              ))}
-              {posts.length < total && (
-                <Button variant="secondary" onClick={() => loadFeed(page + 1)} disabled={loading}>
-                  {loading ? 'Indlæser...' : 'Indlæs flere'}
+                <Button type="button" variant="secondary" className="mt-3 w-full" disabled>
+                  Ny side
                 </Button>
+              </div>
+            </aside>
+
+            <main className="min-w-0">
+              <div className="lg:hidden mb-4">
+                <h1 className="text-3xl font-bold text-white mb-3">Community</h1>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {rooms.map(room => (
+                    <button
+                      key={room.slug}
+                      type="button"
+                      onClick={() => handleSelectRoom(room.slug)}
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${
+                        selectedRoom === room.slug
+                          ? 'border-blue-500 bg-blue-500/15 text-white'
+                          : 'border-gray-700 text-gray-300'
+                      }`}
+                    >
+                      {room.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Card className="mb-5">
+                <CardContent className="py-5">
+                  <div className="mb-3">
+                    <div className="text-sm font-semibold text-white">{selectedRoomInfo?.name ?? 'Alle opslag'}</div>
+                    <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? 'Del noget med HamHub community.'}</div>
+                  </div>
+                  <form onSubmit={handlePost} className="flex flex-col gap-3">
+                    <textarea
+                      rows={3}
+                      value={newContent}
+                      onChange={e => setNewContent(e.target.value)}
+                      placeholder="Del noget med community..."
+                      className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm">
+                        Tilføj billeder
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          multiple
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={e => setNewImages(Array.from(e.target.files || []).slice(0, 4))}
+                        />
+                      </label>
+                      {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
+                      <Button type="submit" disabled={posting || !newContent.trim()} size="sm">
+                        {posting ? 'Poster...' : 'Post'}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {loading && posts.length === 0 ? (
+                <p className="text-gray-400">Indlæser...</p>
+              ) : posts.length === 0 ? (
+                <Card><CardContent className="py-12 text-center text-gray-400">Ingen opslag i dette rum endnu.</CardContent></Card>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {posts.map(p => (
+                    <PostCard
+                      key={p.id}
+                      post={p}
+                      currentUserId={user?.id}
+                      onDelete={() => handleDelete(p.id)}
+                    />
+                  ))}
+                  {posts.length < total && (
+                    <Button variant="secondary" onClick={() => loadFeed(page + 1)} disabled={loading}>
+                      {loading ? 'Indlæser...' : 'Indlæs flere'}
+                    </Button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
-        </main>
+            </main>
+          </div>
+        </section>
 
         <aside className="flex flex-col gap-4 xl:sticky xl:top-20">
+          <CommunityMessengerPanel
+            contacts={contacts}
+            onlineUsers={onlineUsers}
+            inboxMessages={messages}
+            selectedContactId={selectedContactId}
+            currentUserId={user?.id}
+            onSelectContact={setSelectedContactId}
+            onOpenProfile={setProfileUser}
+            onInboxRefresh={loadInboxMessages}
+          />
+
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">Online nu</h2>
@@ -671,57 +785,6 @@ export default function CommunityPage() {
                 )
               })}
               {onlineUsers.length === 0 && <p className="text-sm text-gray-500">Ingen andre online lige nu.</p>}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Kontakter</h2>
-              <span className="text-xs text-gray-500">{contacts.length}</span>
-            </div>
-            <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
-              {contacts.map(contact => (
-                <button
-                  key={contact.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedContactId(contact.id)
-                    setProfileUser({ ...contact, isFriend: true, friendshipStatus: FriendshipStatus.Accepted })
-                  }}
-                  className={`flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${
-                    selectedContact?.id === contact.id ? 'bg-blue-500/15' : 'hover:bg-gray-800'
-                  }`}
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-blue-200">
-                    {(contact.callsign || contact.email || '?').slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-gray-200">{contact.callsign || contact.email}</span>
-                    <span className="block truncate text-xs text-gray-500">{contact.gridLocator || contact.country || contact.name || 'HamHub medlem'}</span>
-                  </span>
-                </button>
-              ))}
-              {contacts.length === 0 && <p className="text-sm text-gray-500">Ingen kontakter fundet.</p>}
-            </div>
-          </div>
-
-          <RoomChatPanel
-            roomSlug={selectedRoom}
-            roomName={selectedRoomInfo?.name ?? 'Alle opslag'}
-            onPresenceChanged={loadOnlineUsers}
-          />
-
-          <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-            <h2 className="text-sm font-semibold text-white mb-3">Seneste beskeder</h2>
-            <div className="flex flex-col gap-3">
-              {messages.slice(0, 5).map(message => (
-                <div key={message.id} className="border-b border-gray-800 pb-2 last:border-b-0 last:pb-0">
-                  <div className="text-xs text-gray-500">{formatUtcDate(message.createdAt)}</div>
-                  <div className="text-sm text-gray-200 font-medium">{message.senderCallsign || message.recipientCallsign}</div>
-                  <div className="text-xs text-gray-500 line-clamp-2">{message.body}</div>
-                </div>
-              ))}
-              {messages.length === 0 && <p className="text-sm text-gray-500">Ingen beskeder endnu.</p>}
             </div>
           </div>
         </aside>
