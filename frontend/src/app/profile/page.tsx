@@ -1,11 +1,11 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility, type EqslStatus, type QrzStatus } from '@/lib/types'
+import { ProfileVisibility, type EqslStatus, type Friendship, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const { user } = useAuth()
   useRequireAuth()
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps' | 'friends'>('profile')
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -30,6 +30,20 @@ export default function ProfilePage() {
   const [eqslPassword, setEqslPassword] = useState('')
   const [eqslQthNickname, setEqslQthNickname] = useState('')
   const [eqslLoading, setEqslLoading] = useState(false)
+  const [friends, setFriends] = useState<Friendship[]>([])
+  const [friendsLoading, setFriendsLoading] = useState(false)
+  const [removingFriendId, setRemovingFriendId] = useState<string | null>(null)
+
+  const loadFriends = useCallback(async () => {
+    setFriendsLoading(true)
+    try {
+      setFriends(await api.friends.getAll())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke hente venner', 'error')
+    } finally {
+      setFriendsLoading(false)
+    }
+  }, [toast])
 
   useEffect(() => {
     let cancelled = false
@@ -53,6 +67,9 @@ export default function ProfilePage() {
       }).catch(() => {})
       api.eqsl.status().then(status => {
         if (!cancelled) setEqslStatus(status)
+      }).catch(() => {})
+      api.friends.getAll().then(items => {
+        if (!cancelled) setFriends(items)
       }).catch(() => {})
     }
 
@@ -170,6 +187,22 @@ export default function ProfilePage() {
     }
   }
 
+  const handleRemoveFriend = async (friend: Friendship) => {
+    const label = friend.otherCallsign || friend.otherName || friend.otherEmail || 'denne ven'
+    if (!window.confirm(`Fjern ${label} som ven?`)) return
+
+    setRemovingFriendId(friend.otherUserId)
+    try {
+      await api.friends.remove(friend.otherUserId)
+      setFriends(items => items.filter(item => item.otherUserId !== friend.otherUserId))
+      toast('Vennen er fjernet.')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke fjerne ven', 'error')
+    } finally {
+      setRemovingFriendId(null)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
@@ -179,6 +212,7 @@ export default function ProfilePage() {
           { id: 'profile', label: 'Profil' },
           { id: 'integrations', label: 'Integrationer' },
           { id: 'apps', label: 'Apps' },
+          { id: 'friends', label: 'Venner' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -430,6 +464,66 @@ export default function ProfilePage() {
                 </ol>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'friends' && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Venner</CardTitle>
+                <p className="text-sm text-gray-400 mt-1">
+                  Se dine accepterede venner og fjern forbindelser direkte fra profilen.
+                </p>
+              </div>
+              <Button type="button" variant="secondary" onClick={loadFriends} disabled={friendsLoading}>
+                {friendsLoading ? 'Henter...' : 'Opdater'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {friendsLoading && friends.length === 0 ? (
+              <p className="text-gray-400 text-sm">Henter venner...</p>
+            ) : friends.length === 0 ? (
+              <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                <p className="text-white font-medium">Ingen venner endnu</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Find andre brugere under Beskeder og send en venneanmodning.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                {friends.map(friend => {
+                  const displayName = friend.otherCallsign || friend.otherName || friend.otherEmail || 'Ukendt bruger'
+                  const details = [
+                    friend.otherName && friend.otherName !== displayName ? friend.otherName : null,
+                    friend.otherGridLocator,
+                    friend.otherEmail,
+                  ].filter(Boolean)
+
+                  return (
+                    <div key={friend.id} className="flex flex-col gap-3 bg-gray-900/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-white font-semibold truncate">{displayName}</p>
+                        {details.length > 0 && (
+                          <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' · ')}</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={() => handleRemoveFriend(friend)}
+                        disabled={removingFriendId === friend.otherUserId}
+                      >
+                        {removingFriendId === friend.otherUserId ? 'Fjerner...' : 'Fjern ven'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
