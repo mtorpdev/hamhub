@@ -99,6 +99,46 @@ public class EqslClientTests
         Assert.Contains("Result: 1 out of 1 records added", result.Message);
     }
 
+    [Fact]
+    public async Task VerifyQsoReturnsOnFileWhenEqslHasMatch()
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var handler = new CapturingHandler(request =>
+        {
+            capturedRequest = request;
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                    Result - QSO on file
+                    Information - Authenticity Guaranteed
+                    """)
+            };
+        });
+        var client = new EqslClient(new HttpClient(handler));
+
+        var result = await client.VerifyQsoAsync(TestVerificationQso(), CancellationToken.None);
+
+        Assert.True(result.OnFile);
+        Assert.True(result.AuthenticityGuaranteed);
+        Assert.Contains("VerifyQSO.cfm", capturedRequest?.RequestUri?.ToString());
+        Assert.Contains("CallsignFrom=OZ4MT", capturedRequest?.RequestUri?.ToString());
+    }
+
+    [Fact]
+    public async Task VerifyQsoReturnsNotOnFileWhenEqslHasNoMatch()
+    {
+        var handler = new CapturingHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("Error - Result: QSO not on file")
+        });
+        var client = new EqslClient(new HttpClient(handler));
+
+        var result = await client.VerifyQsoAsync(TestVerificationQso(), CancellationToken.None);
+
+        Assert.False(result.OnFile);
+        Assert.Contains("ikke fundet", result.Message);
+    }
+
     private static EqslAdifQso TestQso() => new(
         Call: "OZ1ABC",
         TimeOn: new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc),
@@ -110,6 +150,13 @@ public class EqslClientTests
         Submode: null,
         Gridsquare: "JO65",
         Comment: null);
+
+    private static EqslVerificationQso TestVerificationQso() => new(
+        CallsignFrom: "OZ4MT",
+        CallsignTo: "OZ1ABC",
+        DateUtc: new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc),
+        Band: "20M",
+        Mode: "FT8");
 
     private sealed class CapturingHandler : HttpMessageHandler
     {

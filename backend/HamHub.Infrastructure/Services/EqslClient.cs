@@ -6,6 +6,7 @@ namespace HamHub.Infrastructure.Services;
 public class EqslApiException(string message) : Exception(message);
 
 public record EqslUploadResult(bool Success, string Message);
+public record EqslVerificationResult(bool OnFile, bool AuthenticityGuaranteed, string Message);
 
 public class EqslClient
 {
@@ -60,6 +61,51 @@ public class EqslClient
         var preview = Preview(text);
         if (string.IsNullOrWhiteSpace(preview)) preview = Preview(body);
         throw new EqslApiException($"eQSL returnerede et ukendt svar ({body.Length} tegn): {preview}");
+    }
+
+    public async Task<EqslVerificationResult> VerifyQsoAsync(EqslVerificationQso qso, CancellationToken ct)
+    {
+        var query = new Dictionary<string, string>
+        {
+            ["CallsignFrom"] = qso.CallsignFrom,
+            ["CallsignTo"] = qso.CallsignTo,
+            ["QSOBand"] = qso.Band,
+            ["QSOYear"] = qso.DateUtc.Year.ToString(CultureInfo.InvariantCulture),
+            ["QSOMonth"] = qso.DateUtc.Month.ToString(CultureInfo.InvariantCulture),
+            ["QSODay"] = qso.DateUtc.Day.ToString(CultureInfo.InvariantCulture),
+            ["QSOMode"] = qso.Mode
+        }
+            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://www.eQSL.cc/qslcard/VerifyQSO.cfm?{string.Join("&", query)}");
+        request.Headers.UserAgent.ParseAdd("HamHub/1.0");
+        var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var text = StripHtml(body);
+        var normalized = Regex.Replace(text, @"\s+", " ").Trim();
+
+        if (normalized.Contains("Result - QSO on file", StringComparison.OrdinalIgnoreCase))
+        {
+            var ag = normalized.Contains("Information - Authenticity Guaranteed", StringComparison.OrdinalIgnoreCase);
+            return new EqslVerificationResult(true, ag, ag ? "QSO fundet på eQSL med Authenticity Guaranteed." : "QSO fundet på eQSL.");
+        }
+
+        if (normalized.Contains("Error - Result: QSO not on file", StringComparison.OrdinalIgnoreCase))
+            return new EqslVerificationResult(false, false, "QSO ikke fundet på eQSL endnu.");
+
+        if (normalized.Contains("Error - Result: QSO rejected by recipient", StringComparison.OrdinalIgnoreCase))
+            return new EqslVerificationResult(false, false, "QSO er afvist af modtageren på eQSL.");
+
+        if (normalized.Contains("Information - CallsignTo not on file", StringComparison.OrdinalIgnoreCase))
+            return new EqslVerificationResult(false, false, "Modpartens kaldesignal er ikke registreret hos eQSL.");
+
+        var errorLine = FirstResultLine(text, "Error -");
+        if (errorLine != null)
+            throw new EqslApiException(errorLine);
+
+        throw new EqslApiException($"eQSL VerifyQSO returnerede et ukendt svar: {Preview(text)}");
     }
 
     private static string BuildLastUploadUrl(string username, string password, string? qthNickname)
@@ -166,3 +212,10 @@ public record EqslAdifQso(
     string? Submode,
     string? Gridsquare,
     string? Comment);
+
+public record EqslVerificationQso(
+    string CallsignFrom,
+    string CallsignTo,
+    DateTime DateUtc,
+    string Band,
+    string Mode);

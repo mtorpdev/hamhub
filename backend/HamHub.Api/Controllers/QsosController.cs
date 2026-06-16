@@ -71,7 +71,7 @@ public class QsosController : ControllerBase
     }
 
     [HttpGet("{id}/external-status")]
-    public async Task<IActionResult> GetExternalStatus(int id)
+    public async Task<IActionResult> GetExternalStatus(int id, CancellationToken ct)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var qso = await _context.QsoEntries
@@ -82,6 +82,19 @@ public class QsosController : ControllerBase
 
         var qrzReadable = CanUnprotect(qso.User.QrzApiKey, _qrzProtector);
         var eqslReadable = CanUnprotect(qso.User.EqslPassword, _eqslProtector);
+        if (eqslReadable == true)
+        {
+            try
+            {
+                await RefreshEqslStatusAsync(qso, ct);
+            }
+            catch (EqslApiException ex)
+            {
+                qso.EqslLastResult = $"Kunne ikke opdatere eQSL status: {ex.Message}";
+                qso.User.EqslLastSyncedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+            }
+        }
 
         return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User, qrzReadable, eqslReadable));
     }
@@ -181,6 +194,56 @@ public class QsosController : ControllerBase
         Submode: qso.Submode,
         Gridsquare: qso.Locator,
         Comment: qso.Comment);
+
+    private async Task RefreshEqslStatusAsync(QsoEntry qso, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(qso.OwnCallsign) || string.IsNullOrWhiteSpace(qso.WorkedCallsign))
+            return;
+
+        var outgoing = await _eqslClient.VerifyQsoAsync(ToEqslVerification(qso, qso.OwnCallsign, qso.WorkedCallsign), ct);
+        var incoming = await _eqslClient.VerifyQsoAsync(ToEqslVerification(qso, qso.WorkedCallsign, qso.OwnCallsign), ct);
+
+        var now = DateTime.UtcNow;
+        if (outgoing.OnFile && !qso.EqslSentAt.HasValue)
+        {
+            qso.EqslSentAt = now;
+        }
+
+        if (incoming.OnFile && !qso.EqslConfirmedAt.HasValue)
+        {
+            qso.EqslConfirmedAt = now;
+        }
+
+        qso.EqslLastResult = BuildEqslVerificationMessage(outgoing, incoming);
+        qso.User.EqslLastSyncedAt = now;
+        qso.UpdatedAt = now;
+        await _context.SaveChangesAsync(ct);
+    }
+
+    private static EqslVerificationQso ToEqslVerification(QsoEntry qso, string callsignFrom, string callsignTo) => new(
+        CallsignFrom: callsignFrom,
+        CallsignTo: callsignTo,
+        DateUtc: qso.DateUtc,
+        Band: BandToAdif(qso.Band),
+        Mode: ModeToAdif(qso.Mode));
+
+    private static string BuildEqslVerificationMessage(EqslVerificationResult outgoing, EqslVerificationResult incoming)
+    {
+        if (outgoing.OnFile && incoming.OnFile)
+            return incoming.AuthenticityGuaranteed
+                ? "eQSL status opdateret: sendt og bekræftet med Authenticity Guaranteed."
+                : "eQSL status opdateret: sendt og bekræftet.";
+        if (outgoing.OnFile)
+            return outgoing.AuthenticityGuaranteed
+                ? "eQSL status opdateret: udgående QSO fundet med Authenticity Guaranteed."
+                : "eQSL status opdateret: udgående QSO fundet.";
+        if (incoming.OnFile)
+            return incoming.AuthenticityGuaranteed
+                ? "eQSL status opdateret: modpartens eQSL fundet med Authenticity Guaranteed."
+                : "eQSL status opdateret: modpartens eQSL fundet.";
+
+        return $"eQSL status opdateret: {outgoing.Message} {incoming.Message}";
+    }
 
     private static bool? CanUnprotect(string? protectedValue, IDataProtector protector)
     {

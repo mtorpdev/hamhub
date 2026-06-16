@@ -70,7 +70,7 @@ public class QsoExternalLogStatusBuilderTests
         Assert.Equal("ready", eqsl.Status);
         Assert.Equal("Klar til eQSL", eqsl.Label);
         Assert.True(eqsl.CanSend);
-        Assert.False(eqsl.CanFetch);
+        Assert.True(eqsl.CanFetch);
         Assert.True(eqsl.IsConfigured);
         Assert.Equal("Send til eQSL", eqsl.SendActionLabel);
         Assert.Equal("Opdater status", eqsl.FetchActionLabel);
@@ -92,9 +92,50 @@ public class QsoExternalLogStatusBuilderTests
         Assert.Equal("sent", eqsl.Status);
         Assert.Equal("Sendt til eQSL", eqsl.Label);
         Assert.False(eqsl.CanSend);
-        Assert.False(eqsl.CanFetch);
+        Assert.True(eqsl.CanFetch);
         Assert.Equal(qso.EqslSentAt, eqsl.LastUpdatedAt);
         Assert.Equal(qso.EqslLastResult, eqsl.LastResult);
+    }
+
+    [Fact]
+    public void BuildMarksEqslConfirmedWhenQsoHasEqslConfirmedAt()
+    {
+        var qso = new QsoEntry
+        {
+            EqslSentAt = new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc),
+            EqslConfirmedAt = new DateTime(2026, 6, 16, 9, 30, 0, DateTimeKind.Utc),
+            EqslLastResult = "eQSL status opdateret: sendt og bekræftet."
+        };
+        var user = new ApplicationUser { EqslUsername = "OZ1ABC", EqslPassword = "protected" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user);
+
+        var eqsl = Assert.Single(statuses, status => status.Provider == "eQSL");
+        Assert.Equal("confirmed", eqsl.Status);
+        Assert.Equal("Bekræftet på eQSL", eqsl.Label);
+        Assert.False(eqsl.CanSend);
+        Assert.True(eqsl.CanFetch);
+        Assert.Equal(qso.EqslConfirmedAt, eqsl.LastUpdatedAt);
+        Assert.Equal(qso.EqslLastResult, eqsl.LastResult);
+    }
+
+    [Fact]
+    public void BuildMarksEqslMissingWhenStatusWasCheckedButQsoWasNotFound()
+    {
+        var qso = new QsoEntry
+        {
+            EqslLastResult = "eQSL status opdateret: QSO ikke fundet på eQSL endnu. QSO ikke fundet på eQSL endnu."
+        };
+        var user = new ApplicationUser { EqslUsername = "OZ1ABC", EqslPassword = "protected" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user);
+
+        var eqsl = Assert.Single(statuses, status => status.Provider == "eQSL");
+        Assert.Equal("missing", eqsl.Status);
+        Assert.Equal("Ikke fundet på eQSL", eqsl.Label);
+        Assert.True(eqsl.CanSend);
+        Assert.True(eqsl.CanFetch);
+        Assert.Contains("blev ikke fundet", eqsl.Description);
     }
 
     [Fact]

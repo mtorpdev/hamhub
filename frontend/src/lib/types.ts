@@ -97,7 +97,7 @@ export interface Qso {
 
 export interface QsoExternalLogStatus {
   provider: string
-  status: 'synced' | 'ready' | 'not-configured' | 'sent' | string
+  status: 'synced' | 'ready' | 'not-configured' | 'sent' | 'confirmed' | 'missing' | string
   label: string
   externalId: string | null
   canSend: boolean

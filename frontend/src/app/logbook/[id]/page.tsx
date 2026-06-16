@@ -129,14 +129,14 @@ export default function EditQsoPage() {
     .filter(Boolean) as { lat: number; lng: number; label: string; popup: string }[]
 
   const badgeVariant = (status: string) => {
-    if (status === 'synced' || status === 'sent') return 'success'
-    if (status === 'ready') return 'warning'
+    if (status === 'synced' || status === 'sent' || status === 'confirmed') return 'success'
+    if (status === 'ready' || status === 'missing') return 'warning'
     return 'default'
   }
 
   const providerTone = (status: QsoExternalLogStatus) => {
-    if (status.status === 'synced' || status.status === 'sent') return 'border-green-700/60 bg-green-950/20'
-    if (status.status === 'ready') return 'border-yellow-700/60 bg-yellow-950/20'
+    if (status.status === 'synced' || status.status === 'sent' || status.status === 'confirmed') return 'border-green-700/60 bg-green-950/20'
+    if (status.status === 'ready' || status.status === 'missing') return 'border-yellow-700/60 bg-yellow-950/20'
     return 'border-gray-700 bg-gray-900/30'
   }
 
@@ -800,11 +800,6 @@ export default function EditQsoPage() {
                                 onClick={() => handleFetchExternal(status.provider)}
                                 disabled={externalLoading}
                               >
-                                {status.fetchActionLabel}
-                              </Button>
-                            )}
-                            {status.provider === 'eQSL' && !status.canSend && (
-                              <Button type="button" size="sm" variant="secondary" onClick={refreshExternalStatus} disabled={externalLoading}>
                                 {status.fetchActionLabel}
                               </Button>
                             )}

@@ -32,6 +32,9 @@ public static class QsoExternalLogStatusBuilder
         var eqslReady = eqslConfigured && (eqslCredentialReadable ?? true);
         var eqslUnreadable = eqslConfigured && eqslCredentialReadable == false;
         var eqslSent = qso.EqslSentAt.HasValue;
+        var eqslConfirmed = qso.EqslConfirmedAt.HasValue;
+        var eqslChecked = qso.EqslLastResult?.StartsWith("eQSL status opdateret:", StringComparison.OrdinalIgnoreCase) == true;
+        var eqslMissing = eqslChecked && !eqslSent && !eqslConfirmed;
 
         return new[]
         {
@@ -69,22 +72,26 @@ public static class QsoExternalLogStatusBuilder
                 LastResult: "Ikke aktiv endnu, fordi LoTW kræver certifikat og station location i TQSL."),
             new QsoExternalLogStatusDto(
                 Provider: "eQSL",
-                Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslSent ? "sent" : "ready",
-                Label: eqslUnreadable ? "eQSL login skal gemmes igen" : !eqslReady ? "Ikke sat op" : eqslSent ? "Sendt til eQSL" : "Klar til eQSL",
+                Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslConfirmed ? "confirmed" : eqslSent ? "sent" : eqslMissing ? "missing" : "ready",
+                Label: eqslUnreadable ? "eQSL login skal gemmes igen" : !eqslReady ? "Ikke sat op" : eqslConfirmed ? "Bekræftet på eQSL" : eqslSent ? "Sendt til eQSL" : eqslMissing ? "Ikke fundet på eQSL" : "Klar til eQSL",
                 ExternalId: null,
                 CanSend: eqslReady && !eqslSent,
-                CanFetch: false,
+                CanFetch: eqslReady,
                 Description: eqslUnreadable
                     ? "Det gemte eQSL login kan ikke læses efter serverens nøgleskift. Gem eQSL login igen på profilen, så bliver det krypteret med den nye persistente nøgle."
                     : !eqslReady
                     ? "Gem eQSL brugernavn og adgangskode på profilen for at sende QSO'er til eQSL."
+                    : eqslConfirmed
+                        ? $"Modpartens eQSL er fundet og denne QSO er bekræftet{(qso.EqslConfirmedAt.HasValue ? $" {qso.EqslConfirmedAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
                     : eqslSent
                         ? $"Denne QSO er sendt til eQSL{(qso.EqslSentAt.HasValue ? $" {qso.EqslSentAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
+                    : eqslMissing
+                        ? "Denne QSO er tjekket hos eQSL, men blev ikke fundet endnu. Du kan sende den direkte herfra."
                         : "Denne QSO kan sendes direkte til eQSL via real-time ADIF upload.",
                 IsConfigured: eqslReady,
                 SendActionLabel: eqslSent ? "Sendt" : eqslReady ? "Send til eQSL" : "Opsæt eQSL",
                 FetchActionLabel: "Opdater status",
-                LastUpdatedAt: qso.EqslSentAt ?? user.EqslLastSyncedAt,
+                LastUpdatedAt: qso.EqslConfirmedAt ?? qso.EqslSentAt ?? user.EqslLastSyncedAt,
                 LastResult: qso.EqslLastResult),
         };
     }
