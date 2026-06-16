@@ -33,7 +33,7 @@ type DecodeRow = WsjtxDecodeItem & {
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
 type WantedReason = 'calling-me' | 'new-grid' | 'new-station' | 'new-band-mode' | 'worked'
 type MessageFilter = 'all' | 'CQ' | 'me' | '73'
-type DecodeView = 'grid' | 'map' | 'wanted'
+type DecodeView = 'grid' | 'map' | 'wanted' | 'awards'
 type DecodeMapMarker = MapMarker & {
   decodeId: number
 }
@@ -42,7 +42,19 @@ type LogbookIndex = {
   callsigns: Set<string>
   grids: Set<string>
   bandModeSlots: Set<string>
+  countries: Set<string>
+  continents: Set<string>
   byCallsign: Map<string, Qso>
+}
+
+type AwardCountryStatus = {
+  country: string
+  continent: string
+  worked: boolean
+  liveCount: number
+  liveNeeded: boolean
+  bestSnr: number | null
+  latest: DecodeRow | null
 }
 
 type QsoEditForm = {
@@ -95,7 +107,88 @@ const EMPTY_LOGBOOK_INDEX: LogbookIndex = {
   callsigns: new Set(),
   grids: new Set(),
   bandModeSlots: new Set(),
+  countries: new Set(),
+  continents: new Set(),
   byCallsign: new Map(),
+}
+
+const CONTINENTS = ['EU', 'NA', 'SA', 'AF', 'AS', 'OC', 'AN'] as const
+const CONTINENT_LABELS: Record<string, string> = {
+  EU: 'Europa',
+  NA: 'Nordamerika',
+  SA: 'Sydamerika',
+  AF: 'Afrika',
+  AS: 'Asien',
+  OC: 'Oceanien',
+  AN: 'Antarktis',
+}
+
+const COUNTRY_CONTINENTS: Record<string, string> = {
+  'australien': 'OC',
+  'belgien': 'EU',
+  'bulgarien': 'EU',
+  'canada': 'NA',
+  'danmark': 'EU',
+  'frankrig': 'EU',
+  'graekenland': 'EU',
+  'grækenland': 'EU',
+  'holland': 'EU',
+  'indonesien': 'OC',
+  'italien': 'EU',
+  'japan': 'AS',
+  'kasakhstan': 'AS',
+  'kina/taiwan': 'AS',
+  'kroatien': 'EU',
+  'nederlandene': 'EU',
+  'new zealand': 'OC',
+  'nordirland': 'EU',
+  'norge': 'EU',
+  'polen': 'EU',
+  'rumænien': 'EU',
+  'rumaenien': 'EU',
+  'rusland': 'EU',
+  'schweiz': 'EU',
+  'skotland': 'EU',
+  'slovakiet': 'EU',
+  'slovenien': 'EU',
+  'spanien': 'EU',
+  'sverige': 'EU',
+  'sydkorea': 'AS',
+  'tjekkiet': 'EU',
+  'tyrkiet': 'AS',
+  'tyskland': 'EU',
+  'ungarn': 'EU',
+  'usa': 'NA',
+  'wales': 'EU',
+  'østrig': 'EU',
+  'oestrig': 'EU',
+  'austria': 'EU',
+  'belgium': 'EU',
+  'bulgaria': 'EU',
+  'croatia': 'EU',
+  'czech republic': 'EU',
+  'denmark': 'EU',
+  'england': 'EU',
+  'finland': 'EU',
+  'france': 'EU',
+  'germany': 'EU',
+  'greece': 'EU',
+  'hungary': 'EU',
+  'israel': 'AS',
+  'italy': 'EU',
+  'netherlands': 'EU',
+  'norway': 'EU',
+  'poland': 'EU',
+  'romania': 'EU',
+  'russia': 'EU',
+  'slovakia': 'EU',
+  'slovenia': 'EU',
+  'spain': 'EU',
+  'sweden': 'EU',
+  'switzerland': 'EU',
+  'turkey': 'AS',
+  'ukraine': 'EU',
+  'united states': 'NA',
 }
 
 const CALLSIGN_COUNTRY_PREFIXES: Array<[RegExp, string]> = [
@@ -162,6 +255,8 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
   const callsigns = new Set<string>()
   const grids = new Set<string>()
   const bandModeSlots = new Set<string>()
+  const countries = new Set<string>()
+  const continents = new Set<string>()
   const byCallsign = new Map<string, Qso>()
 
   for (const qso of qsos) {
@@ -174,9 +269,15 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
 
     const grid = qso.locator?.toUpperCase()
     if (grid) grids.add(grid)
+
+    const country = normalizeCountry(qso.country)
+    if (country) countries.add(countryKey(country))
+
+    const continent = qso.continent?.toUpperCase() || continentFromCountry(qso.country)
+    if (continent) continents.add(continent)
   }
 
-  return { callsigns, grids, bandModeSlots, byCallsign }
+  return { callsigns, grids, bandModeSlots, countries, continents, byCallsign }
 }
 
 function getDecodeLogStatus(decode: WsjtxDecodeItem, logbook: LogbookIndex): DecodeLogStatus {
@@ -285,10 +386,84 @@ function normalizeCallsignForCountry(callsign: string | null) {
     .replace(/[^A-Z0-9]/g, '') ?? ''
 }
 
+function normalizeCountry(country: string | null | undefined) {
+  const value = country?.trim()
+  if (!value || value === '-' || value.toLowerCase() === 'ukendt') return ''
+  return value
+}
+
+function countryKey(country: string | null | undefined) {
+  return normalizeCountry(country).toLowerCase()
+}
+
+function countryDisplay(country: string) {
+  return country
+    .split(/(\s+|\/|-)/)
+    .map(part => /^[a-zæøå]/.test(part) ? part.charAt(0).toUpperCase() + part.slice(1) : part)
+    .join('')
+}
+
+function continentFromCountry(country: string | null | undefined) {
+  const key = countryKey(country)
+  if (!key) return ''
+  return COUNTRY_CONTINENTS[key] ?? ''
+}
+
 function countryFromCallsign(callsign: string | null) {
   const normalized = normalizeCallsignForCountry(callsign)
   if (!normalized) return '-'
   return CALLSIGN_COUNTRY_PREFIXES.find(([pattern]) => pattern.test(normalized))?.[1] ?? 'Ukendt'
+}
+
+function buildAwardCountryStatuses(rows: DecodeRow[], logbook: LogbookIndex): AwardCountryStatus[] {
+  const byCountry = new Map<string, AwardCountryStatus>()
+
+  for (const country of logbook.countries) {
+    const key = countryKey(country)
+    if (!key) continue
+    byCountry.set(key, {
+      country: countryDisplay(country),
+      continent: continentFromCountry(country),
+      worked: true,
+      liveCount: 0,
+      liveNeeded: false,
+      bestSnr: null,
+      latest: null,
+    })
+  }
+
+  for (const row of rows) {
+    const country = normalizeCountry(row.country)
+    const key = countryKey(country)
+    if (!key) continue
+
+    const existing = byCountry.get(key) ?? {
+      country,
+      continent: continentFromCountry(country),
+      worked: logbook.countries.has(key),
+      liveCount: 0,
+      liveNeeded: false,
+      bestSnr: null,
+      latest: null,
+    }
+
+    existing.liveCount += 1
+    existing.liveNeeded = !existing.worked
+    existing.bestSnr = existing.bestSnr === null ? row.snr : Math.max(existing.bestSnr, row.snr)
+    if (!existing.latest || new Date(row.decodedAt).getTime() > new Date(existing.latest.decodedAt).getTime()) {
+      existing.latest = row
+    }
+
+    byCountry.set(key, existing)
+  }
+
+  return Array.from(byCountry.values()).sort((a, b) => {
+    const score = (item: AwardCountryStatus) =>
+      (item.liveNeeded ? 1000 : 0) +
+      (!item.worked ? 100 : 0) +
+      (item.liveCount > 0 ? 50 : 0)
+    return score(b) - score(a) || a.country.localeCompare(b.country)
+  })
 }
 
 function normalizeDecodeMode(decode: WsjtxDecodeItem) {
@@ -508,6 +683,26 @@ export default function DecodePage() {
     newBandMode: rows.filter(row => row.isNewBandMode).length,
     worked: rows.filter(row => row.logStatus === 'worked' && !row.isNewBandMode).length,
   }), [rows])
+  const awardCountries = useMemo(() => buildAwardCountryStatuses(rows, logbook), [rows, logbook])
+  const awardContinents = useMemo(() => CONTINENTS.map(code => {
+    const liveRows = rows.filter(row => continentFromCountry(row.country) === code)
+    const worked = logbook.continents.has(code)
+    return {
+      code,
+      label: CONTINENT_LABELS[code],
+      worked,
+      liveCount: liveRows.length,
+      liveNeeded: liveRows.length > 0 && !worked,
+      countriesWorked: awardCountries.filter(country => country.continent === code && country.worked).length,
+      countriesLiveNeeded: awardCountries.filter(country => country.continent === code && country.liveNeeded).length,
+    }
+  }), [awardCountries, logbook, rows])
+  const awardSummary = useMemo(() => ({
+    workedContinents: awardContinents.filter(item => item.worked).length,
+    liveNeededContinents: awardContinents.filter(item => item.liveNeeded).length,
+    workedCountries: awardCountries.filter(item => item.worked).length,
+    liveNeededCountries: awardCountries.filter(item => item.liveNeeded).length,
+  }), [awardContinents, awardCountries])
 
   const mapMarkers = useMemo<DecodeMapMarker[]>(() => {
     return mapRows.map(row => {
@@ -822,6 +1017,7 @@ export default function DecodePage() {
           ['grid', 'Grid'],
           ['map', 'Kort'],
           ['wanted', 'Wanted'],
+          ['awards', 'Awards'],
         ] as const).map(([view, label]) => (
           <button
             key={view}
@@ -878,7 +1074,7 @@ export default function DecodePage() {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : activeView === 'wanted' ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
             <WantedStat label="Kalder mig" value={wantedStats.callsMe} className="border-red-800 bg-red-950/40 text-red-100" />
@@ -935,6 +1131,87 @@ export default function DecodePage() {
                   Ingen wanted/live status endnu med de aktuelle filtre.
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <WantedStat label="Kontinenter kørt" value={awardSummary.workedContinents} className="border-green-800 bg-green-950/30 text-green-100" />
+            <WantedStat label="Kontinenter live needed" value={awardSummary.liveNeededContinents} className="border-red-800 bg-red-950/40 text-red-100" />
+            <WantedStat label="Lande kørt" value={awardSummary.workedCountries} className="border-sky-800 bg-sky-950/30 text-sky-100" />
+            <WantedStat label="Lande live needed" value={awardSummary.liveNeededCountries} className="border-amber-700 bg-amber-950/30 text-amber-100" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-7">
+            {awardContinents.map(item => (
+              <div
+                key={item.code}
+                className={`border px-3 py-3 ${item.liveNeeded ? 'border-red-800 bg-red-950/40' : item.worked ? 'border-green-800 bg-green-950/30' : item.liveCount > 0 ? 'border-amber-700 bg-amber-950/30' : 'border-gray-800 bg-gray-900/50'}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-lg font-bold text-white">{item.code}</p>
+                    <p className="text-xs text-gray-400">{item.label}</p>
+                  </div>
+                  <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${item.liveNeeded ? 'border-red-700 text-red-100' : item.worked ? 'border-green-700 text-green-100' : 'border-gray-700 text-gray-300'}`}>
+                    {item.liveNeeded ? 'Needed' : item.worked ? 'Kørt' : 'Mangler'}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-400">
+                  <div>
+                    <p className="uppercase text-gray-500">Live</p>
+                    <p className="font-mono text-sm text-white">{item.liveCount}</p>
+                  </div>
+                  <div>
+                    <p className="uppercase text-gray-500">Lande</p>
+                    <p className="font-mono text-sm text-white">{item.countriesWorked}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <div className="min-w-[760px]">
+                  <div className="grid grid-cols-[1fr_90px_110px_90px_1fr] gap-3 border-b border-gray-800 bg-gray-900/60 px-4 py-3 text-xs font-semibold uppercase text-gray-500">
+                    <span>Land / DXCC</span>
+                    <span>Kontinent</span>
+                    <span>Status</span>
+                    <span>Live</span>
+                    <span>Bedste live decode</span>
+                  </div>
+                  <div className="divide-y divide-gray-800">
+                    {awardCountries.slice(0, 120).map(item => (
+                      <button
+                        key={item.country}
+                        type="button"
+                        onClick={() => {
+                          if (item.latest?.canRespond) {
+                            setSelectedDecode(item.latest)
+                            setCommandStatus(null)
+                          }
+                        }}
+                        className="grid w-full grid-cols-[1fr_90px_110px_90px_1fr] gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-gray-800/50"
+                      >
+                        <span className="font-semibold text-white">{item.country}</span>
+                        <span className="font-mono text-gray-300">{item.continent || '-'}</span>
+                        <span>
+                          <span className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${item.liveNeeded ? 'border-red-700 bg-red-950 text-red-100' : item.worked ? 'border-green-800 bg-green-950 text-green-100' : 'border-gray-700 text-gray-300'}`}>
+                            {item.liveNeeded ? 'Live needed' : item.worked ? 'Kørt' : 'Mangler'}
+                          </span>
+                        </span>
+                        <span className="font-mono text-gray-300">{item.liveCount}</span>
+                        <span className="truncate font-mono text-xs text-gray-400">
+                          {item.latest ? `${item.latest.dxCallsign ?? '-'} ${snrText(item.latest.snr)}dB ${bandModeLabel(item.latest)}` : '-'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
