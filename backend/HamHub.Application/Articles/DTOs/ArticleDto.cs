@@ -6,6 +6,10 @@ public record ArticleDto(
     string Slug,
     string? Summary,
     string Content,
+    string? SourceName,
+    string? SourceUrl,
+    string? OriginalUrl,
+    bool IsExternal,
     int CategoryId,
     string CategoryName,
     string AuthorId,
@@ -15,5 +19,5 @@ public record ArticleDto(
     DateTime CreatedAt
 )
 {
-    public ArticleDto() : this(0, string.Empty, string.Empty, null, string.Empty, 0, string.Empty, string.Empty, null, false, null, default) { }
+    public ArticleDto() : this(0, string.Empty, string.Empty, null, string.Empty, null, null, null, false, 0, string.Empty, string.Empty, null, false, null, default) { }
 }

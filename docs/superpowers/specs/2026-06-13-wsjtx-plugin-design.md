@@ -94,7 +94,7 @@ Collects decoded signals in a `ConcurrentQueue<WsjtxDecodeDto>`. A `PeriodicTime
 ```json
 {
   "HamHub": {
-    "ServerUrl": "https://hamhub.example.com",
+    "ServerUrl": "https://api.hamhub.dk",
     "Username": "user@email.com",
     "Password": "secret",
     "UdpPort": 2237,

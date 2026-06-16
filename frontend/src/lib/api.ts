@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 function wsjtxReplyMode(mode: string) {
   const normalized = mode.toUpperCase()
@@ -96,6 +96,9 @@ export const api = {
       request<import('./types').DxSpot>('/api/spots', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/spots/${id}`, { method: 'DELETE' }),
   },
+  propagation: {
+    live: () => request<import('./types').QsoMufFof2>('/api/propagation/live'),
+  },
   articles: {
     getPublished: () => request<import('./types').Article[]>('/api/articles'),
     getAll: () => request<import('./types').Article[]>('/api/articles/all'),
@@ -106,6 +109,7 @@ export const api = {
       request<import('./types').Article>('/api/articles', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: { title: string; slug: string; summary?: string; content: string; categoryId: number }) =>
       request<import('./types').Article>(`/api/articles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    importFeeds: () => request<import('./types').ArticleFeedImportResult>('/api/articles/import-feeds', { method: 'POST' }),
     publish: (id: number) => request<void>(`/api/articles/${id}/publish`, { method: 'POST' }),
     delete: (id: number) => request<void>(`/api/articles/${id}`, { method: 'DELETE' }),
   },

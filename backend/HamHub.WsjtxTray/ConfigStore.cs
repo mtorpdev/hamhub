@@ -16,7 +16,8 @@ public static class ConfigStore
         try
         {
             var json = File.ReadAllText(ConfigPath);
-            return JsonSerializer.Deserialize<HamHubConfig>(json) ?? new HamHubConfig();
+            var config = JsonSerializer.Deserialize<HamHubConfig>(json) ?? new HamHubConfig();
+            return Normalize(config);
         }
         catch { return new HamHubConfig(); }
     }
@@ -24,7 +25,14 @@ public static class ConfigStore
     public static void Save(HamHubConfig config)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(config,
+        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(Normalize(config),
             new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static HamHubConfig Normalize(HamHubConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            config.ServerUrl = HamHubConfig.DefaultServerUrl;
+        return config;
     }
 }

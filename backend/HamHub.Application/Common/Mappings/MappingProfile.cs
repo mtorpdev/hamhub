@@ -29,7 +29,8 @@ public class MappingProfile : Profile
 
         CreateMap<Article, ArticleDto>()
             .ForMember(d => d.CategoryName, o => o.MapFrom(s => s.Category.Name))
-            .ForMember(d => d.AuthorCallsign, o => o.MapFrom(s => s.Author != null ? s.Author.Callsign : null));
+            .ForMember(d => d.AuthorCallsign, o => o.MapFrom(s => s.Author != null ? s.Author.Callsign : null))
+            .ForMember(d => d.IsExternal, o => o.MapFrom(s => !string.IsNullOrWhiteSpace(s.OriginalUrl)));
         CreateMap<CreateArticleDto, Article>();
 
         CreateMap<WsjtxDecode, WsjtxDecodeDto>();

@@ -176,18 +176,20 @@ export interface QsoConditions {
     }>
     mufStatus: string
     mufSourceUrl: string
-    mufFof2: {
-      status: string
-      source: string
-      sourceUrl: string
-      retrievedAtUtc: string | null
-      ownNearestStation: QsoMufStation | null
-      workedNearestStation: QsoMufStation | null
-      midpointNearestStation: QsoMufStation | null
-      bandRecommendations: QsoMufBandRecommendation[]
-      description: string
-    }
+    mufFof2: QsoMufFof2
   }
+}
+
+export interface QsoMufFof2 {
+  status: string
+  source: string
+  sourceUrl: string
+  retrievedAtUtc: string | null
+  ownNearestStation: QsoMufStation | null
+  workedNearestStation: QsoMufStation | null
+  midpointNearestStation: QsoMufStation | null
+  bandRecommendations: QsoMufBandRecommendation[]
+  description: string
 }
 
 export interface QsoMufStation {
@@ -227,6 +229,10 @@ export interface Article {
   slug: string
   summary: string | null
   content: string
+  sourceName: string | null
+  sourceUrl: string | null
+  originalUrl: string | null
+  isExternal: boolean
   categoryId: number
   categoryName: string
   authorId: string
@@ -234,6 +240,13 @@ export interface Article {
   isPublished: boolean
   publishDate: string | null
   createdAt: string
+}
+
+export interface ArticleFeedImportResult {
+  imported: number
+  skipped: number
+  failedFeeds: number
+  importedAtUtc: string
 }
 
 export interface ArticleCategory {

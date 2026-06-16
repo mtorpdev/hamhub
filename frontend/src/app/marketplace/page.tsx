@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { ListingCategory, ListingCategoryLabels, ListingConditionLabels, type Listing } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 export default function MarketplacePage() {
   const { isAuthenticated } = useAuth()

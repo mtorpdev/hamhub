@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { ListingCategoryLabels, ListingConditionLabels, ListingCategory, ListingCondition } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { ImageDropzone } from '@/components/marketplace/ImageDropzone'
 
 export default function NewListingPage() {
   useRequireAuth()
@@ -98,19 +99,7 @@ export default function NewListingPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Billeder (maks 8)</label>
-              <input
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/webp"
-                onChange={e => setImages(Array.from(e.target.files || []).slice(0, 8))}
-                className="text-sm text-gray-400"
-              />
-              {images.length > 0 && (
-                <p className="text-xs text-gray-500">{images.length} billede(r) valgt</p>
-              )}
-            </div>
+            <ImageDropzone files={images} onChange={setImages} label="Billeder" />
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3">

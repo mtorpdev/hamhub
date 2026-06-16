@@ -13,7 +13,7 @@ import type { Qso, WsjtxDecodeItem, WsjtxStatus } from '@/lib/types'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const MAX_ROWS = 200
 
 type DecodeRow = WsjtxDecodeItem & {

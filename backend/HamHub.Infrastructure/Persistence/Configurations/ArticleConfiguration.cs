@@ -12,6 +12,10 @@ public class ArticleConfiguration : IEntityTypeConfiguration<Article>
         builder.Property(a => a.Title).HasMaxLength(300).IsRequired();
         builder.Property(a => a.Slug).HasMaxLength(300).IsRequired();
         builder.Property(a => a.Summary).HasMaxLength(1000);
+        builder.Property(a => a.SourceName).HasMaxLength(200);
+        builder.Property(a => a.SourceUrl).HasMaxLength(1000);
+        builder.Property(a => a.OriginalUrl).HasMaxLength(1000);
+        builder.Property(a => a.FeedGuid).HasMaxLength(1000);
 
         builder.HasOne(a => a.Category)
             .WithMany(c => c.Articles)
@@ -24,6 +28,8 @@ public class ArticleConfiguration : IEntityTypeConfiguration<Article>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(a => a.Slug).IsUnique();
+        builder.HasIndex(a => a.FeedGuid);
+        builder.HasIndex(a => a.OriginalUrl);
         builder.HasIndex(a => a.IsPublished);
     }
 }

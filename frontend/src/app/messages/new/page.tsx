@@ -8,15 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
-export default function NewMessagePage() {
-  return (
-    <Suspense fallback={null}>
-      <NewMessageContent />
-    </Suspense>
-  )
-}
-
-function NewMessageContent() {
+function NewMessageForm() {
   useRequireAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -87,5 +79,13 @@ function NewMessageContent() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function NewMessagePage() {
+  return (
+    <Suspense fallback={null}>
+      <NewMessageForm />
+    </Suspense>
   )
 }

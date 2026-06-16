@@ -1,5 +1,6 @@
 using AutoMapper;
 using HamHub.Application.Articles.DTOs;
+using HamHub.Api.Services;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -15,11 +16,13 @@ public class ArticlesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
+    private readonly ArticleFeedImportService _feedImportService;
 
-    public ArticlesController(ApplicationDbContext context, IMapper mapper)
+    public ArticlesController(ApplicationDbContext context, IMapper mapper, ArticleFeedImportService feedImportService)
     {
         _context = context;
         _mapper = mapper;
+        _feedImportService = feedImportService;
     }
 
     [HttpGet("categories")]
@@ -54,6 +57,14 @@ public class ArticlesController : ControllerBase
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
         return Ok(articles.Select(a => _mapper.Map<ArticleDto>(a)));
+    }
+
+    [HttpPost("import-feeds")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ImportFeeds(CancellationToken cancellationToken)
+    {
+        var result = await _feedImportService.ImportAsync(cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{id:int}")]
