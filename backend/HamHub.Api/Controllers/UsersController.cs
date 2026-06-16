@@ -102,6 +102,31 @@ public class UsersController : ControllerBase
         return Ok(_mapper.Map<UserDto>(user));
     }
 
+    [HttpPut("me/password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.CurrentPassword) ||
+            string.IsNullOrWhiteSpace(dto.NewPassword) ||
+            string.IsNullOrWhiteSpace(dto.ConfirmPassword))
+            return BadRequest("Alle adgangskodefelter er påkrævet.");
+
+        if (dto.NewPassword != dto.ConfirmPassword)
+            return BadRequest("Den nye adgangskode matcher ikke gentagelsen.");
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+        if (!result.Succeeded)
+            return BadRequest(string.Join(Environment.NewLine, result.Errors.Select(e => e.Description)));
+
+        return NoContent();
+    }
+
     [HttpPut("me/qrz-credentials")]
     [Authorize]
     public async Task<IActionResult> SaveQrzCredentials([FromBody] SaveQrzCredentialsDto dto, CancellationToken ct)
@@ -190,3 +215,4 @@ public class UsersController : ControllerBase
 public record SaveQrzKeyDto(string? ApiKey);
 public record SaveQrzCredentialsDto(string? Username, string? Password);
 public record SaveEqslCredentialsDto(string? Username, string? Password, string? QthNickname);
+public record ChangePasswordDto(string? CurrentPassword, string? NewPassword, string? ConfirmPassword);

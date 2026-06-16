@@ -36,6 +36,8 @@ export const api = {
     getById: (id: string) => request<import('./types').User>(`/api/users/${id}`),
     updateMe: (data: Partial<import('./types').User>) =>
       request<import('./types').User>('/api/users/me', { method: 'PUT', body: JSON.stringify(data) }),
+    changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+      request<void>('/api/users/me/password', { method: 'PUT', body: JSON.stringify(data) }),
     getAll: () => request<import('./types').User[]>('/api/users'),
     searchByCallsign: (callsign: string) => request<import('./types').User>(`/api/users/search?callsign=${encodeURIComponent(callsign)}`),
   },

@@ -1,14 +1,13 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Channels;
-using System.Windows;
-using System.Windows.Controls;
-using Hardcodet.Wpf.TaskbarNotification;
 using HamHub.WsjtxCore;
 using HamHub.WsjtxCore.Models;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Forms = System.Windows.Forms;
+using WpfApplication = System.Windows.Application;
 
 namespace HamHub.WsjtxTray;
 
@@ -16,7 +15,7 @@ public enum ConnectionState { Disconnected, Connected, Error }
 
 public class TrayOrchestrator : IDisposable
 {
-    private TaskbarIcon? _trayIcon;
+    private Forms.NotifyIcon? _trayIcon;
     private HamHubConfig _config = new();
     private HamHubApiClient? _apiClient;
     private HttpClient? _httpClient;
@@ -35,7 +34,7 @@ public class TrayOrchestrator : IDisposable
     public void Initialize()
     {
         _config = ConfigStore.Load();
-        _trayIcon = new TaskbarIcon();
+        _trayIcon = new Forms.NotifyIcon { Visible = true };
         UpdateIcon(ConnectionState.Disconnected);
         BuildContextMenu();
         _runTask = StartAsync(_cts.Token);
@@ -53,76 +52,73 @@ public class TrayOrchestrator : IDisposable
     private void BuildContextMenu()
     {
         if (_trayIcon == null) return;
-        var menu = new ContextMenu();
+        var menu = new Forms.ContextMenuStrip();
 
-        var statusItem = new MenuItem { Header = GetStatusText(), IsEnabled = false };
-        menu.Items.Add(statusItem);
-        menu.Items.Add(new Separator());
+        menu.Items.Add(new Forms.ToolStripMenuItem(GetStatusText()) { Enabled = false });
+        menu.Items.Add(new Forms.ToolStripSeparator());
 
-        var openItem = new MenuItem { Header = "Åbn HamHub" };
+        var openItem = new Forms.ToolStripMenuItem("Aabn HamHub");
         openItem.Click += (_, _) =>
-        {
-            if (!string.IsNullOrWhiteSpace(_config.ServerUrl))
-                Process.Start(new ProcessStartInfo(_config.ServerUrl) { UseShellExecute = true });
-        };
+            Process.Start(new ProcessStartInfo("https://hamhub.dk") { UseShellExecute = true });
         menu.Items.Add(openItem);
 
-        var settingsItem = new MenuItem { Header = "Indstillinger" };
+        var settingsItem = new Forms.ToolStripMenuItem("Indstillinger");
         settingsItem.Click += (_, _) =>
         {
-            var win = new SettingsWindow(_config);
-            if (win.ShowDialog() == true)
+            WpfApplication.Current.Dispatcher.Invoke(() =>
             {
-                _config = win.Config;
-                ConfigStore.Save(_config);
-                _ = RestartAsync().ContinueWith(t =>
+                var win = new SettingsWindow(_config);
+                if (win.ShowDialog() == true)
                 {
-                    if (t.IsFaulted && t.Exception != null)
-                        _logBuffer.Add($"[ERROR] Restart failed: {t.Exception.GetBaseException().Message}");
-                }, TaskContinuationOptions.OnlyOnFaulted);
-            }
+                    _config = win.Config;
+                    ConfigStore.Save(_config);
+                    _ = RestartAsync().ContinueWith(t =>
+                    {
+                        if (t.IsFaulted && t.Exception != null)
+                            _logBuffer.Add($"[ERROR] Restart failed: {t.Exception.GetBaseException().Message}");
+                    }, TaskContinuationOptions.OnlyOnFaulted);
+                }
+            });
         };
         menu.Items.Add(settingsItem);
 
-        var logItem = new MenuItem { Header = "Se log" };
-        logItem.Click += (_, _) => new LogWindow(_logBuffer).Show();
+        var logItem = new Forms.ToolStripMenuItem("Se log");
+        logItem.Click += (_, _) =>
+            WpfApplication.Current.Dispatcher.Invoke(() => new LogWindow(_logBuffer).Show());
         menu.Items.Add(logItem);
 
-        menu.Items.Add(new Separator());
-        var exitItem = new MenuItem { Header = "Afslut" };
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        var exitItem = new Forms.ToolStripMenuItem("Afslut");
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(exitItem);
 
-        _trayIcon.ContextMenu = menu;
+        _trayIcon.ContextMenuStrip = menu;
     }
 
     private string GetStatusText() => _state switch
     {
         ConnectionState.Connected => $"Tilsluttet som {_config.Username}",
-        ConnectionState.Error => "Fejl – se log",
+        ConnectionState.Error => "Fejl - se log",
         _ => "Ikke tilsluttet"
     };
 
     private void UpdateIcon(ConnectionState state)
     {
-        if (!Application.Current.Dispatcher.CheckAccess())
+        if (!WpfApplication.Current.Dispatcher.CheckAccess())
         {
-            Application.Current.Dispatcher.Invoke(() => UpdateIcon(state));
+            WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(state));
             return;
         }
+
         _state = state;
         if (_trayIcon == null) return;
-        var iconPath = state switch
+        _trayIcon.Icon = state switch
         {
-            ConnectionState.Connected => "pack://application:,,,/Resources/icon-green.ico",
-            ConnectionState.Error => "pack://application:,,,/Resources/icon-red.ico",
-            _ => "pack://application:,,,/Resources/icon-grey.ico"
+            ConnectionState.Connected => SystemIcons.Information,
+            ConnectionState.Error => SystemIcons.Error,
+            _ => SystemIcons.Application
         };
-        var uri = new Uri(iconPath, UriKind.Absolute);
-        var stream = Application.GetResourceStream(uri)?.Stream;
-        if (stream != null)
-            _trayIcon.Icon = new System.Drawing.Icon(stream);
-        _trayIcon.ToolTipText = GetStatusText();
+        _trayIcon.Text = GetStatusText()[..Math.Min(GetStatusText().Length, 63)];
         BuildContextMenu();
     }
 
@@ -130,7 +126,6 @@ public class TrayOrchestrator : IDisposable
     {
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole().AddSerilog());
 
-        // Login with retry — one HttpClient for the entire retry loop
         _httpClient = new HttpClient();
         _apiClient = null;
 
@@ -141,16 +136,14 @@ public class TrayOrchestrator : IDisposable
                 _apiClient = new HamHubApiClient(_httpClient, _config,
                     loggerFactory.CreateLogger<HamHubApiClient>());
                 await _apiClient.LoginAsync(ct);
-                Application.Current.Dispatcher.Invoke(
-                    () => UpdateIcon(ConnectionState.Connected));
+                WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(ConnectionState.Connected));
                 break;
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
             {
                 _logBuffer.Add($"[ERROR] Login failed: {ex.Message}");
-                Application.Current.Dispatcher.Invoke(
-                    () => UpdateIcon(ConnectionState.Error));
+                WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(ConnectionState.Error));
                 try { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
                 catch (OperationCanceledException) { return; }
             }
@@ -201,14 +194,13 @@ public class TrayOrchestrator : IDisposable
                 DeltaTime: decode.DeltaTime,
                 DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
-                Mode: string.IsNullOrWhiteSpace(status.Mode) ? decode.Mode : status.Mode,
+                Mode: decode.Mode,
                 LowConfidence: decode.LowConfidence,
                 DecodedAt: DateTime.UtcNow
             ));
             _logBuffer.Add($"[DECODE] {decode.Message} SNR={decode.Snr}");
         };
 
-        // QSO handler uses Channel to avoid async void
         var qsoChannel = Channel.CreateUnbounded<ParsedQsoLogged>(
             new UnboundedChannelOptions { SingleReader = true });
         ct.Register(() => qsoChannel.Writer.TryComplete());
@@ -257,8 +249,7 @@ public class TrayOrchestrator : IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logBuffer.Add($"[ERROR] WSJT-X listener failed: {ex.Message}");
-            Application.Current.Dispatcher.Invoke(
-                () => UpdateIcon(ConnectionState.Error));
+            WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(ConnectionState.Error));
         }
     }
 
@@ -334,8 +325,7 @@ public class TrayOrchestrator : IDisposable
         _httpClient = null;
         _apiClient = null;
         _cts = new CancellationTokenSource();
-        Application.Current.Dispatcher.Invoke(
-            () => UpdateIcon(ConnectionState.Disconnected));
+        WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(ConnectionState.Disconnected));
         _runTask = StartAsync(_cts.Token);
     }
 
@@ -347,11 +337,14 @@ public class TrayOrchestrator : IDisposable
         _udpListener?.Dispose();
         _decodeBuffer?.Dispose();
         _httpClient?.Dispose();
-        _trayIcon?.Dispose();
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+        }
     }
 }
 
-// Circular log buffer (thread-safe)
 public class LogBuffer
 {
     private readonly Queue<string> _lines = new();

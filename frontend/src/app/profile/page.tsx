@@ -16,6 +16,8 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps'>('profile')
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [passwordLoading, setPasswordLoading] = useState(false)
   const [qrzKey, setQrzKey] = useState('')
   const [qrzStatus, setQrzStatus] = useState<QrzStatus | null>(null)
   const [qrzLoading, setQrzLoading] = useState(false)
@@ -61,6 +63,9 @@ export default function ProfilePage() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const setPassword = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setPasswordForm(f => ({ ...f, [k]: e.target.value }))
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -69,6 +74,25 @@ export default function ProfilePage() {
       toast('Profil gemt!')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast('Den nye adgangskode matcher ikke gentagelsen.', 'error')
+      return
+    }
+
+    setPasswordLoading(true)
+    try {
+      await api.users.changePassword(passwordForm)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      toast('Adgangskode opdateret!')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke skifte adgangskode', 'error')
+    } finally {
+      setPasswordLoading(false)
     }
   }
 
@@ -172,33 +196,77 @@ export default function ProfilePage() {
       </div>
 
       {activeTab === 'profile' && (
-        <Card>
-          <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Input label="Kaldesignal" value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input label="Fornavn" value={form.firstName} onChange={set('firstName')} />
-                <Input label="Efternavn" value={form.lastName} onChange={set('lastName')} />
-              </div>
-              <Input label="Land" value={form.country} onChange={set('country')} />
-              <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Om mig</label>
-                <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Synlighed</label>
-                <select value={form.visibility} onChange={set('visibility')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                  <option value={ProfileVisibility.Public}>Offentlig</option>
-                  <option value={ProfileVisibility.MembersOnly}>Kun medlemmer</option>
-                  <option value={ProfileVisibility.Private}>Privat</option>
-                </select>
-              </div>
-              <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <Input label="Kaldesignal" value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input label="Fornavn" value={form.firstName} onChange={set('firstName')} />
+                  <Input label="Efternavn" value={form.lastName} onChange={set('lastName')} />
+                </div>
+                <Input label="Land" value={form.country} onChange={set('country')} />
+                <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-300">Om mig</label>
+                  <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-300">Synlighed</label>
+                  <select value={form.visibility} onChange={set('visibility')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
+                    <option value={ProfileVisibility.Public}>Offentlig</option>
+                    <option value={ProfileVisibility.MembersOnly}>Kun medlemmer</option>
+                    <option value={ProfileVisibility.Private}>Privat</option>
+                  </select>
+                </div>
+                <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Skift adgangskode</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+                <Input
+                  label="Nuværende adgangskode"
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={setPassword('currentPassword')}
+                  autoComplete="current-password"
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Ny adgangskode"
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={setPassword('newPassword')}
+                    autoComplete="new-password"
+                  />
+                  <Input
+                    label="Gentag ny adgangskode"
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={setPassword('confirmPassword')}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={
+                    passwordLoading ||
+                    !passwordForm.currentPassword ||
+                    !passwordForm.newPassword ||
+                    !passwordForm.confirmPassword
+                  }
+                >
+                  {passwordLoading ? 'Opdaterer...' : 'Opdater adgangskode'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {activeTab === 'integrations' && (
