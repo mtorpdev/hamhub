@@ -22,6 +22,13 @@ interface MapProps {
 
 export { gridToLatLng }
 
+function markerStyle(variant: MapMarker['variant']) {
+  if (variant === 'worked') return { color: '#166534', fillColor: '#22c55e' }
+  if (variant === 'new-grid') return { color: '#b45309', fillColor: '#f59e0b' }
+  if (variant === 'new-station') return { color: '#0369a1', fillColor: '#0ea5e9' }
+  return { color: '#475569', fillColor: '#64748b' }
+}
+
 export default function Map({ markers, height = '400px', onMarkerAction }: MapProps) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
@@ -62,15 +69,15 @@ export default function Map({ markers, height = '400px', onMarkerAction }: MapPr
       layer?.clearLayers()
 
       markers.forEach(markerData => {
-        const variant = markerData.variant ?? 'unknown'
-        const marker = L.marker([markerData.lat, markerData.lng], {
-          icon: L.divIcon({
-            className: `hamhub-map-marker hamhub-map-marker-${variant}`,
-            html: '<span></span>',
-            iconSize: [24, 34],
-            iconAnchor: [12, 32],
-            popupAnchor: [0, -28],
-          }),
+        const style = markerStyle(markerData.variant)
+        const marker = L.circleMarker([markerData.lat, markerData.lng], {
+          radius: 8,
+          color: style.color,
+          weight: 2,
+          fillColor: style.fillColor,
+          fillOpacity: 0.92,
+          opacity: 1,
+          pane: 'markerPane',
         })
         const action = markerData.actionLabel && markerData.id
           ? `<button type="button" class="hamhub-map-popup-action" data-marker-id="${markerData.id}">${markerData.actionLabel}</button>`
@@ -79,7 +86,7 @@ export default function Map({ markers, height = '400px', onMarkerAction }: MapPr
         if (markerData.tooltip) {
           marker.bindTooltip(markerData.tooltip, {
             direction: 'top',
-            offset: [0, -28],
+            offset: [0, -12],
             opacity: 0.96,
             sticky: true,
           })
