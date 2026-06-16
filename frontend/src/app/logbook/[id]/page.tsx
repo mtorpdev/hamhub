@@ -820,18 +820,6 @@ export default function EditQsoPage() {
                   )}
                 </div>
               )}
-
-              <div className="grid gap-3 text-sm md:grid-cols-3">
-                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
-                  QRZ bruger Logbook API key og kører som HamHub sync. En sync kan hente QRZ-poster og sende lokale QSOer.
-                </div>
-                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
-                  eQSL sendes direkte som real-time ADIF upload for denne QSO.
-                </div>
-                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
-                  LoTW kræver TrustedQSL/TQSL signering og skal kobles via lokal agent før upload aktiveres.
-                </div>
-              </div>
             </div>
           )}
         </CardContent>
