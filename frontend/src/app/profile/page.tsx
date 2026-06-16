@@ -366,14 +366,13 @@ export default function ProfilePage() {
                 </div>
               ) : qrzStatus?.credentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  QRZ Logbook nøglen skal gemmes igen. Den gamle krypterede værdi kan ikke læses efter serverens nøgleskift.
+                  QRZ Logbook-nøglen er gemt, men skal gemmes igen for at forny den sikre forbindelse.
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ Logbook.</p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                QRZ Logbook API nøglen bruges til at synkronisere din HamHub logbog med QRZ Logbook.
-                Sync kører som et job: HamHub henter først QRZ-loggen, matcher lokale QSOer og sender derefter lokale QSOer der mangler en QRZ reference.
+                Synkroniser din HamHub-logbog med QRZ Logbook. HamHub matcher eksisterende QSOer og sender lokale QSOer, der mangler en QRZ-reference.
               </div>
               <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
                 <Input
@@ -400,7 +399,7 @@ export default function ProfilePage() {
                 </p>
               ) : qrzStatus?.xmlCredentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  QRZ XML login skal gemmes igen. Den gamle krypterede adgangskode kan ikke læses.
+                  QRZ XML-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
@@ -408,7 +407,7 @@ export default function ProfilePage() {
                 </p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                Denne opsætning er separat fra Logbook API nøglen. QRZ XML login bruges til callsign-opslag og kræver normalt aktiv QRZ XML adgang.
+                QRZ XML bruges til kaldesignals-opslag og er separat fra QRZ Logbook API-nøglen.
               </div>
               <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
                 <Input
@@ -447,7 +446,7 @@ export default function ProfilePage() {
                 </p>
               ) : eqslStatus?.credentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  eQSL login skal gemmes igen. Den gamle krypterede adgangskode kan ikke læses efter serverens nøgleskift.
+                  eQSL-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
@@ -455,7 +454,7 @@ export default function ProfilePage() {
                 </p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                eQSL bruges til direkte real-time ADIF upload fra hver QSO. Hvis du har flere eQSL QTH-profiler, skal QTH nickname matche profilen hos eQSL, ellers kan eQSL afvise QSOer på dato/tid.
+                eQSL bruges til ADIF-upload fra dine QSOer. Brug QTH nickname, hvis din eQSL-konto har flere QTH-profiler.
               </div>
               <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
                 <Input

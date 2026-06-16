@@ -27,6 +27,11 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
     Directory.CreateDirectory(dataProtectionKeysPath);
     dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+    Console.WriteLine($"Data Protection keys are persisted to {dataProtectionKeysPath}");
+}
+else if (builder.Environment.IsProduction())
+{
+    Console.WriteLine("WARNING: DataProtection:KeysPath is not configured in production. Encrypted integration credentials may become unreadable after deploys.");
 }
 
 builder.Services.AddControllers();
