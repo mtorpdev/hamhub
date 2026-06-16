@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, type ColDef, type RowClassRules, type RowClickedEvent } from 'ag-grid-community'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useLocalOnlyFeatures } from '@/hooks/useLocalOnlyFeatures'
 import { api } from '@/lib/api'
 import { distanceKm } from '@/lib/maidenhead'
 import type { Qso, WsjtxDecodeItem, WsjtxStatus } from '@/lib/types'
@@ -200,6 +202,8 @@ function rowMatchesQuickSearch(row: DecodeRow, search: string) {
 
 export default function DecodePage() {
   const { isLoading } = useRequireAuth()
+  const router = useRouter()
+  const localOnlyFeatures = useLocalOnlyFeatures()
   const gridRef = useRef<AgGridReact<DecodeRow>>(null)
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
   const [messageFilter, setMessageFilter] = useState<MessageFilter>('all')
@@ -216,15 +220,21 @@ export default function DecodePage() {
   const { isAuthenticated } = useAuth()
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (localOnlyFeatures.ready && !localOnlyFeatures.enabled) {
+      router.replace('/dashboard')
+    }
+  }, [localOnlyFeatures.enabled, localOnlyFeatures.ready, router])
+
+  useEffect(() => {
+    if (isAuthenticated && localOnlyFeatures.enabled) {
       api.qsos.getMine().then(setQsos).catch(() => {})
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, localOnlyFeatures.enabled])
 
   const logbook = useMemo(() => qsos.length ? buildLogbookIndex(qsos) : EMPTY_LOGBOOK_INDEX, [qsos])
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !localOnlyFeatures.enabled) return
     api.wsjtx.getRecentDecodes(MAX_ROWS)
       .then(items => setDecodes(items))
       .catch(() => {})
@@ -241,10 +251,10 @@ export default function DecodePage() {
     }
     es.onerror = () => setConnected(false)
     return () => es.close()
-  }, [isAuthenticated])
+  }, [isAuthenticated, localOnlyFeatures.enabled])
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !localOnlyFeatures.enabled) return
 
     let cancelled = false
     const refreshStatus = async () => {
@@ -262,7 +272,7 @@ export default function DecodePage() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, localOnlyFeatures.enabled])
 
   const rows = useMemo<DecodeRow[]>(() => {
     return decodes
@@ -310,7 +320,7 @@ export default function DecodePage() {
 
   useEffect(() => {
     const call = selectedDecode?.dxCallsign?.toUpperCase()
-    if (!call || selectedLoggedQso) return
+    if (!localOnlyFeatures.enabled || !call || selectedLoggedQso) return
 
     let cancelled = false
     const refreshSelectedQso = async () => {
@@ -328,7 +338,7 @@ export default function DecodePage() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [selectedDecode, selectedLoggedQso])
+  }, [localOnlyFeatures.enabled, selectedDecode, selectedLoggedQso])
 
   const columnDefs = useMemo<ColDef<DecodeRow>[]>(() => [
     {
@@ -465,7 +475,7 @@ export default function DecodePage() {
     gridRef.current?.api.setFilterModel(null)
   }
 
-  if (isLoading || !isAuthenticated) return null
+  if (!localOnlyFeatures.ready || !localOnlyFeatures.enabled || isLoading || !isAuthenticated) return null
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">

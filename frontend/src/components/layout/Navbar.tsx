@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { type NotificationSummary } from '@/lib/types'
+import { useLocalOnlyFeatures } from '@/hooks/useLocalOnlyFeatures'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -20,6 +21,7 @@ function Badge({ count }: { count: number }) {
 
 export function Navbar() {
   const { isAuthenticated, user, logout, isAdmin } = useAuth()
+  const localOnlyFeatures = useLocalOnlyFeatures()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [summary, setSummary] = useState<NotificationSummary>({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
@@ -91,7 +93,7 @@ export function Navbar() {
             <Link href="/articles" className="text-gray-300 hover:text-white text-sm">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 hover:text-white text-sm">Marked</Link>
             {isAuthenticated && <>
-              <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Decodes</Link>
+              {localOnlyFeatures.enabled && <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Decodes</Link>}
               <Link href="/community" className="text-gray-300 hover:text-white text-sm">Community</Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
@@ -133,7 +135,7 @@ export function Navbar() {
             <Link href="/articles" className="text-gray-300 text-sm py-1">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 text-sm py-1">Marked</Link>
             {isAuthenticated ? <>
-              <Link href="/decode" className="text-gray-300 text-sm py-1">Live Decodes</Link>
+              {localOnlyFeatures.enabled && <Link href="/decode" className="text-gray-300 text-sm py-1">Live Decodes</Link>}
               <Link href="/community" className="text-gray-300 text-sm py-1">Community</Link>
               <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
