@@ -305,10 +305,20 @@ export default function DecodePage() {
         lat: position.lat,
         lng: position.lng,
         label: row.dxCallsign ?? row.dxGrid ?? row.message,
+        variant: row.logStatus,
+        actionLabel: row.isCallable ? 'Åbn QSO' : 'Se decode',
+        tooltip: [
+          row.dxCallsign ?? row.message,
+          row.dxGrid ? `Grid ${row.dxGrid}` : null,
+          row.country !== '-' ? row.country : null,
+          row.distanceKm ? `${row.distanceKm.toLocaleString('da-DK')} km` : null,
+          `SNR ${snrText(row.snr)}`,
+        ].filter(Boolean).join(' · '),
         popup: [
           `<b>${escapeHtml(row.dxCallsign ?? row.message)}</b>`,
           `<br/>Grid: <span style="font-family: monospace">${escapeHtml(row.dxGrid)}</span>`,
           `<br/>Land: ${escapeHtml(row.country)}`,
+          `<br/>Status: ${escapeHtml(logStatusLabel(row.logStatus))}`,
           `<br/>SNR: <span style="font-family: monospace">${escapeHtml(snrText(row.snr))}</span>`,
           `<br/>Afstand: ${escapeHtml(distance)}`,
           `<br/>Mode: ${escapeHtml(row.displayMode)}`,
@@ -609,7 +619,7 @@ export default function DecodePage() {
               </span>
             </div>
             {mapMarkers.length > 0 ? (
-              <LeafletMap markers={mapMarkers} height="70vh" onMarkerClick={handleMapMarkerClick} />
+              <LeafletMap markers={mapMarkers} height="70vh" onMarkerAction={handleMapMarkerClick} />
             ) : (
               <div className="flex h-[70vh] items-center justify-center border border-gray-800 bg-gray-950 text-sm text-gray-500">
                 Ingen filtrerede decodes med gyldigt grid endnu.

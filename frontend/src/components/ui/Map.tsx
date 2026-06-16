@@ -9,17 +9,20 @@ export interface MapMarker {
   lng: number
   label: string
   popup?: string
+  tooltip?: string
+  variant?: 'worked' | 'new-grid' | 'new-station' | 'unknown'
+  actionLabel?: string
 }
 
 interface MapProps {
   markers: MapMarker[]
   height?: string
-  onMarkerClick?: (marker: MapMarker) => void
+  onMarkerAction?: (marker: MapMarker) => void
 }
 
 export { gridToLatLng }
 
-export default function Map({ markers, height = '400px', onMarkerClick }: MapProps) {
+export default function Map({ markers, height = '400px', onMarkerAction }: MapProps) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const markerLayerRef = useRef<import('leaflet').LayerGroup | null>(null)
@@ -59,9 +62,33 @@ export default function Map({ markers, height = '400px', onMarkerClick }: MapPro
       layer?.clearLayers()
 
       markers.forEach(markerData => {
-        const marker = L.marker([markerData.lat, markerData.lng])
-        marker.bindPopup(markerData.popup ?? `<b>${markerData.label}</b>`)
-        if (onMarkerClick) marker.on('click', () => onMarkerClick(markerData))
+        const variant = markerData.variant ?? 'unknown'
+        const marker = L.marker([markerData.lat, markerData.lng], {
+          icon: L.divIcon({
+            className: `hamhub-map-marker hamhub-map-marker-${variant}`,
+            html: '<span></span>',
+            iconSize: [24, 34],
+            iconAnchor: [12, 32],
+            popupAnchor: [0, -28],
+          }),
+        })
+        const action = markerData.actionLabel && markerData.id
+          ? `<button type="button" class="hamhub-map-popup-action" data-marker-id="${markerData.id}">${markerData.actionLabel}</button>`
+          : ''
+        marker.bindPopup(`<div class="hamhub-map-popup">${markerData.popup ?? `<b>${markerData.label}</b>`}${action}</div>`)
+        if (markerData.tooltip) {
+          marker.bindTooltip(markerData.tooltip, {
+            direction: 'top',
+            offset: [0, -28],
+            opacity: 0.96,
+            sticky: true,
+          })
+        }
+        marker.on('popupopen', event => {
+          const popupElement = event.popup.getElement()
+          const actionButton = popupElement?.querySelector<HTMLButtonElement>('[data-marker-id]')
+          actionButton?.addEventListener('click', () => onMarkerAction?.(markerData), { once: true })
+        })
         marker.addTo(layer ?? map)
       })
 
@@ -78,7 +105,7 @@ export default function Map({ markers, height = '400px', onMarkerClick }: MapPro
     return () => {
       cancelled = true
     }
-  }, [markers, onMarkerClick])
+  }, [markers, onMarkerAction])
 
   useEffect(() => {
     return () => {
@@ -91,7 +118,7 @@ export default function Map({ markers, height = '400px', onMarkerClick }: MapPro
   return (
     <>
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <div ref={ref} style={{ height, width: '100%', borderRadius: '0.5rem' }} />
+      <div ref={ref} className="hamhub-leaflet-map" style={{ height, width: '100%', borderRadius: '0.5rem' }} />
     </>
   )
 }

@@ -141,3 +141,95 @@ body {
   background: rgba(30, 41, 59, 0.72);
   color: #cbd5e1;
 }
+
+.hamhub-leaflet-map {
+  isolation: isolate;
+}
+
+.hamhub-leaflet-map .leaflet-popup-pane {
+  z-index: 900;
+}
+
+.hamhub-leaflet-map .leaflet-tooltip-pane {
+  z-index: 910;
+}
+
+.hamhub-leaflet-map .leaflet-popup-content-wrapper,
+.hamhub-leaflet-map .leaflet-tooltip {
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  background: #020617;
+  color: #e5e7eb;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+}
+
+.hamhub-leaflet-map .leaflet-popup-tip {
+  background: #020617;
+}
+
+.hamhub-leaflet-map .leaflet-popup-content {
+  margin: 10px 12px;
+  min-width: 190px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hamhub-map-popup-action {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  background: #1d4ed8;
+  color: #ffffff;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hamhub-map-popup-action:hover {
+  background: #2563eb;
+}
+
+.hamhub-map-marker {
+  width: 24px;
+  height: 34px;
+  transform: translateY(-2px);
+}
+
+.hamhub-map-marker span {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentColor;
+  border-radius: 999px 999px 999px 0;
+  background: currentColor;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
+  transform: rotate(-45deg);
+}
+
+.hamhub-map-marker span::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.hamhub-map-marker-worked {
+  color: #16a34a;
+}
+
+.hamhub-map-marker-new-grid {
+  color: #f59e0b;
+}
+
+.hamhub-map-marker-new-station {
+  color: #0284c7;
+}
+
+.hamhub-map-marker-unknown {
+  color: #64748b;
+}
