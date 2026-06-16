@@ -26,11 +26,14 @@ type DecodeRow = WsjtxDecodeItem & {
   country: string
   callsMe: boolean
   canRespond: boolean
+  isNewBandMode: boolean
+  wantedReasons: WantedReason[]
 }
 
 type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
+type WantedReason = 'calling-me' | 'new-grid' | 'new-station' | 'new-band-mode' | 'worked'
 type MessageFilter = 'all' | 'CQ' | 'me' | '73'
-type DecodeView = 'grid' | 'map'
+type DecodeView = 'grid' | 'map' | 'wanted'
 type DecodeMapMarker = MapMarker & {
   decodeId: number
 }
@@ -38,6 +41,7 @@ type DecodeMapMarker = MapMarker & {
 type LogbookIndex = {
   callsigns: Set<string>
   grids: Set<string>
+  bandModeSlots: Set<string>
   byCallsign: Map<string, Qso>
 }
 
@@ -90,6 +94,7 @@ const EMPTY_QSO_FORM: QsoEditForm = {
 const EMPTY_LOGBOOK_INDEX: LogbookIndex = {
   callsigns: new Set(),
   grids: new Set(),
+  bandModeSlots: new Set(),
   byCallsign: new Map(),
 }
 
@@ -156,6 +161,7 @@ function isRelatedMessage(decode: WsjtxDecodeItem, selected: WsjtxDecodeItem) {
 function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
   const callsigns = new Set<string>()
   const grids = new Set<string>()
+  const bandModeSlots = new Set<string>()
   const byCallsign = new Map<string, Qso>()
 
   for (const qso of qsos) {
@@ -163,13 +169,14 @@ function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
     if (call) {
       callsigns.add(call)
       if (!byCallsign.has(call)) byCallsign.set(call, qso)
+      bandModeSlots.add(bandModeKey(call, qso.band, qso.mode))
     }
 
     const grid = qso.locator?.toUpperCase()
     if (grid) grids.add(grid)
   }
 
-  return { callsigns, grids, byCallsign }
+  return { callsigns, grids, bandModeSlots, byCallsign }
 }
 
 function getDecodeLogStatus(decode: WsjtxDecodeItem, logbook: LogbookIndex): DecodeLogStatus {
@@ -194,6 +201,80 @@ function logStatusLabel(status: DecodeLogStatus) {
   if (status === 'new-grid') return 'Ny grid'
   if (status === 'new-station') return 'Ny station'
   return 'Ukendt'
+}
+
+function bandModeKey(callsign: string, band: Band | number | string, mode: Mode | number | string) {
+  return `${callsign.toUpperCase()}|${Number(band)}|${Number(mode)}`
+}
+
+function modeToEnum(displayMode: string): Mode | null {
+  const normalized = displayMode.toUpperCase()
+  if (normalized === 'SSB') return Mode.SSB
+  if (normalized === 'CW') return Mode.CW
+  if (normalized === 'FT8') return Mode.FT8
+  if (normalized === 'FT4') return Mode.FT4
+  if (normalized === 'RTTY') return Mode.RTTY
+  if (normalized === 'DMR') return Mode.DMR
+  if (normalized === 'FM') return Mode.FM
+  if (normalized === 'AM') return Mode.AM
+  return null
+}
+
+function bandFromFrequency(frequencyMhz: number): Band | null {
+  if (frequencyMhz >= 1.8 && frequencyMhz < 2) return Band.M160
+  if (frequencyMhz >= 3.5 && frequencyMhz < 4) return Band.M80
+  if (frequencyMhz >= 5 && frequencyMhz < 5.5) return Band.M60
+  if (frequencyMhz >= 7 && frequencyMhz < 7.3) return Band.M40
+  if (frequencyMhz >= 10 && frequencyMhz < 10.2) return Band.M30
+  if (frequencyMhz >= 14 && frequencyMhz < 14.35) return Band.M20
+  if (frequencyMhz >= 18 && frequencyMhz < 18.2) return Band.M17
+  if (frequencyMhz >= 21 && frequencyMhz < 21.45) return Band.M15
+  if (frequencyMhz >= 24.8 && frequencyMhz < 25) return Band.M12
+  if (frequencyMhz >= 28 && frequencyMhz < 29.7) return Band.M10
+  if (frequencyMhz >= 50 && frequencyMhz < 54) return Band.M6
+  if (frequencyMhz >= 144 && frequencyMhz < 148) return Band.M2
+  if (frequencyMhz >= 430 && frequencyMhz < 450) return Band.CM70
+  return null
+}
+
+function bandModeLabel(row: DecodeRow) {
+  const band = bandFromFrequency(row.frequencyMhz)
+  const bandLabel = band ? BandLabels[band] : `${row.frequencyMhz.toFixed(3)} MHz`
+  return `${bandLabel} / ${row.displayMode}`
+}
+
+function wantedReasonLabels(row: DecodeRow) {
+  const labels: string[] = []
+  if (row.callsMe) labels.push('Kalder mig')
+  if (row.logStatus === 'new-grid') labels.push('Ny grid')
+  if (row.logStatus === 'new-station') labels.push('Ny station')
+  if (row.isNewBandMode) labels.push('Ny band/mode')
+  if (row.logStatus === 'worked' && !row.isNewBandMode) labels.push('Worked B4')
+  return labels
+}
+
+function getWantedReasons(
+  decode: WsjtxDecodeItem,
+  logbook: LogbookIndex,
+  callsMe: boolean,
+  displayMode: string,
+): WantedReason[] {
+  const reasons: WantedReason[] = []
+  const call = decode.dxCallsign?.toUpperCase()
+  if (callsMe) reasons.push('calling-me')
+  if (!call) return reasons
+
+  const band = bandFromFrequency(decode.frequencyMhz)
+  const mode = modeToEnum(displayMode)
+  const isWorked = logbook.callsigns.has(call)
+  const grid = decode.dxGrid?.toUpperCase()
+
+  if (grid && !logbook.grids.has(grid)) reasons.push('new-grid')
+  if (!isWorked) reasons.push('new-station')
+  if (band && mode && isWorked && !logbook.bandModeSlots.has(bandModeKey(call, band, mode))) reasons.push('new-band-mode')
+  if (isWorked) reasons.push('worked')
+
+  return Array.from(new Set(reasons))
 }
 
 function normalizeCallsignForCountry(callsign: string | null) {
@@ -387,21 +468,46 @@ export default function DecodePage() {
 
   const rows = useMemo<DecodeRow[]>(() => {
     return decodes
-      .map(d => ({
-        ...d,
-        distanceKm: distanceKm(d.spotterGrid, d.dxGrid),
-        logStatus: getDecodeLogStatus(d, logbook),
-        displayMode: normalizeDecodeMode(d),
-        country: countryFromCallsign(d.dxCallsign),
-        callsMe: decodeCallsMe(d.message, ownCallsign),
-        canRespond: d.isCallable || decodeCallsMe(d.message, ownCallsign),
-      }))
+      .map(d => {
+        const callsMe = decodeCallsMe(d.message, ownCallsign)
+        const displayMode = normalizeDecodeMode(d)
+        const wantedReasons = getWantedReasons(d, logbook, callsMe, displayMode)
+        return {
+          ...d,
+          distanceKm: distanceKm(d.spotterGrid, d.dxGrid),
+          logStatus: getDecodeLogStatus(d, logbook),
+          displayMode,
+          country: countryFromCallsign(d.dxCallsign),
+          callsMe,
+          canRespond: d.isCallable || callsMe,
+          isNewBandMode: wantedReasons.includes('new-band-mode'),
+          wantedReasons,
+        }
+      })
       .filter(row => rowMatchesMessageFilter(row, messageFilter))
       .filter(row => !onlyWithGrid || Boolean(row.dxGrid))
       .filter(row => rowMatchesQuickSearch(row, quickSearch))
   }, [decodes, logbook, messageFilter, onlyWithGrid, ownCallsign, quickSearch])
 
   const mapRows = useMemo(() => rows.filter(row => Boolean(gridToLatLng(row.dxGrid))), [rows])
+  const wantedRows = useMemo(() => rows
+    .filter(row => row.callsMe || row.logStatus === 'new-grid' || row.logStatus === 'new-station' || row.isNewBandMode || row.logStatus === 'worked')
+    .sort((a, b) => {
+      const score = (row: DecodeRow) =>
+        (row.callsMe ? 1000 : 0) +
+        (row.logStatus === 'new-grid' ? 300 : 0) +
+        (row.logStatus === 'new-station' ? 200 : 0) +
+        (row.isNewBandMode ? 100 : 0) +
+        (row.logStatus === 'worked' ? 10 : 0)
+      return score(b) - score(a) || new Date(b.decodedAt).getTime() - new Date(a.decodedAt).getTime()
+    }), [rows])
+  const wantedStats = useMemo(() => ({
+    callsMe: rows.filter(row => row.callsMe).length,
+    newGrid: rows.filter(row => row.logStatus === 'new-grid').length,
+    newStation: rows.filter(row => row.logStatus === 'new-station').length,
+    newBandMode: rows.filter(row => row.isNewBandMode).length,
+    worked: rows.filter(row => row.logStatus === 'worked' && !row.isNewBandMode).length,
+  }), [rows])
 
   const mapMarkers = useMemo<DecodeMapMarker[]>(() => {
     return mapRows.map(row => {
@@ -715,6 +821,7 @@ export default function DecodePage() {
         {([
           ['grid', 'Grid'],
           ['map', 'Kort'],
+          ['wanted', 'Wanted'],
         ] as const).map(([view, label]) => (
           <button
             key={view}
@@ -751,7 +858,7 @@ export default function DecodePage() {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : activeView === 'map' ? (
         <Card>
           <CardContent className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-400">
@@ -771,6 +878,66 @@ export default function DecodePage() {
             )}
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-5">
+            <WantedStat label="Kalder mig" value={wantedStats.callsMe} className="border-red-800 bg-red-950/40 text-red-100" />
+            <WantedStat label="Nye grids" value={wantedStats.newGrid} className="border-amber-700 bg-amber-950/30 text-amber-100" />
+            <WantedStat label="Nye stationer" value={wantedStats.newStation} className="border-sky-700 bg-sky-950/30 text-sky-100" />
+            <WantedStat label="Ny band/mode" value={wantedStats.newBandMode} className="border-violet-700 bg-violet-950/30 text-violet-100" />
+            <WantedStat label="Worked B4" value={wantedStats.worked} className="border-green-800 bg-green-950/30 text-green-100" />
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              {wantedRows.length > 0 ? (
+                <div className="divide-y divide-gray-800">
+                  {wantedRows.slice(0, 80).map(row => (
+                    <button
+                      key={`${row.id}-${row.decodedAt}`}
+                      type="button"
+                      onClick={() => {
+                        if (row.canRespond) {
+                          setSelectedDecode(row)
+                          setCommandStatus(null)
+                        }
+                      }}
+                      className="grid w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-800/50 md:grid-cols-[92px_130px_160px_1fr_130px]"
+                    >
+                      <div className="font-mono text-xs text-gray-500">{formatTime(row.decodedAt)}</div>
+                      <div>
+                        <div className="font-mono text-sm font-bold text-white">{row.dxCallsign ?? '-'}</div>
+                        <div className="text-xs text-gray-500">{row.country}</div>
+                      </div>
+                      <div className="text-sm text-gray-300">
+                        <div className="font-mono">{row.dxGrid ?? '-'}</div>
+                        <div className="text-xs text-gray-500">{bandModeLabel(row)}</div>
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap gap-1">
+                          {wantedReasonLabels(row).map(label => (
+                            <span key={label} className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${label === 'Kalder mig' ? 'border-red-700 bg-red-950 text-red-100' : label === 'Ny grid' ? 'border-amber-700 bg-amber-950 text-amber-100' : label === 'Ny station' ? 'border-sky-700 bg-sky-950 text-sky-100' : label === 'Ny band/mode' ? 'border-violet-700 bg-violet-950 text-violet-100' : 'border-green-800 bg-green-950 text-green-100'}`}>
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-1 font-mono text-xs text-gray-400">{row.message}</div>
+                      </div>
+                      <div className="text-right text-sm text-gray-400">
+                        <div className="font-mono">{snrText(row.snr)} dB</div>
+                        <div className="text-xs">{row.distanceKm ? `${row.distanceKm.toLocaleString('da-DK')} km` : '-'}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-[50vh] items-center justify-center text-sm text-gray-500">
+                  Ingen wanted/live status endnu med de aktuelle filtre.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {selectedDecode && (
@@ -948,6 +1115,15 @@ function Info({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs uppercase text-gray-500">{label}</p>
       <p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p>
+    </div>
+  )
+}
+
+function WantedStat({ label, value, className }: { label: string; value: number; className: string }) {
+  return (
+    <div className={`border px-4 py-3 ${className}`}>
+      <p className="text-xs uppercase text-current opacity-75">{label}</p>
+      <p className="mt-1 font-mono text-2xl font-bold">{value}</p>
     </div>
   )
 }
