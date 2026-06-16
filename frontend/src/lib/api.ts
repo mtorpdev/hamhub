@@ -166,10 +166,18 @@ export const api = {
       request<import('./types').Message>('/api/messages', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/messages/${id}`, { method: 'DELETE' }),
   },
+  community: {
+    getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),
+    getContacts: () => request<import('./types').CommunityContact[]>('/api/community/contacts'),
+  },
   posts: {
-    getFeed: (page = 1) => request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(`/api/posts?page=${page}`),
+    getFeed: (page = 1, roomSlug?: string) =>
+      request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(
+        `/api/posts?page=${page}${roomSlug ? `&room=${encodeURIComponent(roomSlug)}` : ''}`
+      ),
     getById: (id: number) => request<import('./types').Post>(`/api/posts/${id}`),
-    create: (content: string) => request<import('./types').Post>('/api/posts', { method: 'POST', body: JSON.stringify({ content }) }),
+    create: (content: string, roomSlug?: string) =>
+      request<import('./types').Post>('/api/posts', { method: 'POST', body: JSON.stringify({ content, roomSlug }) }),
     delete: (id: number) => request<void>(`/api/posts/${id}`, { method: 'DELETE' }),
     toggleLike: (id: number) => request<{ liked: boolean }>(`/api/posts/${id}/like`, { method: 'POST' }),
     getComments: (id: number) => request<import('./types').PostComment[]>(`/api/posts/${id}/comments`),

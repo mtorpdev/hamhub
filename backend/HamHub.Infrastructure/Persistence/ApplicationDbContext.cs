@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WsjtxDecode> WsjtxDecodes => Set<WsjtxDecode>();
     public DbSet<Listing> Listings => Set<Listing>();
     public DbSet<ListingImage> ListingImages => Set<ListingImage>();
+    public DbSet<CommunityRoom> CommunityRooms => Set<CommunityRoom>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<PostImage> PostImages => Set<PostImage>();
@@ -30,5 +31,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
         // Composite PK for PostLike (no surrogate key)
         builder.Entity<PostLike>().HasKey(pl => new { pl.PostId, pl.UserId });
+
+        builder.Entity<CommunityRoom>()
+            .HasIndex(r => r.Slug)
+            .IsUnique();
+
+        builder.Entity<Post>()
+            .HasIndex(p => p.CommunityRoomId);
+
+        builder.Entity<Post>()
+            .HasOne(p => p.CommunityRoom)
+            .WithMany(r => r.Posts)
+            .HasForeignKey(p => p.CommunityRoomId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

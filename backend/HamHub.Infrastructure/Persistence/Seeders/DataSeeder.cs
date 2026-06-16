@@ -13,6 +13,7 @@ public static class DataSeeder
         var admin = await SeedAdminAsync(userManager);
         var users = await SeedUsersAsync(userManager);
         await SeedCategoriesAsync(context);
+        await SeedCommunityRoomsAsync(context);
         await context.SaveChangesAsync();
         await SeedArticlesAsync(context, admin.Id);
         await SeedStationsAsync(context, users);
@@ -105,6 +106,26 @@ public static class DataSeeder
             new ArticleCategory { Name = "Danske regler", Slug = "danske-regler" }
         };
         context.ArticleCategories.AddRange(categories);
+    }
+
+    private static async Task SeedCommunityRoomsAsync(ApplicationDbContext context)
+    {
+        var rooms = new[]
+        {
+            new CommunityRoom { Name = "Alle opslag", Slug = "alle", Description = "Hele HamHub community-feedet.", SortOrder = 0, IsSystem = true },
+            new CommunityRoom { Name = "DX", Slug = "dx", Description = "DX spots, jagt, pileups og sjældne lande.", SortOrder = 10, IsSystem = true },
+            new CommunityRoom { Name = "FT8/FT4", Slug = "ft8-ft4", Description = "Digitale modes, WSJT-X og signalrapporter.", SortOrder = 20, IsSystem = true },
+            new CommunityRoom { Name = "Teknik", Slug = "teknik", Description = "Radioer, antenner, software og fejlsøgning.", SortOrder = 30, IsSystem = true },
+            new CommunityRoom { Name = "Køb/salg", Slug = "koeb-salg", Description = "Snak om udstyr, annoncer og gode fund.", SortOrder = 40, IsSystem = true },
+            new CommunityRoom { Name = "Lokale klubber", Slug = "lokale-klubber", Description = "Klubber, møder, events og lokale net.", SortOrder = 50, IsSystem = true },
+            new CommunityRoom { Name = "QSO historier", Slug = "qso-historier", Description = "Del de gode kontakter og historier fra logbogen.", SortOrder = 60, IsSystem = true }
+        };
+
+        foreach (var room in rooms)
+        {
+            if (!await context.CommunityRooms.AnyAsync(r => r.Slug == room.Slug))
+                context.CommunityRooms.Add(room);
+        }
     }
 
     private static async Task SeedArticlesAsync(ApplicationDbContext context, string adminId)

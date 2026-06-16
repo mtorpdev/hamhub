@@ -22,29 +22,33 @@ public class PostsController : ControllerBase
 
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    // GET /api/posts?page=1
+    // GET /api/posts?page=1&room=dx
     [HttpGet]
-    public async Task<IActionResult> GetFeed([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetFeed([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? room = null)
     {
         var skip = (page - 1) * pageSize;
-        var posts = await _context.Posts
+        var query = _context.Posts
             .Include(p => p.User)
+            .Include(p => p.CommunityRoom)
             .Include(p => p.Images)
             .Include(p => p.Likes)
             .Include(p => p.Comments)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(room) && !room.Equals("alle", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedRoom = room.Trim().ToLowerInvariant();
+            query = query.Where(p => p.CommunityRoom != null && p.CommunityRoom.Slug == normalizedRoom);
+        }
+
+        var posts = await query
             .OrderByDescending(p => p.CreatedAt)
             .Skip(skip)
             .Take(pageSize)
             .ToListAsync();
 
-        var total = await _context.Posts.CountAsync();
-        return Ok(new
-        {
-            total,
-            page,
-            pageSize,
-            items = posts.Select(p => MapDto(p, UserId))
-        });
+        var total = await query.CountAsync();
+        return Ok(new PostsFeedResponse(total, page, pageSize, posts.Select(p => MapDto(p, UserId)).ToList()));
     }
 
     // GET /api/posts/{id}
@@ -53,6 +57,7 @@ public class PostsController : ControllerBase
     {
         var post = await _context.Posts
             .Include(p => p.User)
+            .Include(p => p.CommunityRoom)
             .Include(p => p.Images)
             .Include(p => p.Likes)
             .Include(p => p.Comments).ThenInclude(c => c.User)
@@ -67,12 +72,22 @@ public class PostsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreatePostRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Content)) return BadRequest("Indhold er påkrævet");
-        var post = new Post { UserId = UserId!, Content = req.Content };
+
+        CommunityRoom? room = null;
+        if (!string.IsNullOrWhiteSpace(req.RoomSlug) && !req.RoomSlug.Equals("alle", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedRoom = req.RoomSlug.Trim().ToLowerInvariant();
+            room = await _context.CommunityRooms.FirstOrDefaultAsync(r => r.Slug == normalizedRoom);
+            if (room == null) return BadRequest("Community-rum ikke fundet");
+        }
+
+        var post = new Post { UserId = UserId!, CommunityRoomId = room?.Id, Content = req.Content };
         _context.Posts.Add(post);
         await _context.SaveChangesAsync();
 
         var created = await _context.Posts
             .Include(p => p.User)
+            .Include(p => p.CommunityRoom)
             .Include(p => p.Images)
             .Include(p => p.Likes)
             .Include(p => p.Comments)
@@ -140,12 +155,10 @@ public class PostsController : ControllerBase
             await _context.SaveChangesAsync();
             return Ok(new { liked = false });
         }
-        else
-        {
-            _context.PostLikes.Add(new PostLike { PostId = id, UserId = UserId! });
-            await _context.SaveChangesAsync();
-            return Ok(new { liked = true });
-        }
+
+        _context.PostLikes.Add(new PostLike { PostId = id, UserId = UserId! });
+        await _context.SaveChangesAsync();
+        return Ok(new { liked = true });
     }
 
     // GET /api/posts/{id}/comments
@@ -204,20 +217,21 @@ public class PostsController : ControllerBase
         if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
     }
 
-    private static object MapDto(Post p, string? currentUserId) => new
-    {
+    private static PostDto MapDto(Post p, string? currentUserId) => new(
         p.Id,
         p.UserId,
-        AuthorCallsign = p.User?.Callsign ?? p.User?.Email,
-        AuthorName = p.User != null ? $"{p.User.FirstName} {p.User.LastName}".Trim() : null,
+        p.User?.Callsign ?? p.User?.Email,
+        p.User != null ? $"{p.User.FirstName} {p.User.LastName}".Trim() : null,
+        p.CommunityRoomId,
+        p.CommunityRoom?.Slug,
+        p.CommunityRoom?.Name,
         p.Content,
-        Images = p.Images.OrderBy(i => i.Order).Select(i => $"/uploads/posts/{i.FileName}"),
-        LikeCount = p.Likes.Count,
-        IsLikedByMe = currentUserId != null && p.Likes.Any(l => l.UserId == currentUserId),
-        CommentCount = p.Comments.Count,
+        p.Images.OrderBy(i => i.Order).Select(i => $"/uploads/posts/{i.FileName}").ToList(),
+        p.Likes.Count,
+        currentUserId != null && p.Likes.Any(l => l.UserId == currentUserId),
+        p.Comments.Count,
         p.CreatedAt,
-        p.UpdatedAt,
-    };
+        p.UpdatedAt);
 
     private static object MapCommentDto(PostComment c) => new
     {
@@ -230,5 +244,21 @@ public class PostsController : ControllerBase
     };
 }
 
-public record CreatePostRequest(string Content);
+public record PostsFeedResponse(int Total, int Page, int PageSize, IReadOnlyList<PostDto> Items);
+public record PostDto(
+    int Id,
+    string UserId,
+    string? AuthorCallsign,
+    string? AuthorName,
+    int? CommunityRoomId,
+    string? CommunityRoomSlug,
+    string? CommunityRoomName,
+    string Content,
+    IReadOnlyList<string> Images,
+    int LikeCount,
+    bool IsLikedByMe,
+    int CommentCount,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+public record CreatePostRequest(string Content, string? RoomSlug = null);
 public record AddCommentRequest(string Content);

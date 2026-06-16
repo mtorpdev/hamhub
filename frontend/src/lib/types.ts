@@ -410,11 +410,33 @@ export interface Message {
   createdAt: string
 }
 
+export interface CommunityRoom {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  sortOrder: number
+  isSystem: boolean
+}
+
+export interface CommunityContact {
+  id: string
+  callsign: string | null
+  email: string | null
+  name: string | null
+  profileImageUrl: string | null
+  gridLocator: string | null
+  country: string | null
+}
+
 export interface Post {
   id: number
   userId: string
   authorCallsign: string | null
   authorName: string | null
+  communityRoomId: number | null
+  communityRoomSlug: string | null
+  communityRoomName: string | null
   content: string
   images: string[]
   likeCount: number
