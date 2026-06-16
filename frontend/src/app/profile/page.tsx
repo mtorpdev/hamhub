@@ -365,8 +365,12 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ</p>
+                <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ Logbook.</p>
               )}
+              <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
+                QRZ Logbook API nøglen bruges til at synkronisere din HamHub logbog med QRZ Logbook.
+                Sync kører som et job: HamHub henter først QRZ-loggen, matcher lokale QSOer og sender derefter lokale QSOer der mangler en QRZ reference.
+              </div>
               <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
                 <Input
                   label={`QRZ Logbook API nøgle${qrzStatus?.connected ? ' (efterlad tom for at beholde eksisterende)' : ''}`}
@@ -395,6 +399,9 @@ export default function ProfilePage() {
                   Ikke tilsluttet. Indtast dine QRZ.com login-oplysninger for at aktivere kaldesignals-opslag.
                 </p>
               )}
+              <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
+                Denne opsætning er separat fra Logbook API nøglen. QRZ XML login bruges til callsign-opslag og kræver normalt aktiv QRZ XML adgang.
+              </div>
               <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
                 <Input
                   label="QRZ brugernavn"
@@ -435,6 +442,9 @@ export default function ProfilePage() {
                   Ikke tilsluttet. Indtast dit eQSL.cc brugernavn og adgangskode for at kunne sende QSOer til eQSL.
                 </p>
               )}
+              <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
+                eQSL bruges til direkte real-time ADIF upload fra hver QSO. Hvis du har flere eQSL QTH-profiler, skal QTH nickname matche profilen hos eQSL, ellers kan eQSL afvise QSOer på dato/tid.
+              </div>
               <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
                 <Input
                   label="eQSL brugernavn"

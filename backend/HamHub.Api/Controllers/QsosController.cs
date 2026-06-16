@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace HamHub.Api.Controllers;
 
@@ -122,7 +123,16 @@ public class QsosController : ControllerBase
         if (qso.User.EqslUsername == null || qso.User.EqslPassword == null)
             return BadRequest("eQSL er ikke sat op på profilen");
 
-        var password = _eqslProtector.Unprotect(qso.User.EqslPassword);
+        string password;
+        try
+        {
+            password = _eqslProtector.Unprotect(qso.User.EqslPassword);
+        }
+        catch (CryptographicException)
+        {
+            return BadRequest("eQSL login kunne ikke læses i dette miljø. Gem eQSL login igen på profilen, eller test fra produktionsserveren hvor nøglen blev oprettet.");
+        }
+
         EqslUploadResult result;
         try
         {

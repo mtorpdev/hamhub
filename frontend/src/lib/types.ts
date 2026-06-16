@@ -97,12 +97,17 @@ export interface Qso {
 
 export interface QsoExternalLogStatus {
   provider: string
-  status: 'synced' | 'ready' | 'not-configured' | string
+  status: 'synced' | 'ready' | 'not-configured' | 'sent' | string
   label: string
   externalId: string | null
   canSend: boolean
   canFetch: boolean
   description: string
+  isConfigured: boolean
+  sendActionLabel: string
+  fetchActionLabel: string
+  lastUpdatedAt: string | null
+  lastResult: string | null
 }
 
 export interface QsoWeather {

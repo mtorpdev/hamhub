@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus, type QsoMufStation } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
@@ -134,6 +134,12 @@ export default function EditQsoPage() {
     return 'default'
   }
 
+  const providerTone = (status: QsoExternalLogStatus) => {
+    if (status.status === 'synced' || status.status === 'sent') return 'border-green-700/60 bg-green-950/20'
+    if (status.status === 'ready') return 'border-yellow-700/60 bg-yellow-950/20'
+    return 'border-gray-700 bg-gray-900/30'
+  }
+
   const refreshExternalStatus = async () => {
     setExternalLoading(true)
     try {
@@ -180,6 +186,14 @@ export default function EditQsoPage() {
   const handleFetchExternal = (provider: string) => {
     if (provider === 'QRZ') return syncQrz()
     if (provider === 'eQSL') return refreshExternalStatus()
+  }
+
+  const handleSetupExternal = (provider: string) => {
+    if (provider === 'LoTW') {
+      toast('LoTW kræver TQSL/signering og kommer via den lokale agent senere.')
+      return
+    }
+    router.push('/profile')
   }
 
   const refreshConditions = async () => {
@@ -248,14 +262,6 @@ export default function EditQsoPage() {
     if (rating === 'Svag') return 'warning'
     return 'info'
   }
-
-  const stationRows: Array<[string, QsoMufStation | null]> = conditions
-    ? [
-        ['Min station', conditions.propagation.mufFof2.ownNearestStation],
-        ['Midtpunkt', conditions.propagation.mufFof2.midpointNearestStation],
-        ['Kontakt', conditions.propagation.mufFof2.workedNearestStation],
-      ]
-    : []
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -725,7 +731,7 @@ export default function EditQsoPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-white">Eksterne logbøger</h2>
                   <p className="mt-1 text-sm text-gray-400">
-                    Se om denne QSO er registreret hos eksterne logtjenester. QRZ bruger den eksisterende HamHub-synkronisering.
+                    Se og styr hvordan denne QSO er koblet til QRZ, eQSL og LoTW.
                   </p>
                 </div>
                 <Button type="button" variant="secondary" onClick={refreshExternalStatus} disabled={externalLoading}>
@@ -738,60 +744,93 @@ export default function EditQsoPage() {
                   Henter QSL status...
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-lg border border-gray-700">
-                  <div className="divide-y divide-gray-700">
-                    {externalStatuses.map(status => (
-                      <div key={status.provider} className="grid gap-4 bg-gray-900/30 p-4 md:grid-cols-[160px_1fr_auto] md:items-center">
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {externalStatuses.map(status => (
+                    <div key={status.provider} className={`rounded-lg border p-4 ${providerTone(status)}`}>
+                      <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-white">{status.provider}</p>
+                          <h3 className="text-base font-semibold text-white">{status.provider}</h3>
                           {status.externalId && (
                             <p className="mt-1 font-mono text-xs text-gray-500">ID {status.externalId}</p>
                           )}
                         </div>
-                        <div>
-                          <Badge variant={badgeVariant(status.status)}>{status.label}</Badge>
-                          <p className="mt-2 text-sm text-gray-400">{status.description}</p>
+                        <Badge variant={badgeVariant(status.status)}>{status.label}</Badge>
+                      </div>
+
+                      <p className="min-h-16 text-sm text-gray-300">{status.description}</p>
+
+                      <div className="mt-4 space-y-2 rounded-md border border-gray-800 bg-gray-950/40 p-3 text-xs text-gray-400">
+                        <div className="flex justify-between gap-3">
+                          <span>Opsætning</span>
+                          <span className={status.isConfigured ? 'text-green-300' : 'text-gray-500'}>
+                            {status.isConfigured ? 'Aktiv' : 'Ikke aktiv'}
+                          </span>
                         </div>
-                        <div className="flex flex-wrap gap-2 md:justify-end">
-                          {status.status === 'not-configured' && status.provider === 'eQSL' ? (
-                            <Button type="button" size="sm" variant="secondary" onClick={() => router.push('/profile')}>
-                              Opsæt eQSL
+                        <div className="flex justify-between gap-3">
+                          <span>Seneste aktivitet</span>
+                          <span className="text-right text-gray-300">
+                            {status.lastUpdatedAt ? new Date(status.lastUpdatedAt).toLocaleString('da-DK') : 'Ingen'}
+                          </span>
+                        </div>
+                        {status.lastResult && (
+                          <p className="border-t border-gray-800 pt-2 text-gray-300">{status.lastResult}</p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {!status.isConfigured || status.provider === 'LoTW' ? (
+                          <Button type="button" size="sm" variant="secondary" onClick={() => handleSetupExternal(status.provider)}>
+                            {status.sendActionLabel}
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleSendExternal(status.provider)}
+                              disabled={!status.canSend || externalLoading}
+                            >
+                              {status.sendActionLabel}
                             </Button>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => handleSendExternal(status.provider)}
-                                disabled={!status.canSend || externalLoading}
-                              >
-                                Send
-                              </Button>
+                            {status.canFetch && (
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="secondary"
                                 onClick={() => handleFetchExternal(status.provider)}
-                                disabled={!status.canFetch || externalLoading}
+                                disabled={externalLoading}
                               >
-                                Hent
+                                {status.fetchActionLabel}
                               </Button>
-                            </>
-                          )}
-                        </div>
+                            )}
+                            {status.provider === 'eQSL' && !status.canSend && (
+                              <Button type="button" size="sm" variant="secondary" onClick={refreshExternalStatus} disabled={externalLoading}>
+                                {status.fetchActionLabel}
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
-                    ))}
-                    {externalStatuses.length === 0 && (
-                      <div className="bg-gray-900/30 p-4 text-sm text-gray-400">
-                        Ingen ekstern status fundet for denne QSO.
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  ))}
+                  {externalStatuses.length === 0 && (
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4 text-sm text-gray-400">
+                      Ingen ekstern status fundet for denne QSO.
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-sm text-blue-100">
-                eQSL kan bruges når login er gemt under Min Profil. LoTW kræver stadig TQSL/signering og er derfor ikke aktiv endnu.
+              <div className="grid gap-3 text-sm md:grid-cols-3">
+                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
+                  QRZ bruger Logbook API key og kører som HamHub sync. En sync kan hente QRZ-poster og sende lokale QSOer.
+                </div>
+                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
+                  eQSL sendes direkte som real-time ADIF upload for denne QSO.
+                </div>
+                <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 px-4 py-3 text-blue-100">
+                  LoTW kræver TrustedQSL/TQSL signering og skal kobles via lokal agent før upload aktiveres.
+                </div>
               </div>
             </div>
           )}

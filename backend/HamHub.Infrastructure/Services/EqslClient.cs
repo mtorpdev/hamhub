@@ -42,17 +42,20 @@ public class EqslClient
         var body = await response.Content.ReadAsStringAsync(ct);
         var text = StripHtml(body);
 
-        if (text.Contains("Error:", StringComparison.OrdinalIgnoreCase))
-            throw new EqslApiException(FirstResultLine(text, "Error:") ?? "eQSL upload fejlede");
+        var errorLine = FirstResultLine(text, "Error:");
+        if (errorLine != null)
+            throw new EqslApiException(FriendlyMessage(errorLine));
 
-        if (text.Contains("Result: 1 out of 1 records added", StringComparison.OrdinalIgnoreCase))
-            return new EqslUploadResult(true, FirstResultLine(text, "Result:") ?? "QSO sendt til eQSL");
+        var resultLine = FirstResultLine(text, "Result:");
+        if (resultLine != null && IsSuccessfulResult(resultLine))
+            return new EqslUploadResult(true, resultLine);
 
-        if (text.Contains("Bad record: Duplicate", StringComparison.OrdinalIgnoreCase))
-            return new EqslUploadResult(true, FirstResultLine(text, "Warning:") ?? "QSO findes allerede hos eQSL");
+        var warningLine = FirstResultLine(text, "Warning:");
+        if (warningLine != null && warningLine.Contains("Bad record: Duplicate", StringComparison.OrdinalIgnoreCase))
+            return new EqslUploadResult(true, $"QSO findes allerede hos eQSL. {warningLine}");
 
-        if (text.Contains("Warning:", StringComparison.OrdinalIgnoreCase))
-            throw new EqslApiException(FirstResultLine(text, "Warning:") ?? "eQSL afviste QSO'en");
+        if (warningLine != null)
+            throw new EqslApiException(FriendlyMessage(warningLine));
 
         var preview = Preview(text);
         if (string.IsNullOrWhiteSpace(preview)) preview = Preview(body);
@@ -106,6 +109,44 @@ public class EqslClient
         text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .FirstOrDefault(line => line.Contains(prefix, StringComparison.OrdinalIgnoreCase))
             ?.Trim();
+
+    private static bool IsSuccessfulResult(string line)
+    {
+        var match = Regex.Match(line, @"Result:\s*(\d+)\s+out\s+of\s+(\d+)\s+records?\s+added", RegexOptions.IgnoreCase);
+        if (!match.Success) return false;
+        return int.TryParse(match.Groups[1].Value, out var added)
+            && int.TryParse(match.Groups[2].Value, out var total)
+            && total > 0
+            && added == total;
+    }
+
+    private static string FriendlyMessage(string line)
+    {
+        var normalized = Regex.Replace(line, @"\s+", " ").Trim();
+
+        if (normalized.Contains("No match on eQSL_User/eQSL_Pswd for date", StringComparison.OrdinalIgnoreCase))
+            return $"QSO dato/tid passer ikke med en eQSL QTH-profil. Tjek QTH nickname og datoerne på eQSL.cc. ({normalized})";
+        if (normalized.Contains("Multiple accounts match eQSL_User/eQSL_Pswd for date", StringComparison.OrdinalIgnoreCase))
+            return $"Flere eQSL QTH-profiler matcher denne QSO. Angiv QTH nickname på profilen. ({normalized})";
+        if (normalized.Contains("No match on eQSL_User/eQSL_Pswd", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL login blev afvist. Tjek brugernavn og adgangskode. ({normalized})";
+        if (normalized.Contains("Bad QSO Date", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste QSO-datoen. ({normalized})";
+        if (normalized.Contains("Bad QSO Time", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste QSO-tidspunktet. ({normalized})";
+        if (normalized.Contains("Bad Callsign", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste kaldesignalet. ({normalized})";
+        if (normalized.Contains("Bad Mode", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste mode. Tjek mode/submode på QSO'en. ({normalized})";
+        if (normalized.Contains("Bad Band/Freq", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste band/frekvens. Tjek band og frekvens på QSO'en. ({normalized})";
+        if (normalized.Contains("QSO Date/Time in Future", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL afviste QSO'en fordi dato/tid ligger i fremtiden. ({normalized})";
+        if (normalized.Contains("system is down", StringComparison.OrdinalIgnoreCase))
+            return $"eQSL melder vedligehold eller nedetid. Prøv igen senere. ({normalized})";
+
+        return normalized;
+    }
 
     private static string Preview(string text)
     {

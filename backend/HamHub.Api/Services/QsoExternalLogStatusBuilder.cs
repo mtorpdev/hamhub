@@ -9,13 +9,19 @@ public sealed record QsoExternalLogStatusDto(
     string? ExternalId,
     bool CanSend,
     bool CanFetch,
-    string Description);
+    string Description,
+    bool IsConfigured,
+    string SendActionLabel,
+    string FetchActionLabel,
+    DateTime? LastUpdatedAt,
+    string? LastResult);
 
 public static class QsoExternalLogStatusBuilder
 {
     public static IReadOnlyList<QsoExternalLogStatusDto> Build(QsoEntry qso, ApplicationUser user)
     {
         var qrzSynced = !string.IsNullOrWhiteSpace(qso.QrzId);
+        var qrzConfigured = !string.IsNullOrWhiteSpace(user.QrzApiKey);
         var eqslConfigured = !string.IsNullOrWhiteSpace(user.EqslUsername) && !string.IsNullOrWhiteSpace(user.EqslPassword);
         var eqslSent = qso.EqslSentAt.HasValue;
 
@@ -23,34 +29,51 @@ public static class QsoExternalLogStatusBuilder
         {
             new QsoExternalLogStatusDto(
                 Provider: "QRZ",
-                Status: qrzSynced ? "synced" : "ready",
-                Label: qrzSynced ? "Registreret på QRZ" : "Ikke sendt til QRZ",
+                Status: !qrzConfigured ? "not-configured" : qrzSynced ? "synced" : "ready",
+                Label: !qrzConfigured ? "QRZ Logbook ikke sat op" : qrzSynced ? "Registreret på QRZ" : "Klar til QRZ sync",
                 ExternalId: qso.QrzId,
-                CanSend: !qrzSynced,
-                CanFetch: true,
-                Description: qrzSynced
+                CanSend: qrzConfigured && !qrzSynced,
+                CanFetch: qrzConfigured,
+                Description: !qrzConfigured
+                    ? "Gem QRZ Logbook API nøglen på profilen for at synkronisere QSO'er med QRZ."
+                    : qrzSynced
                     ? "Denne QSO er koblet til en QRZ Logbook post."
-                    : "QSO'en kan sendes til QRZ, hvis QRZ Logbook API er sat op på profilen."),
+                    : "QRZ sync henter først din logbog og sender derefter lokale QSO'er, der mangler en QRZ reference.",
+                IsConfigured: qrzConfigured,
+                SendActionLabel: qrzConfigured ? "Synkroniser QRZ" : "Opsæt QRZ",
+                FetchActionLabel: "Hent/sync QRZ",
+                LastUpdatedAt: user.QrzLastSyncedAt,
+                LastResult: qrzSynced ? "QSO er koblet til QRZ Logbook." : null),
             new QsoExternalLogStatusDto(
                 Provider: "LoTW",
                 Status: "not-configured",
-                Label: "Ikke sat op",
+                Label: "Kræver TQSL/lokal agent",
                 ExternalId: null,
                 CanSend: false,
                 CanFetch: false,
-                Description: "LoTW kræver TQSL/signering og bør kobles via en særskilt opsætning eller lokal agent."),
+                Description: "LoTW accepterer signerede logs via TrustedQSL/TQSL. HamHub skal derfor bruge den lokale agent til signering, før direkte upload kan aktiveres.",
+                IsConfigured: false,
+                SendActionLabel: "Kommer senere",
+                FetchActionLabel: "Kommer senere",
+                LastUpdatedAt: null,
+                LastResult: "Ikke aktiv endnu, fordi LoTW kræver certifikat og station location i TQSL."),
             new QsoExternalLogStatusDto(
                 Provider: "eQSL",
                 Status: !eqslConfigured ? "not-configured" : eqslSent ? "sent" : "ready",
                 Label: !eqslConfigured ? "Ikke sat op" : eqslSent ? "Sendt til eQSL" : "Klar til eQSL",
                 ExternalId: null,
                 CanSend: eqslConfigured && !eqslSent,
-                CanFetch: eqslConfigured,
+                CanFetch: false,
                 Description: !eqslConfigured
                     ? "Gem eQSL brugernavn og adgangskode på profilen for at sende QSO'er til eQSL."
                     : eqslSent
                         ? $"Denne QSO er sendt til eQSL{(qso.EqslSentAt.HasValue ? $" {qso.EqslSentAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
-                        : "Denne QSO kan sendes til eQSL via real-time ADIF upload."),
+                        : "Denne QSO kan sendes direkte til eQSL via real-time ADIF upload.",
+                IsConfigured: eqslConfigured,
+                SendActionLabel: eqslSent ? "Sendt" : eqslConfigured ? "Send til eQSL" : "Opsæt eQSL",
+                FetchActionLabel: "Opdater status",
+                LastUpdatedAt: qso.EqslSentAt ?? user.EqslLastSyncedAt,
+                LastResult: qso.EqslLastResult),
         };
     }
 }
