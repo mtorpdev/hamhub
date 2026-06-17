@@ -21,6 +21,7 @@ import {
   type DecodeRow,
   type RosterFilters,
 } from './decodeScoring'
+import { commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -52,6 +53,7 @@ export default function DecodePage() {
   const [rosterFilters, setRosterFilters] = useState<RosterFilters>(DEFAULT_ROSTER_FILTERS)
   const [rawOpen, setRawOpen] = useState(false)
   const lastTxRef = useRef({ call: '', transmitting: false })
+  const latestCommandResultIdRef = useRef('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -95,6 +97,30 @@ export default function DecodePage() {
 
     refreshStatus()
     const timer = window.setInterval(refreshStatus, 1000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    let cancelled = false
+    const refreshCommandResults = async () => {
+      try {
+        const results = await api.wsjtx.getCommandResults()
+        const latest = results[0]
+        if (!latest || cancelled || latest.id === latestCommandResultIdRef.current) return
+        latestCommandResultIdRef.current = latest.id
+        setCommandStatus(commandResultMessage(latest))
+      } catch {
+        // Command result polling is advisory; status polling and live decodes should keep running.
+      }
+    }
+
+    refreshCommandResults()
+    const timer = window.setInterval(refreshCommandResults, 1000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
@@ -176,6 +202,7 @@ export default function DecodePage() {
       setPendingCommand(true)
       const call = decode.dxCallsign?.toUpperCase()
       if (call) {
+        setSelectedCallsign(selectedCallsignForCommand(selectedCallsign, decode))
         setTxCountByCall(current => ({ ...current, [call]: 0 }))
         lastTxRef.current = { call, transmitting: false }
       }
