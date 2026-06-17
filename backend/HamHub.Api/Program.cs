@@ -117,6 +117,7 @@ builder.Services.AddSingleton<HamHub.Api.Services.CommunityPresenceTracker>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxccLookupService>();
 builder.Services.AddScoped<HamHub.Api.Services.Awards.AwardEngine>();
+builder.Services.AddScoped<HamHub.Api.Services.QsoAwardEnrichmentService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.Kc2gMufFof2Service>();
@@ -185,6 +186,12 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("award fields", () => EnsureAwardFieldsSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("WSJT-X timing", () => EnsureWsjtxTimingSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
+    await TryRunStartupTaskAsync("QSO award enrichment backfill", async () =>
+    {
+        var backfill = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.QsoAwardEnrichmentService>();
+        var result = await backfill.BackfillMissingAsync();
+        app.Logger.LogInformation("QSO award enrichment backfill scanned {Scanned} QSOs and updated {Updated}.", result.Scanned, result.Updated);
+    }, app.Logger);
 
     var importer = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.ArticleFeedImportService>();
     await importer.ImportAsync();
@@ -201,6 +208,18 @@ static async Task TryEnsureSchemaAsync(string schemaName, Func<Task> ensureSchem
     catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InsufficientPrivilege)
     {
         logger.LogWarning("Skipping {SchemaName} schema guard because the configured database user does not have DDL privileges.", schemaName);
+    }
+}
+
+static async Task TryRunStartupTaskAsync(string taskName, Func<Task> runTask, ILogger logger)
+{
+    try
+    {
+        await runTask();
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Startup task {TaskName} failed.", taskName);
     }
 }
 

@@ -115,6 +115,7 @@ public class QsosControllerAdifTests
     private static QsosController CreateController(ApplicationDbContext context, string userId)
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var lookup = new DxccLookupService(new EmptyWebHostEnvironment(), NullLogger<DxccLookupService>.Instance);
         var controller = new QsosController(
             context,
             mapper,
@@ -123,7 +124,7 @@ public class QsosControllerAdifTests
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
             DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
-            new DxccLookupService(new EmptyWebHostEnvironment(), NullLogger<DxccLookupService>.Instance));
+            new QsoAwardEnrichmentService(context, lookup));
 
         controller.ControllerContext = new ControllerContext
         {

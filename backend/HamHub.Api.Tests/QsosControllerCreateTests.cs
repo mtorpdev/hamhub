@@ -81,6 +81,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
     private static QsosController CreateController(ApplicationDbContext context, string userId, DxccLookupService lookup)
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var enrichment = new QsoAwardEnrichmentService(context, lookup);
         var controller = new QsosController(
             context,
             mapper,
@@ -89,7 +90,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
             DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
-            lookup);
+            enrichment);
 
         controller.ControllerContext = new ControllerContext
         {
