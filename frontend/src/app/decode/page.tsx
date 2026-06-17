@@ -46,6 +46,7 @@ export default function DecodePage() {
   const [qsos, setQsos] = useState<Qso[]>([])
   const [selectedCallsign, setSelectedCallsign] = useState('')
   const [wsjtxStatus, setWsjtxStatus] = useState<WsjtxStatus | null>(null)
+  const [agentConnected, setAgentConnected] = useState(false)
   const [txCountByCall, setTxCountByCall] = useState<Record<string, number>>({})
   const [qsoDrafts, setQsoDrafts] = useState<Record<number, QsoEditForm>>({})
   const [qsoSaveStatuses, setQsoSaveStatuses] = useState<Record<number, string>>({})
@@ -89,9 +90,16 @@ export default function DecodePage() {
     const refreshStatus = async () => {
       try {
         const status = await api.wsjtx.getStatus()
-        if (!cancelled) setWsjtxStatus(status)
+        if (!cancelled) {
+          setWsjtxStatus(status)
+          const updatedAt = status ? new Date(status.updatedAtUtc).getTime() : 0
+          setAgentConnected(Boolean(updatedAt && Date.now() - updatedAt < 30_000))
+        }
       } catch {
-        if (!cancelled) setWsjtxStatus(null)
+        if (!cancelled) {
+          setWsjtxStatus(null)
+          setAgentConnected(false)
+        }
       }
     }
 
@@ -276,6 +284,8 @@ export default function DecodePage() {
           selectedCallsign={selectedCall}
           filters={rosterFilters}
           connected={connected}
+          wsjtxStatus={wsjtxStatus}
+          agentConnected={agentConnected}
           totalDecodes={decodes.length}
           onFiltersChange={setRosterFilters}
           onSelect={handleSelectEntry}

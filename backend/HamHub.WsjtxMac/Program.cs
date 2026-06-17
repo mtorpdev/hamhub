@@ -172,7 +172,10 @@ internal static class Program
             var (dxCall, dxGrid) = ParseDx(decode.Message);
 
             decodeBuffer.Enqueue(new WsjtxDecodeDto(
+                WsjtxId: decode.Id,
+                WsjtxTimeMs: decode.TimeMs,
                 SpotterCallsign: status.DeCall,
+                SpotterGrid: status.DeGrid,
                 Message: decode.Message,
                 DxCallsign: dxCall,
                 DxGrid: dxGrid,
@@ -180,7 +183,8 @@ internal static class Program
                 DeltaTime: decode.DeltaTime,
                 DeltaFreqHz: (int)decode.DeltaFreqHz,
                 FrequencyMhz: freqMhz,
-                Mode: string.IsNullOrWhiteSpace(status.Mode) ? decode.Mode : status.Mode,
+                Mode: decode.Mode,
+                LowConfidence: decode.LowConfidence,
                 DecodedAt: DateTime.UtcNow));
         };
 

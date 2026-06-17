@@ -2,6 +2,8 @@
 
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import Link from 'next/link'
+import { type WsjtxStatus } from '@/lib/types'
 import { bandModeLabel, formatTime, snrText } from '../decodeFormatters'
 import { type LiveRosterEntry, type RosterFilters } from '../decodeScoring'
 
@@ -10,6 +12,8 @@ type LiveRosterProps = {
   selectedCallsign: string
   filters: RosterFilters
   connected: boolean
+  wsjtxStatus: WsjtxStatus | null
+  agentConnected: boolean
   totalDecodes: number
   onFiltersChange: (filters: RosterFilters) => void
   onSelect: (entry: LiveRosterEntry) => void
@@ -24,6 +28,8 @@ export default function LiveRoster({
   selectedCallsign,
   filters,
   connected,
+  wsjtxStatus,
+  agentConnected,
   totalDecodes,
   onFiltersChange,
   onSelect,
@@ -32,6 +38,14 @@ export default function LiveRoster({
   pendingCommand,
   ownCallsign,
 }: LiveRosterProps) {
+  const wsjtxLabel = !agentConnected
+    ? 'Ingen status'
+    : wsjtxStatus?.transmitting
+      ? 'TX'
+      : wsjtxStatus?.decoding
+        ? 'Decoder'
+        : 'Idle'
+
   const setFilter = <K extends keyof RosterFilters>(key: K, value: RosterFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value })
   }
@@ -44,11 +58,23 @@ export default function LiveRoster({
             <h1 className="text-xl font-bold text-white">Live Roster</h1>
             <p className="mt-1 text-sm text-gray-400">Prioriteret efter call, awards og logbog</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="flex items-center gap-1 border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
               <span className={`inline-block h-2 w-2 rounded-full ${connected ? 'animate-pulse bg-green-500' : 'bg-red-500'}`} />
-              {connected ? 'SSE live' : 'Genopretter'}
+              Stream: {connected ? 'Live' : 'Genopretter'}
             </span>
+            <span className="flex items-center gap-1 border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
+              <span className={`inline-block h-2 w-2 rounded-full ${agentConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              Lokal agent: {agentConnected ? 'Tilsluttet' : 'Ikke tilsluttet'}
+            </span>
+            <span className="border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
+              WSJT-X: {wsjtxLabel}
+            </span>
+            {!agentConnected && (
+              <Link href="/profile?tab=agent" className="border border-cyan-800 bg-cyan-950 px-2 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-900">
+                Hent lokal agent
+              </Link>
+            )}
             <Badge variant="info">{entries.length}/{totalDecodes}</Badge>
           </div>
         </div>

@@ -8,14 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
-import { useLocalOnlyFeatures } from '@/hooks/useLocalOnlyFeatures'
 
 export default function ProfilePage() {
   const { user } = useAuth()
   useRequireAuth()
   const { toast } = useToast()
-  const localOnlyFeatures = useLocalOnlyFeatures()
-  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'apps' | 'friends' | 'blocks'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'agent' | 'friends' | 'blocks'>(() => {
+    if (typeof window === 'undefined') return 'profile'
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    return tab === 'agent' || tab === 'apps' ? 'agent' : 'profile'
+  })
   const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -95,12 +97,6 @@ export default function ProfilePage() {
     loadProfileState()
     return () => { cancelled = true }
   }, [user])
-
-  useEffect(() => {
-    if (localOnlyFeatures.ready && !localOnlyFeatures.enabled && activeTab === 'apps') {
-      void Promise.resolve().then(() => setActiveTab('profile'))
-    }
-  }, [activeTab, localOnlyFeatures.enabled, localOnlyFeatures.ready])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -252,7 +248,7 @@ export default function ProfilePage() {
         {[
           { id: 'profile', label: 'Profil' },
           { id: 'integrations', label: 'Integrationer' },
-          ...(localOnlyFeatures.enabled ? [{ id: 'apps', label: 'Apps' }] : []),
+          { id: 'agent', label: 'WSJT-X Agent' },
           { id: 'friends', label: 'Venner' },
           { id: 'blocks', label: 'Blokeringer' },
         ].map(tab => (
@@ -486,9 +482,9 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {activeTab === 'apps' && (
+      {activeTab === 'agent' && (
         <Card>
-          <CardHeader><CardTitle>HamHub Apps</CardTitle></CardHeader>
+          <CardHeader><CardTitle>WSJT-X Agent</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col gap-6">
               <div>

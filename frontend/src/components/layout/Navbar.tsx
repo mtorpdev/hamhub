@@ -92,7 +92,7 @@ export function Navbar() {
             <Link href="/articles" className="text-gray-300 hover:text-white text-sm">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 hover:text-white text-sm">Marked</Link>
             {isAuthenticated && <>
-              <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Decodes</Link>
+              <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Roster</Link>
               <Link href="/community" className="text-gray-300 hover:text-white text-sm">Community</Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
@@ -134,7 +134,7 @@ export function Navbar() {
             <Link href="/articles" className="text-gray-300 text-sm py-1">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 text-sm py-1">Marked</Link>
             {isAuthenticated ? <>
-              <Link href="/decode" className="text-gray-300 text-sm py-1">Live Decodes</Link>
+              <Link href="/decode" className="text-gray-300 text-sm py-1">Live Roster</Link>
               <Link href="/community" className="text-gray-300 text-sm py-1">Community</Link>
               <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
