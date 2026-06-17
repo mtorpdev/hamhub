@@ -55,22 +55,33 @@ public class AwardEngine
         }
 
         var worked = new Dictionary<string, AwardEntityProgressDto>(StringComparer.OrdinalIgnoreCase);
-        var confirmed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var confirmedSources = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var qso in qsos)
         {
             foreach (var (key, label) in EntitiesFor(definition.RuleType, qso))
             {
                 if (!worked.ContainsKey(key))
-                    worked[key] = new AwardEntityProgressDto(key, label, "worked", qso.Id == 0 ? null : qso.Id);
+                    worked[key] = new AwardEntityProgressDto(key, label, "worked", qso.Id == 0 ? null : qso.Id, Array.Empty<string>());
 
-                if (IsConfirmed(qso))
-                    confirmed.Add(key);
+                var sources = ConfirmationSources(qso);
+                if (sources.Length > 0)
+                {
+                    if (!confirmedSources.TryGetValue(key, out var existingSources))
+                    {
+                        existingSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        confirmedSources[key] = existingSources;
+                    }
+
+                    foreach (var source in sources) existingSources.Add(source);
+                }
             }
         }
 
         var entities = worked.Values
-            .Select(entity => confirmed.Contains(entity.Key) ? entity with { Status = "confirmed" } : entity)
+            .Select(entity => confirmedSources.TryGetValue(entity.Key, out var sources)
+                ? entity with { Status = "confirmed", ConfirmationSources = sources.Order(StringComparer.OrdinalIgnoreCase).ToArray() }
+                : entity)
             .OrderBy(entity => entity.Key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var missing = MissingEntities(definition, worked.Keys).ToArray();
@@ -84,7 +95,7 @@ public class AwardEngine
             definition.Status,
             definition.RuleType,
             WorkedCount: worked.Count,
-            ConfirmedCount: confirmed.Count,
+            ConfirmedCount: confirmedSources.Count,
             MissingCount: missing.Length,
             NextThreshold: NextThreshold(definition.Thresholds, worked.Count),
             definition.DataRequirements,
@@ -142,17 +153,20 @@ public class AwardEngine
 
         var worked = new HashSet<string>(workedKeys, StringComparer.OrdinalIgnoreCase);
         foreach (var key in definition.EntityUniverse.Where(key => !worked.Contains(key)))
-            yield return new AwardEntityProgressDto(key, key, "missing", null);
+            yield return new AwardEntityProgressDto(key, key, "missing", null, Array.Empty<string>());
     }
 
     private static int? NextThreshold(int[] thresholds, int workedCount) =>
         thresholds.OrderBy(item => item).FirstOrDefault(item => item > workedCount) is var next && next > 0 ? next : null;
 
-    private static bool IsConfirmed(QsoEntry qso) =>
-        qso.LotwConfirmedAt.HasValue ||
-        qso.EqslConfirmedAt.HasValue ||
-        qso.QrzConfirmedAt.HasValue ||
-        string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase);
+    private static string[] ConfirmationSources(QsoEntry qso)
+    {
+        var sources = new List<string>(3);
+        if (qso.LotwConfirmedAt.HasValue) sources.Add("LoTW");
+        if (qso.EqslConfirmedAt.HasValue) sources.Add("eQSL");
+        if (qso.QrzConfirmedAt.HasValue || string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase)) sources.Add("QRZ");
+        return sources.ToArray();
+    }
 
     private static string Normalize(string? value) => value?.Trim().ToUpperInvariant() ?? string.Empty;
 

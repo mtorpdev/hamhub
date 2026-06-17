@@ -264,8 +264,13 @@ function EntityList({ title, entities, emptyText, limit = 40 }: { title: string;
         <div className="max-h-72 overflow-y-auto p-2">
           <div className="flex flex-wrap gap-2">
             {visible.map(entity => (
-              <span key={entity.key} className="border border-gray-800 bg-gray-900 px-2 py-1 font-mono text-xs text-gray-200">
-                {entity.label}
+              <span key={entity.key} className="inline-flex items-center gap-1 border border-gray-800 bg-gray-900 px-2 py-1 font-mono text-xs text-gray-200">
+                <span>{entity.label}</span>
+                {entity.confirmationSources.map(source => (
+                  <span key={source} className="border border-emerald-900 bg-emerald-950 px-1 text-[10px] text-emerald-200">
+                    {source}
+                  </span>
+                ))}
               </span>
             ))}
           </div>

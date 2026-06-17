@@ -405,6 +405,7 @@ export interface AwardEntityProgress {
   label: string
   status: 'confirmed' | 'worked' | 'missing' | string
   qsoId: number | null
+  confirmationSources: string[]
 }
 
 export interface AwardProgress extends AwardCatalogItem {

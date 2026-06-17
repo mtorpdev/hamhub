@@ -23,7 +23,8 @@ public record AwardEntityProgressDto(
     string Key,
     string Label,
     string Status,
-    int? QsoId);
+    int? QsoId,
+    string[] ConfirmationSources);
 
 public record AwardProgressDto(
     string Id,

@@ -56,6 +56,36 @@ public class AwardEngineTests
     }
 
     [Fact]
+    public void CalculateIncludesConfirmationSourcesForConfirmedEntities()
+    {
+        var engine = new AwardEngine();
+        var qsos = new[]
+        {
+            new QsoEntry
+            {
+                UserId = "user-1",
+                OwnCallsign = "OZ1ME",
+                WorkedCallsign = "DL1ABC",
+                DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+                Band = Band.M20,
+                Mode = Mode.FT8,
+                Dxcc = 230,
+                Country = "Fed. Rep. of Germany",
+                LotwConfirmedAt = new DateTime(2026, 6, 17, 11, 0, 0, DateTimeKind.Utc),
+                QrzConfirmationStatus = "C"
+            }
+        };
+
+        var response = engine.Calculate(qsos, new AwardQuery());
+        var dxcc = Assert.Single(response.Awards, award => award.Id == "dxcc");
+        var germany = Assert.Single(dxcc.Entities, entity => entity.Key == "230");
+
+        Assert.Equal("confirmed", germany.Status);
+        Assert.Equal(new[] { "LoTW", "QRZ" }, germany.ConfirmationSources);
+    }
+
+
+    [Fact]
     public void CalculateSupportsContinentPrefixGridAndBandFilters()
     {
         var engine = new AwardEngine();
