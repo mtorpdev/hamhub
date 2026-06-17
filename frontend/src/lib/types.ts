@@ -381,6 +381,11 @@ export interface WsjtxAgentStatus {
   lastSeenAtUtc: string | null
 }
 
+export interface LotwActivity {
+  callsign: string
+  lastUploadDate: string
+}
+
 export interface QrzStatus {
   connected: boolean
   lastSyncedAt: string | null

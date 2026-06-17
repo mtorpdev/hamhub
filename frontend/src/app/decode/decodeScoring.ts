@@ -42,7 +42,7 @@ export type LogbookIndex = {
   byCallsign: Map<string, Qso>
 }
 
-export type RosterBadgeKey = 'calling-me' | 'dxcc' | 'continent' | 'grid' | 'band-mode' | 'new-station' | 'worked'
+export type RosterBadgeKey = 'calling-me' | 'dxcc' | 'continent' | 'grid' | 'band-mode' | 'new-station' | 'worked' | 'lotw'
 
 export type RosterBadge = {
   key: RosterBadgeKey
@@ -59,6 +59,7 @@ export type LiveRosterEntry = {
   logStatus: DecodeLogStatus
   awardReasons: AwardReason[]
   wantedReasons: WantedReason[]
+  lotwLastUploadDate: string | null
 }
 
 export type RosterFilters = {
@@ -165,7 +166,7 @@ export function enrichDecode(decode: WsjtxDecodeItem, logbook: LogbookIndex, own
   }
 }
 
-export function buildRosterEntries(rows: DecodeRow[]): LiveRosterEntry[] {
+export function buildRosterEntries(rows: DecodeRow[], lotwActivity: Record<string, string> = {}): LiveRosterEntry[] {
   const grouped = new Map<string, DecodeRow[]>()
 
   for (const row of rows) {
@@ -191,6 +192,7 @@ export function buildRosterEntries(rows: DecodeRow[]): LiveRosterEntry[] {
         logStatus: latest.logStatus,
         awardReasons,
         wantedReasons,
+        lotwLastUploadDate: lotwActivity[callsign] ?? null,
       }
       entry.priorityScore = rosterPriorityScore(entry)
       entry.badges = buildRosterBadges(entry)
@@ -358,6 +360,7 @@ function buildRosterBadges(entry: LiveRosterEntry): RosterBadge[] {
   if (entry.awardReasons.includes('band-mode')) badges.push(badge('band-mode', 'Ny band/mode', 'border-violet-700 bg-violet-950 text-violet-100'))
   if (entry.wantedReasons.includes('new-station')) badges.push(badge('new-station', 'Ny station', 'border-cyan-700 bg-cyan-950 text-cyan-100'))
   if (entry.awardReasons.includes('worked')) badges.push(badge('worked', 'Worked B4', 'border-green-800 bg-green-950 text-green-100'))
+  if (entry.lotwLastUploadDate) badges.push(badge('lotw', 'LoTW', 'border-lime-800 bg-lime-950 text-lime-100'))
   return badges
 }
 

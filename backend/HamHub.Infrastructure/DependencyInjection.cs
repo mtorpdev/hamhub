@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddHttpClient<QrzClient>();
         services.AddHttpClient<EqslClient>();
+        services.AddHttpClient<LotwActivityClient>();
 
         return services;
     }

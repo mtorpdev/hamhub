@@ -31,6 +31,7 @@ function decode(overrides: Partial<WsjtxDecodeItem>): WsjtxDecodeItem {
     dxLongitude: 10,
     dxUtcOffset: 1,
     decodedAt: overrides.decodedAt ?? '2026-06-17T10:00:00Z',
+    serverReceivedAtUtc: overrides.serverReceivedAtUtc ?? '2026-06-17T10:00:01Z',
   }
 }
 
@@ -113,4 +114,15 @@ test('filters roster to only needed entries', () => {
   const filtered = filterRosterEntries(roster, { messageFilter: 'all', search: '', onlyNeeded: true, onlyWithGrid: false })
 
   assert.deepEqual(filtered.map(entry => entry.callsign), ['EA1NEW'])
+})
+
+test('adds LoTW badge when callsign has recent LoTW activity', () => {
+  const logbook = buildLogbookIndex([])
+  const rows = [
+    enrichDecode(decode({ id: 1, dxCallsign: 'K1LOTW', dxCountry: 'United States', dxGrid: 'FN42' }), logbook, 'OZ1ME'),
+  ]
+
+  const roster = buildRosterEntries(rows, { K1LOTW: '2026-06-15' })
+
+  assert.ok(roster[0].badges.some(badge => badge.key === 'lotw' && badge.label === 'LoTW'))
 })

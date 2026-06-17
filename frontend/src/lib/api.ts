@@ -247,6 +247,12 @@ export const api = {
     saveCredentials: (username: string, password: string) =>
       request<{ username: string }>('/api/users/me/qrz-credentials', { method: 'PUT', body: JSON.stringify({ username, password }) }),
   },
+  lotw: {
+    activity: (callsigns: string[]) =>
+      request<import('./types').LotwActivity[]>(
+        `/api/lotw/activity?callsigns=${encodeURIComponent(callsigns.join(','))}`
+      ),
+  },
   wsjtx: {
     getRecentDecodes: (limit = 200) =>
       request<import('./types').WsjtxDecodeItem[]>(`/api/wsjtx/decodes?limit=${limit}`),

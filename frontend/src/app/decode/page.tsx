@@ -53,6 +53,7 @@ export default function DecodePage() {
   const [qsoSaving, setQsoSaving] = useState(false)
   const [rosterFilters, setRosterFilters] = useState<RosterFilters>(DEFAULT_ROSTER_FILTERS)
   const [rawOpen, setRawOpen] = useState(false)
+  const [lotwActivity, setLotwActivity] = useState<Record<string, string>>({})
   const lastTxRef = useRef({ call: '', transmitting: false })
   const latestCommandResultIdRef = useRef('')
 
@@ -139,7 +140,7 @@ export default function DecodePage() {
 
   const logbook = useMemo(() => qsos.length ? buildLogbookIndex(qsos) : EMPTY_LOGBOOK_INDEX, [qsos])
   const rows = useMemo(() => decodes.map(decode => enrichDecode(decode, logbook, ownCallsign)), [decodes, logbook, ownCallsign])
-  const roster = useMemo(() => buildRosterEntries(rows), [rows])
+  const roster = useMemo(() => buildRosterEntries(rows, lotwActivity), [lotwActivity, rows])
   const filteredRoster = useMemo(() => filterRosterEntries(roster, rosterFilters), [roster, rosterFilters])
   const selectedEntry = useMemo(() => {
     return roster.find(entry => entry.callsign === selectedCallsign) ?? filteredRoster[0] ?? null
@@ -165,6 +166,33 @@ export default function DecodePage() {
   const wsjtxIsOnSelectedCall = Boolean(selectedCall && wsjtxStatusCall === selectedCall)
   const wsjtxIsSendingSelectedCall = Boolean(wsjtxIsOnSelectedCall && wsjtxStatus?.transmitting)
   const selectedTxCount = selectedCall ? txCountByCall[selectedCall] ?? 0 : 0
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const callsigns = Array.from(new Set(rows
+      .map(row => row.dxCallsign?.trim().toUpperCase())
+      .filter((call): call is string => Boolean(call))))
+      .filter(call => !(call in lotwActivity))
+      .slice(0, 100)
+
+    if (callsigns.length === 0) return
+
+    let cancelled = false
+    api.lotw.activity(callsigns)
+      .then(items => {
+        if (cancelled) return
+        setLotwActivity(current => {
+          const next = { ...current }
+          for (const callsign of callsigns) next[callsign] = ''
+          for (const item of items) next[item.callsign.toUpperCase()] = item.lastUploadDate
+          return next
+        })
+      })
+      .catch(() => {})
+
+    return () => { cancelled = true }
+  }, [isAuthenticated, lotwActivity, rows])
 
   useEffect(() => {
     if (!selectedCall) return
