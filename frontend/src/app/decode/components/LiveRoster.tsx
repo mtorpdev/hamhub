@@ -111,6 +111,15 @@ export default function LiveRoster({
             <label className="flex items-center gap-2 text-sm text-gray-300">
               <input
                 type="checkbox"
+                checked={filters.onlyUnconfirmed}
+                onChange={event => setFilter('onlyUnconfirmed', event.target.checked)}
+                className="h-4 w-4 accent-cyan-500"
+              />
+              Unconfirmed
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input
+                type="checkbox"
                 checked={filters.onlyWithGrid}
                 onChange={event => setFilter('onlyWithGrid', event.target.checked)}
                 className="h-4 w-4 accent-cyan-500"
@@ -121,7 +130,7 @@ export default function LiveRoster({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => onFiltersChange({ messageFilter: 'all', search: '', onlyNeeded: false, onlyWithGrid: false })}
+              onClick={() => onFiltersChange({ messageFilter: 'all', search: '', onlyNeeded: false, onlyWithGrid: false, onlyUnconfirmed: false })}
               className="border border-gray-700 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-gray-500 hover:text-white"
             >
               Ryd filtre

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLogbookIndex, buildRosterEntries, enrichDecode, filterRosterEntries } from './decodeScoring'
+import { buildAwardSummary, buildLogbookIndex, buildRosterEntries, enrichDecode, filterRosterEntries } from './decodeScoring'
 import { Band, Mode, type Qso, type WsjtxDecodeItem } from '@/lib/types'
 
 function decode(overrides: Partial<WsjtxDecodeItem>): WsjtxDecodeItem {
@@ -64,8 +64,11 @@ function qso(overrides: Partial<Qso>): Qso {
     qrzConfirmedAt: null,
     qrzQslDate: null,
     eqslSentAt: null,
-    eqslConfirmedAt: null,
+    eqslConfirmedAt: overrides.eqslConfirmedAt ?? null,
     eqslLastResult: null,
+    lotwConfirmedAt: overrides.lotwConfirmedAt ?? null,
+    lotwQslDate: overrides.lotwQslDate ?? null,
+    lotwLastResult: overrides.lotwLastResult ?? null,
     createdAt: '2026-06-16T10:00:00Z',
     updatedAt: '2026-06-16T10:00:00Z',
   }
@@ -105,13 +108,13 @@ test('sorts calling-me and needed stations above worked stations', () => {
 })
 
 test('filters roster to only needed entries', () => {
-  const logbook = buildLogbookIndex([qso({ workedCallsign: 'SM1OLD', country: 'Sweden', locator: 'JO89' })])
+  const logbook = buildLogbookIndex([qso({ workedCallsign: 'SM1OLD', country: 'Sweden', locator: 'JO89', lotwConfirmedAt: '2026-06-17T08:10:11Z' })])
   const roster = buildRosterEntries([
     enrichDecode(decode({ id: 1, dxCallsign: 'SM1OLD', dxCountry: 'Sweden', dxGrid: 'JO89' }), logbook, 'OZ1ME'),
     enrichDecode(decode({ id: 2, dxCallsign: 'EA1NEW', dxCountry: 'Spain', dxGrid: 'IN53' }), logbook, 'OZ1ME'),
   ])
 
-  const filtered = filterRosterEntries(roster, { messageFilter: 'all', search: '', onlyNeeded: true, onlyWithGrid: false })
+  const filtered = filterRosterEntries(roster, { messageFilter: 'all', search: '', onlyNeeded: true, onlyWithGrid: false, onlyUnconfirmed: false })
 
   assert.deepEqual(filtered.map(entry => entry.callsign), ['EA1NEW'])
 })
@@ -125,4 +128,82 @@ test('adds LoTW badge when callsign has recent LoTW activity', () => {
   const roster = buildRosterEntries(rows, { K1LOTW: '2026-06-15' })
 
   assert.ok(roster[0].badges.some(badge => badge.key === 'lotw' && badge.label === 'LoTW'))
+})
+
+test('marks worked confirmed stations separately from stations needing QSL', () => {
+  const logbook = buildLogbookIndex([
+    qso({ workedCallsign: 'SM1CFM', country: 'Sweden', locator: 'JO89', lotwConfirmedAt: '2026-06-17T08:10:11Z' }),
+    qso({ workedCallsign: 'SM1QSL', country: 'Sweden', locator: 'JO99' }),
+  ])
+  const roster = buildRosterEntries([
+    enrichDecode(decode({ id: 1, dxCallsign: 'SM1CFM', dxCountry: 'Sweden', dxGrid: 'JO89' }), logbook, 'OZ1ME'),
+    enrichDecode(decode({ id: 2, dxCallsign: 'SM1QSL', dxCountry: 'Sweden', dxGrid: 'JO99' }), logbook, 'OZ1ME'),
+  ])
+
+  const confirmed = roster.find(entry => entry.callsign === 'SM1CFM')
+  const needQsl = roster.find(entry => entry.callsign === 'SM1QSL')
+
+  assert.ok(confirmed?.badges.some(badge => badge.key === 'confirmed' && badge.label === 'Confirmed'))
+  assert.equal(confirmed?.latest.needsConfirmation, false)
+  assert.ok(!confirmed?.badges.some(badge => badge.key === 'need-qsl'))
+  assert.ok(needQsl?.badges.some(badge => badge.key === 'need-qsl' && badge.label === 'Need QSL'))
+  assert.equal(needQsl?.latest.needsConfirmation, true)
+})
+
+test('filters roster to only unconfirmed worked stations', () => {
+  const logbook = buildLogbookIndex([
+    qso({ workedCallsign: 'SM1CFM', country: 'Sweden', lotwConfirmedAt: '2026-06-17T08:10:11Z' }),
+    qso({ workedCallsign: 'SM1QSL', country: 'Sweden' }),
+  ])
+  const roster = buildRosterEntries([
+    enrichDecode(decode({ id: 1, dxCallsign: 'SM1CFM', dxCountry: 'Sweden' }), logbook, 'OZ1ME'),
+    enrichDecode(decode({ id: 2, dxCallsign: 'SM1QSL', dxCountry: 'Sweden' }), logbook, 'OZ1ME'),
+    enrichDecode(decode({ id: 3, dxCallsign: 'EA1NEW', dxCountry: 'Spain' }), logbook, 'OZ1ME'),
+  ])
+
+  const filtered = filterRosterEntries(roster, { messageFilter: 'all', search: '', onlyNeeded: false, onlyWithGrid: false, onlyUnconfirmed: true })
+
+  assert.deepEqual(filtered.map(entry => entry.callsign), ['SM1QSL'])
+})
+
+test('marks worked but unconfirmed DXCC as DXCC need QSL', () => {
+  const logbook = buildLogbookIndex([
+    qso({ workedCallsign: 'SM1OLD', country: 'Sweden' }),
+  ])
+  const roster = buildRosterEntries([
+    enrichDecode(decode({ id: 1, dxCallsign: 'SM2LIVE', dxCountry: 'Sweden' }), logbook, 'OZ1ME'),
+  ])
+
+  assert.ok(roster[0].badges.some(badge => badge.key === 'dxcc-qsl' && badge.label === 'DXCC need QSL'))
+  assert.equal(roster[0].latest.needsDxccConfirmation, true)
+})
+
+test('marks worked DXCC on new band and new mode slots', () => {
+  const logbook = buildLogbookIndex([
+    qso({ workedCallsign: 'SM1OLD', country: 'Sweden', band: Band.M20, mode: Mode.FT8, lotwConfirmedAt: '2026-06-17T08:10:11Z' }),
+  ])
+  const roster = buildRosterEntries([
+    enrichDecode(decode({ id: 1, dxCallsign: 'SM2BAND', dxCountry: 'Sweden', frequencyMhz: 7.074, mode: 'FT4' }), logbook, 'OZ1ME'),
+  ])
+
+  assert.ok(roster[0].badges.some(badge => badge.key === 'dxcc-band' && badge.label === 'New band'))
+  assert.ok(roster[0].badges.some(badge => badge.key === 'dxcc-mode' && badge.label === 'New mode'))
+  assert.equal(roster[0].latest.isNewDxccBand, true)
+  assert.equal(roster[0].latest.isNewDxccMode, true)
+})
+
+test('award summary counts worked and confirmed countries separately', () => {
+  const logbook = buildLogbookIndex([
+    qso({ workedCallsign: 'SM1OLD', country: 'Sweden' }),
+    qso({ workedCallsign: 'DL1OLD', country: 'Fed. Rep. of Germany', lotwConfirmedAt: '2026-06-17T08:10:11Z' }),
+  ])
+  const roster = buildRosterEntries([
+    enrichDecode(decode({ id: 1, dxCallsign: 'SM2LIVE', dxCountry: 'Sweden' }), logbook, 'OZ1ME'),
+  ])
+
+  const summary = buildAwardSummary(roster, logbook)
+
+  assert.equal(summary.workedCountries, 2)
+  assert.equal(summary.confirmedCountries, 1)
+  assert.equal(summary.liveDxccNeedQsl, 1)
 })

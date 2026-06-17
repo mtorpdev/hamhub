@@ -1,5 +1,5 @@
 import { distanceKm, gridToLatLng } from '@/lib/maidenhead'
-import { type Qso, type WsjtxDecodeItem } from '@/lib/types'
+import { type Band, type Mode, type Qso, type WsjtxDecodeItem } from '@/lib/types'
 import {
   bandFromFrequency,
   bandModeKey,
@@ -15,7 +15,7 @@ import {
 
 export type DecodeLogStatus = 'worked' | 'new-grid' | 'new-station' | 'unknown'
 export type WantedReason = 'calling-me' | 'new-grid' | 'new-station' | 'new-band-mode' | 'worked'
-export type AwardReason = 'dxcc' | 'continent' | 'grid' | 'wpx' | 'band-mode' | 'calling-me' | 'worked'
+export type AwardReason = 'dxcc' | 'dxcc-qsl' | 'dxcc-band' | 'dxcc-mode' | 'continent' | 'grid' | 'wpx' | 'band-mode' | 'calling-me' | 'worked'
 export type MessageFilter = 'all' | 'CQ' | 'me' | '73'
 
 export type DecodeRow = WsjtxDecodeItem & {
@@ -28,6 +28,13 @@ export type DecodeRow = WsjtxDecodeItem & {
   callsMe: boolean
   canRespond: boolean
   isNewBandMode: boolean
+  isWorked: boolean
+  isConfirmed: boolean
+  needsConfirmation: boolean
+  isDxccNeeded: boolean
+  needsDxccConfirmation: boolean
+  isNewDxccBand: boolean
+  isNewDxccMode: boolean
   wantedReasons: WantedReason[]
   awardReasons: AwardReason[]
 }
@@ -37,12 +44,18 @@ export type LogbookIndex = {
   grids: Set<string>
   bandModeSlots: Set<string>
   countries: Set<string>
+  confirmedCallsigns: Set<string>
+  confirmedCountries: Set<string>
   continents: Set<string>
   prefixes: Set<string>
+  workedCountryBands: Set<string>
+  confirmedCountryBands: Set<string>
+  workedCountryModes: Set<string>
+  confirmedCountryModes: Set<string>
   byCallsign: Map<string, Qso>
 }
 
-export type RosterBadgeKey = 'calling-me' | 'dxcc' | 'continent' | 'grid' | 'band-mode' | 'new-station' | 'worked' | 'lotw'
+export type RosterBadgeKey = 'calling-me' | 'dxcc' | 'dxcc-qsl' | 'dxcc-band' | 'dxcc-mode' | 'continent' | 'grid' | 'band-mode' | 'new-station' | 'need-qsl' | 'confirmed' | 'worked' | 'lotw'
 
 export type RosterBadge = {
   key: RosterBadgeKey
@@ -67,6 +80,7 @@ export type RosterFilters = {
   search: string
   onlyNeeded: boolean
   onlyWithGrid: boolean
+  onlyUnconfirmed: boolean
 }
 
 export type AwardSummary = {
@@ -75,7 +89,11 @@ export type AwardSummary = {
   liveNeededGrids: number
   liveNeededWpx: number
   liveNeededBandModes: number
+  liveDxccNeedQsl: number
+  liveNeededDxccBands: number
+  liveNeededDxccModes: number
   workedCountries: number
+  confirmedCountries: number
   opportunities: LiveRosterEntry[]
   continents: Array<{
     code: string
@@ -91,8 +109,14 @@ export const EMPTY_LOGBOOK_INDEX: LogbookIndex = {
   grids: new Set(),
   bandModeSlots: new Set(),
   countries: new Set(),
+  confirmedCallsigns: new Set(),
+  confirmedCountries: new Set(),
   continents: new Set(),
   prefixes: new Set(),
+  workedCountryBands: new Set(),
+  confirmedCountryBands: new Set(),
+  workedCountryModes: new Set(),
+  confirmedCountryModes: new Set(),
   byCallsign: new Map(),
 }
 
@@ -111,14 +135,22 @@ export function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
   const grids = new Set<string>()
   const bandModeSlots = new Set<string>()
   const countries = new Set<string>()
+  const confirmedCallsigns = new Set<string>()
+  const confirmedCountries = new Set<string>()
   const continents = new Set<string>()
   const prefixes = new Set<string>()
+  const workedCountryBands = new Set<string>()
+  const confirmedCountryBands = new Set<string>()
+  const workedCountryModes = new Set<string>()
+  const confirmedCountryModes = new Set<string>()
   const byCallsign = new Map<string, Qso>()
 
   for (const qso of qsos) {
     const call = qso.workedCallsign?.toUpperCase()
+    const confirmed = isQsoConfirmed(qso)
     if (call) {
       callsigns.add(call)
+      if (confirmed) confirmedCallsigns.add(call)
       if (!byCallsign.has(call)) byCallsign.set(call, qso)
       bandModeSlots.add(bandModeKey(call, qso.band, qso.mode))
       const prefix = callsignPrefix(call)
@@ -129,13 +161,37 @@ export function buildLogbookIndex(qsos: Qso[]): LogbookIndex {
     if (grid) grids.add(grid)
 
     const country = normalizeCountry(qso.country)
-    if (country) countries.add(countryKey(country))
+    if (country) {
+      const key = countryKey(country)
+      countries.add(key)
+      if (confirmed) confirmedCountries.add(key)
+      workedCountryBands.add(countryBandKey(key, qso.band))
+      workedCountryModes.add(countryModeKey(key, qso.mode))
+      if (confirmed) {
+        confirmedCountryBands.add(countryBandKey(key, qso.band))
+        confirmedCountryModes.add(countryModeKey(key, qso.mode))
+      }
+    }
 
     const continent = qso.continent?.toUpperCase() || continentFromCountry(qso.country)
     if (continent) continents.add(continent)
   }
 
-  return { callsigns, grids, bandModeSlots, countries, continents, prefixes, byCallsign }
+  return {
+    callsigns,
+    grids,
+    bandModeSlots,
+    countries,
+    confirmedCallsigns,
+    confirmedCountries,
+    continents,
+    prefixes,
+    workedCountryBands,
+    confirmedCountryBands,
+    workedCountryModes,
+    confirmedCountryModes,
+    byCallsign,
+  }
 }
 
 export function enrichDecode(decode: WsjtxDecodeItem, logbook: LogbookIndex, ownCallsign: string): DecodeRow {
@@ -149,6 +205,13 @@ export function enrichDecode(decode: WsjtxDecodeItem, logbook: LogbookIndex, own
   const band = bandFromFrequency(decode.frequencyMhz)
   const mode = modeToEnum(displayMode)
   const call = decode.dxCallsign?.toUpperCase()
+  const normalizedCountry = countryKey(country)
+  const isWorked = Boolean(call && logbook.callsigns.has(call))
+  const isConfirmed = Boolean(call && logbook.confirmedCallsigns.has(call))
+  const isDxccNeeded = Boolean(normalizedCountry && !logbook.countries.has(normalizedCountry))
+  const needsDxccConfirmation = Boolean(normalizedCountry && logbook.countries.has(normalizedCountry) && !logbook.confirmedCountries.has(normalizedCountry))
+  const isNewDxccBand = Boolean(normalizedCountry && band && logbook.countries.has(normalizedCountry) && !logbook.workedCountryBands.has(countryBandKey(normalizedCountry, band)))
+  const isNewDxccMode = Boolean(normalizedCountry && mode && logbook.countries.has(normalizedCountry) && !logbook.workedCountryModes.has(countryModeKey(normalizedCountry, mode)))
 
   return {
     ...decode,
@@ -161,6 +224,13 @@ export function enrichDecode(decode: WsjtxDecodeItem, logbook: LogbookIndex, own
     callsMe,
     canRespond: decode.isCallable || callsMe,
     isNewBandMode: Boolean(call && band && mode && logbook.callsigns.has(call) && !logbook.bandModeSlots.has(bandModeKey(call, band, mode))),
+    isWorked,
+    isConfirmed,
+    needsConfirmation: isWorked && !isConfirmed,
+    isDxccNeeded,
+    needsDxccConfirmation,
+    isNewDxccBand,
+    isNewDxccMode,
     wantedReasons,
     awardReasons,
   }
@@ -204,6 +274,7 @@ export function buildRosterEntries(rows: DecodeRow[], lotwActivity: Record<strin
 export function filterRosterEntries(entries: LiveRosterEntry[], filters: RosterFilters): LiveRosterEntry[] {
   return entries.filter(entry => {
     if (filters.onlyNeeded && !isNeededEntry(entry)) return false
+    if (filters.onlyUnconfirmed && !entry.latest.needsConfirmation) return false
     if (filters.onlyWithGrid && !gridToLatLng(entry.latest.dxGrid)) return false
     if (!rowMatchesMessageFilter(entry.latest, filters.messageFilter)) return false
     if (filters.search && !entryMatchesSearch(entry, filters.search)) return false
@@ -216,11 +287,23 @@ export function buildAwardSummary(entries: LiveRosterEntry[], logbook: LogbookIn
   const liveNeededContinents = new Set<string>()
   const liveNeededGrids = new Set<string>()
   const liveNeededWpx = new Set<string>()
+  const liveDxccNeedQsl = new Set<string>()
+  const liveNeededDxccBands = new Set<string>()
+  const liveNeededDxccModes = new Set<string>()
   let liveNeededBandModes = 0
 
   for (const entry of entries) {
     const row = entry.latest
     if (entry.awardReasons.includes('dxcc')) liveNeededDxcc.add(countryKey(row.country))
+    if (entry.awardReasons.includes('dxcc-qsl')) liveDxccNeedQsl.add(countryKey(row.country))
+    if (entry.awardReasons.includes('dxcc-band')) {
+      const band = bandFromFrequency(row.frequencyMhz)
+      if (band) liveNeededDxccBands.add(countryBandKey(countryKey(row.country), band))
+    }
+    if (entry.awardReasons.includes('dxcc-mode')) {
+      const mode = modeToEnum(row.displayMode)
+      if (mode) liveNeededDxccModes.add(countryModeKey(countryKey(row.country), mode))
+    }
     if (entry.awardReasons.includes('continent') && row.continent) liveNeededContinents.add(row.continent)
     if (entry.awardReasons.includes('grid') && row.dxGrid) liveNeededGrids.add(row.dxGrid.toUpperCase())
     if (entry.awardReasons.includes('wpx') && row.prefix) liveNeededWpx.add(row.prefix)
@@ -233,7 +316,11 @@ export function buildAwardSummary(entries: LiveRosterEntry[], logbook: LogbookIn
     liveNeededGrids: liveNeededGrids.size,
     liveNeededWpx: liveNeededWpx.size,
     liveNeededBandModes,
+    liveDxccNeedQsl: liveDxccNeedQsl.size,
+    liveNeededDxccBands: liveNeededDxccBands.size,
+    liveNeededDxccModes: liveNeededDxccModes.size,
     workedCountries: logbook.countries.size,
+    confirmedCountries: logbook.confirmedCountries.size,
     opportunities: entries.filter(isNeededEntry).slice(0, 6),
     continents: CONTINENTS.map(code => {
       const liveCount = entries.filter(entry => entry.latest.continent === code).length
@@ -329,6 +416,9 @@ function getAwardReasons(
   const isWorked = logbook.callsigns.has(call)
 
   if (normalizedCountry && !logbook.countries.has(normalizedCountry)) reasons.push('dxcc')
+  if (normalizedCountry && logbook.countries.has(normalizedCountry) && !logbook.confirmedCountries.has(normalizedCountry)) reasons.push('dxcc-qsl')
+  if (normalizedCountry && band && logbook.countries.has(normalizedCountry) && !logbook.workedCountryBands.has(countryBandKey(normalizedCountry, band))) reasons.push('dxcc-band')
+  if (normalizedCountry && mode && logbook.countries.has(normalizedCountry) && !logbook.workedCountryModes.has(countryModeKey(normalizedCountry, mode))) reasons.push('dxcc-mode')
   if (continent && !logbook.continents.has(continent)) reasons.push('continent')
   if (grid && !logbook.grids.has(grid)) reasons.push('grid')
   if (prefix && !logbook.prefixes.has(prefix)) reasons.push('wpx')
@@ -342,8 +432,11 @@ function rosterPriorityScore(entry: LiveRosterEntry) {
   return (
     (entry.awardReasons.includes('calling-me') || entry.wantedReasons.includes('calling-me') ? 100000 : 0) +
     (entry.awardReasons.includes('dxcc') ? 50000 : 0) +
+    (entry.awardReasons.includes('dxcc-qsl') ? 45000 : 0) +
     (entry.awardReasons.includes('continent') ? 40000 : 0) +
     (entry.awardReasons.includes('grid') ? 30000 : 0) +
+    (entry.awardReasons.includes('dxcc-band') ? 26000 : 0) +
+    (entry.awardReasons.includes('dxcc-mode') ? 24000 : 0) +
     (entry.awardReasons.includes('band-mode') ? 20000 : 0) +
     (entry.wantedReasons.includes('new-station') ? 10000 : 0) +
     (entry.awardReasons.includes('worked') ? 1000 : 0) +
@@ -355,10 +448,15 @@ function buildRosterBadges(entry: LiveRosterEntry): RosterBadge[] {
   const badges: RosterBadge[] = []
   if (entry.awardReasons.includes('calling-me') || entry.wantedReasons.includes('calling-me')) badges.push(badge('calling-me', 'Kalder mig', 'border-red-700 bg-red-950 text-red-100'))
   if (entry.awardReasons.includes('dxcc')) badges.push(badge('dxcc', 'Ny DXCC', 'border-amber-700 bg-amber-950 text-amber-100'))
+  if (entry.awardReasons.includes('dxcc-qsl')) badges.push(badge('dxcc-qsl', 'DXCC need QSL', 'border-orange-700 bg-orange-950 text-orange-100'))
+  if (entry.awardReasons.includes('dxcc-band')) badges.push(badge('dxcc-band', 'New band', 'border-fuchsia-700 bg-fuchsia-950 text-fuchsia-100'))
+  if (entry.awardReasons.includes('dxcc-mode')) badges.push(badge('dxcc-mode', 'New mode', 'border-purple-700 bg-purple-950 text-purple-100'))
   if (entry.awardReasons.includes('continent')) badges.push(badge('continent', 'Nyt kontinent', 'border-pink-700 bg-pink-950 text-pink-100'))
   if (entry.awardReasons.includes('grid')) badges.push(badge('grid', 'Ny grid', 'border-sky-700 bg-sky-950 text-sky-100'))
   if (entry.awardReasons.includes('band-mode')) badges.push(badge('band-mode', 'Ny band/mode', 'border-violet-700 bg-violet-950 text-violet-100'))
   if (entry.wantedReasons.includes('new-station')) badges.push(badge('new-station', 'Ny station', 'border-cyan-700 bg-cyan-950 text-cyan-100'))
+  if (entry.latest.needsConfirmation) badges.push(badge('need-qsl', 'Need QSL', 'border-yellow-700 bg-yellow-950 text-yellow-100'))
+  if (entry.latest.isConfirmed) badges.push(badge('confirmed', 'Confirmed', 'border-emerald-700 bg-emerald-950 text-emerald-100'))
   if (entry.awardReasons.includes('worked')) badges.push(badge('worked', 'Worked B4', 'border-green-800 bg-green-950 text-green-100'))
   if (entry.lotwLastUploadDate) badges.push(badge('lotw', 'LoTW', 'border-lime-800 bg-lime-950 text-lime-100'))
   return badges
@@ -369,7 +467,7 @@ function badge(key: RosterBadgeKey, label: string, className: string): RosterBad
 }
 
 function isNeededEntry(entry: LiveRosterEntry) {
-  return entry.badges.some(badge => badge.key !== 'worked')
+  return entry.badges.some(badge => !['worked', 'confirmed', 'lotw'].includes(badge.key))
 }
 
 function entryMatchesSearch(entry: LiveRosterEntry, search: string) {
@@ -393,4 +491,21 @@ function entryMatchesSearch(entry: LiveRosterEntry, search: string) {
 
 function uniqueReasons<T extends string>(reasons: T[]) {
   return Array.from(new Set(reasons))
+}
+
+export function isQsoConfirmed(qso: Qso) {
+  return Boolean(
+    qso.lotwConfirmedAt ||
+    qso.eqslConfirmedAt ||
+    qso.qrzConfirmedAt ||
+    qso.qrzConfirmationStatus?.toUpperCase() === 'C'
+  )
+}
+
+function countryBandKey(country: string, band: Band | number | string) {
+  return `${country}|${Number(band)}`
+}
+
+function countryModeKey(country: string, mode: Mode | number | string) {
+  return `${country}|${Number(mode)}`
 }

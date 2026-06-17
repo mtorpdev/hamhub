@@ -32,6 +32,7 @@ const DEFAULT_ROSTER_FILTERS: RosterFilters = {
   search: '',
   onlyNeeded: false,
   onlyWithGrid: false,
+  onlyUnconfirmed: false,
 }
 
 export default function DecodePage() {

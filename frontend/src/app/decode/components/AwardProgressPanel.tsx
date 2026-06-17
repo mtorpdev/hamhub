@@ -19,12 +19,16 @@ export default function AwardProgressPanel({ summary, onSelect }: AwardProgressP
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Stat label="DXCC" value={summary.liveNeededDxcc} />
+          <Stat label="New DXCC" value={summary.liveNeededDxcc} />
+          <Stat label="DXCC QSL" value={summary.liveDxccNeedQsl} />
           <Stat label="Kontinenter" value={summary.liveNeededContinents} />
           <Stat label="Grids" value={summary.liveNeededGrids} />
           <Stat label="WPX" value={summary.liveNeededWpx} />
-          <Stat label="Band/mode" value={summary.liveNeededBandModes} />
-          <Stat label="Lande kørt" value={summary.workedCountries} muted />
+          <Stat label="DXCC band" value={summary.liveNeededDxccBands} />
+          <Stat label="DXCC mode" value={summary.liveNeededDxccModes} />
+          <Stat label="Call band/mode" value={summary.liveNeededBandModes} />
+          <Stat label="Worked DXCC" value={summary.workedCountries} muted />
+          <Stat label="Confirmed DXCC" value={summary.confirmedCountries} muted />
         </div>
 
         <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
@@ -50,7 +54,7 @@ export default function AwardProgressPanel({ summary, onSelect }: AwardProgressP
               className="grid w-full grid-cols-[82px_1fr_52px] gap-2 border border-gray-800 bg-gray-950 px-3 py-2 text-left text-xs transition-colors hover:border-gray-600"
             >
               <span className="font-mono font-bold text-white">{entry.callsign}</span>
-              <span className="truncate text-gray-400">{entry.latest.country} · {bandModeLabel(entry.latest)}</span>
+              <span className="truncate text-gray-400">{entry.latest.country} / {bandModeLabel(entry.latest)}</span>
               <span className="text-right font-mono text-gray-300">{snrText(entry.latest.snr)}</span>
             </button>
           )) : (
