@@ -23,7 +23,7 @@ import {
   type RosterFilters,
 } from './decodeScoring'
 import { commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
-import { nextLoggedQsoPopupId } from './loggedQsoPopup'
+import { syncLoggedQsoPopupSnapshot } from './loggedQsoPopup'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -47,6 +47,7 @@ export default function DecodePage() {
   const [commandStatus, setCommandStatus] = useState<string | null>(null)
   const [pendingCommand, setPendingCommand] = useState(false)
   const [qsos, setQsos] = useState<Qso[]>([])
+  const [qsosLoaded, setQsosLoaded] = useState(false)
   const [selectedCallsign, setSelectedCallsign] = useState('')
   const [wsjtxStatus, setWsjtxStatus] = useState<WsjtxStatus | null>(null)
   const [agentConnected, setAgentConnected] = useState(false)
@@ -65,7 +66,14 @@ export default function DecodePage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      api.qsos.getMine().then(setQsos).catch(() => {})
+      previousQsosRef.current = null
+      setQsosLoaded(false)
+      api.qsos.getMine()
+        .then(items => {
+          setQsos(items)
+          setQsosLoaded(true)
+        })
+        .catch(() => {})
     }
   }, [isAuthenticated])
 
@@ -241,10 +249,10 @@ export default function DecodePage() {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    const nextId = nextLoggedQsoPopupId(previousQsosRef.current, qsos, dismissedLoggedQsoIds)
+    const { nextId, snapshot } = syncLoggedQsoPopupSnapshot(previousQsosRef.current, qsos, dismissedLoggedQsoIds, qsosLoaded)
     if (nextId && !loggedQsoPopupId) setLoggedQsoPopupId(nextId)
-    previousQsosRef.current = qsos
-  }, [dismissedLoggedQsoIds, isAuthenticated, loggedQsoPopupId, qsos])
+    previousQsosRef.current = snapshot
+  }, [dismissedLoggedQsoIds, isAuthenticated, loggedQsoPopupId, qsos, qsosLoaded])
 
   const handleSelectEntry = (entry: { callsign: string }) => {
     setSelectedCallsign(entry.callsign)

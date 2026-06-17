@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { nextLoggedQsoPopupId } from './loggedQsoPopup'
+import { nextLoggedQsoPopupId, syncLoggedQsoPopupSnapshot } from './loggedQsoPopup'
 import { Band, Mode, type Qso } from '@/lib/types'
 
 function qso(overrides: Partial<Qso> = {}): Qso {
@@ -63,4 +63,17 @@ test('does not open a popup on the initial logbook load', () => {
 
 test('opens popup when the logbook was initially empty and a new QSO arrives later', () => {
   assert.equal(nextLoggedQsoPopupId([], [qso({ id: 1 })], new Set()), 1)
+})
+
+test('does not treat first fetched logbook as newly logged QSO after empty initial state', () => {
+  const beforeLoad = syncLoggedQsoPopupSnapshot(null, [], new Set(), false)
+  assert.equal(beforeLoad.nextId, null)
+  assert.equal(beforeLoad.snapshot, null)
+
+  const initialLoad = syncLoggedQsoPopupSnapshot(beforeLoad.snapshot, [qso({ id: 1 })], new Set(), true)
+  assert.equal(initialLoad.nextId, null)
+  assert.deepEqual(initialLoad.snapshot?.map(item => item.id), [1])
+
+  const laterQso = syncLoggedQsoPopupSnapshot(initialLoad.snapshot, [qso({ id: 2 }), qso({ id: 1 })], new Set(), true)
+  assert.equal(laterQso.nextId, 2)
 })
