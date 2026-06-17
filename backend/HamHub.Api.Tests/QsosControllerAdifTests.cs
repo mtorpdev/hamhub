@@ -10,9 +10,11 @@ using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
 using HamHub.Infrastructure.Services;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -120,7 +122,8 @@ public class QsosControllerAdifTests
             new EqslClient(new HttpClient()),
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
-            DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")));
+            DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
+            new DxccLookupService(new EmptyWebHostEnvironment(), NullLogger<DxccLookupService>.Instance));
 
         controller.ControllerContext = new ControllerContext
         {
@@ -152,5 +155,15 @@ public class QsosControllerAdifTests
             await Task.CompletedTask;
             yield break;
         }
+    }
+
+    private sealed class EmptyWebHostEnvironment : IWebHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Test";
+        public string ApplicationName { get; set; } = "HamHub.Api.Tests";
+        public string WebRootPath { get; set; } = Path.GetTempPath();
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+        public string ContentRootPath { get; set; } = Path.Combine(Path.GetTempPath(), $"hamhub-empty-{Guid.NewGuid():N}");
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 }

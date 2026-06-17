@@ -28,6 +28,7 @@ public class QsosController : ControllerBase
     private readonly IDataProtector _lotwProtector;
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
+    private readonly DxccLookupService _dxccLookup;
 
     public QsosController(
         ApplicationDbContext context,
@@ -36,7 +37,8 @@ public class QsosController : ControllerBase
         EqslClient eqslClient,
         OpenMeteoWeatherService weatherService,
         NoaaSwpcPropagationService propagationService,
-        IDataProtectionProvider dataProtectionProvider)
+        IDataProtectionProvider dataProtectionProvider,
+        DxccLookupService dxccLookup)
     {
         _context = context;
         _mapper = mapper;
@@ -47,6 +49,7 @@ public class QsosController : ControllerBase
         _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
         _qrzProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
         _lotwProtector = dataProtectionProvider.CreateProtector("LotwPassword");
+        _dxccLookup = dxccLookup;
     }
 
     [HttpGet]
@@ -182,6 +185,7 @@ public class QsosController : ControllerBase
         qso.OwnCallsign = qso.OwnCallsign.Trim().ToUpperInvariant();
         qso.WorkedCallsign = qso.WorkedCallsign.Trim().ToUpperInvariant();
         qso.Band = NormalizeBand(qso.Band, qso.Frequency);
+        EnrichAwardFields(qso);
         qso.UpdatedAt = DateTime.UtcNow;
 
         var duplicate = await FindDuplicateQsoAsync(userId, qso);
@@ -198,6 +202,17 @@ public class QsosController : ControllerBase
         await _context.SaveChangesAsync();
         _trigger.NotifyQsoChanged(userId);
         return CreatedAtAction(nameof(GetById), new { id = qso.Id }, _mapper.Map<QsoDto>(qso));
+    }
+
+    private void EnrichAwardFields(QsoEntry qso)
+    {
+        var lookup = _dxccLookup.Lookup(qso.WorkedCallsign);
+        if (lookup is null) return;
+
+        qso.Country ??= lookup.Country;
+        qso.Continent ??= lookup.Continent;
+        qso.CqZone ??= lookup.CqZone > 0 ? lookup.CqZone : null;
+        qso.ItuZone ??= lookup.ItuZone > 0 ? lookup.ItuZone : null;
     }
 
     private static EqslAdifQso ToEqslAdif(QsoEntry qso) => new(
