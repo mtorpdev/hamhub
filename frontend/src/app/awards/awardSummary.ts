@@ -23,3 +23,9 @@ export function progressPercent(award: Pick<AwardProgress, 'workedCount' | 'next
   if (!award.nextThreshold || award.nextThreshold <= 0) return 100
   return Math.min(100, Math.round((award.workedCount / award.nextThreshold) * 100))
 }
+
+export function awardEntitySectionLabel(status: 'confirmed' | 'worked' | 'missing') {
+  if (status === 'confirmed') return 'Confirmed entities'
+  if (status === 'worked') return 'Worked, needs QSL'
+  return 'Missing entities'
+}

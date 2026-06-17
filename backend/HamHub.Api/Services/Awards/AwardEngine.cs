@@ -111,6 +111,10 @@ public class AwardEngine
             "cont" => Normalize(qso.Continent) is { Length: > 0 } continent ? (continent, continent) : null,
             "px" => Prefix(qso.WorkedCallsign) is { Length: > 0 } prefix ? (prefix, prefix) : null,
             "grids" => Normalize(qso.Locator) is { Length: >= 4 } grid ? (grid[..4], grid[..4]) : null,
+            "cqz" => qso.CqZone is >= 1 and <= 40 ? (qso.CqZone.Value.ToString(), qso.CqZone.Value.ToString()) : null,
+            "ituz" => qso.ItuZone is >= 1 and <= 75 ? (qso.ItuZone.Value.ToString(), qso.ItuZone.Value.ToString()) : null,
+            "states-us" => IsUsDxcc(qso.Dxcc) && Normalize(qso.State) is { Length: 2 } usState && IsUsState(usState) ? (usState, usState) : null,
+            "states-ca" => qso.Dxcc == 1 && Normalize(qso.State) is { Length: 2 } caProvince && IsCanadianProvince(caProvince) ? (caProvince, caProvince) : null,
             _ => null,
         };
     }
@@ -134,6 +138,12 @@ public class AwardEngine
         string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase);
 
     private static string Normalize(string? value) => value?.Trim().ToUpperInvariant() ?? string.Empty;
+
+    private static bool IsUsDxcc(int? dxcc) => dxcc is 6 or 110 or 291;
+
+    private static bool IsUsState(string state) => UsStates.Contains(state, StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsCanadianProvince(string province) => CanadianProvinces.Contains(province, StringComparer.OrdinalIgnoreCase);
 
     private static string? Prefix(string? callsign)
     {
@@ -168,5 +178,19 @@ public class AwardEngine
         Band.M2 => "2m",
         Band.CM70 => "70cm",
         _ => band.ToString()
+    };
+
+    private static readonly string[] UsStates =
+    {
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    };
+
+    private static readonly string[] CanadianProvinces =
+    {
+        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"
     };
 }

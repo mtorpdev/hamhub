@@ -83,8 +83,66 @@ public class AwardEngineTests
         var engine = new AwardEngine();
         var response = engine.Calculate(Array.Empty<QsoEntry>(), new AwardQuery());
 
-        Assert.Contains(response.Awards, award => award.Id == "waz" && award.Status == "missing-data");
+        Assert.DoesNotContain(response.Awards, award => award.Id == "waz" && award.Status == "missing-data");
         Assert.Contains(response.Awards, award => award.Id == "pota" && award.Status == "coming-next");
+    }
+
+    [Fact]
+    public void CalculateSupportsCqAndItuZoneAwards()
+    {
+        var engine = new AwardEngine();
+        var qsos = new[]
+        {
+            Qso("OZ1AAA", dxcc: 221, country: "Denmark", cqZone: 14, ituZone: 18, confirmed: true),
+            Qso("K1ABC", dxcc: 291, country: "United States", cqZone: 5, ituZone: 8)
+        };
+
+        var response = engine.Calculate(qsos, new AwardQuery());
+        var waz = Assert.Single(response.Awards, award => award.Id == "waz");
+        var itu = Assert.Single(response.Awards, award => award.Id == "itu-zones");
+
+        Assert.Equal("active", waz.Status);
+        Assert.Equal(2, waz.WorkedCount);
+        Assert.Equal(1, waz.ConfirmedCount);
+        Assert.Equal(38, waz.MissingCount);
+        Assert.Contains(waz.Entities, entity => entity.Key == "14" && entity.Status == "confirmed");
+        Assert.Contains(waz.Entities, entity => entity.Key == "5" && entity.Status == "worked");
+
+        Assert.Equal("active", itu.Status);
+        Assert.Equal(2, itu.WorkedCount);
+        Assert.Equal(73, itu.MissingCount);
+        Assert.Contains(itu.Entities, entity => entity.Key == "18");
+        Assert.Contains(itu.Entities, entity => entity.Key == "8");
+    }
+
+    [Fact]
+    public void CalculateSupportsUsStatesAndCanadianProvinces()
+    {
+        var engine = new AwardEngine();
+        var qsos = new[]
+        {
+            Qso("K1ABC", dxcc: 291, country: "United States", state: "MA", confirmed: true),
+            Qso("VE3XYZ", dxcc: 1, country: "Canada", state: "ON"),
+            Qso("OZ1AAA", dxcc: 221, country: "Denmark", state: "DK")
+        };
+
+        var response = engine.Calculate(qsos, new AwardQuery());
+        var was = Assert.Single(response.Awards, award => award.Id == "was");
+        var canada = Assert.Single(response.Awards, award => award.Id == "canada-provinces");
+
+        Assert.Equal("active", was.Status);
+        Assert.Equal(1, was.WorkedCount);
+        Assert.Equal(1, was.ConfirmedCount);
+        Assert.Equal(49, was.MissingCount);
+        Assert.Contains(was.Entities, entity => entity.Key == "MA" && entity.Label == "MA");
+        Assert.DoesNotContain(was.Entities, entity => entity.Key == "ON");
+
+        Assert.Equal("active", canada.Status);
+        Assert.Equal(1, canada.WorkedCount);
+        Assert.Equal(0, canada.ConfirmedCount);
+        Assert.Equal(12, canada.MissingCount);
+        Assert.Contains(canada.Entities, entity => entity.Key == "ON" && entity.Label == "ON");
+        Assert.DoesNotContain(canada.Entities, entity => entity.Key == "DK");
     }
 
     private static QsoEntry Qso(
@@ -95,6 +153,9 @@ public class AwardEngineTests
         string? locator = null,
         Band band = Band.M20,
         Mode mode = Mode.FT8,
+        int? cqZone = null,
+        int? ituZone = null,
+        string? state = null,
         bool confirmed = false)
     {
         return new QsoEntry
@@ -108,6 +169,9 @@ public class AwardEngineTests
             Dxcc = dxcc,
             Country = country,
             Continent = continent,
+            CqZone = cqZone,
+            ItuZone = ituZone,
+            State = state,
             Locator = locator,
             LotwConfirmedAt = confirmed ? new DateTime(2026, 6, 17, 11, 0, 0, DateTimeKind.Utc) : null
         };

@@ -2,6 +2,20 @@ namespace HamHub.Api.Services.Awards;
 
 public static class AwardCatalog
 {
+    private static readonly string[] UsStates =
+    {
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    };
+
+    private static readonly string[] CanadianProvinces =
+    {
+        "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"
+    };
+
     public static readonly IReadOnlyList<AwardDefinition> All = new[]
     {
         new AwardDefinition(
@@ -29,10 +43,10 @@ public static class AwardCatalog
             EntityUniverse: new[] { "AF", "AN", "AS", "EU", "NA", "OC", "SA" }),
         new AwardDefinition("wpx", "CQ", "WPX", "Worked prefixes.", "active", "px", new[] { 500, 1000, 1500, 2000 }, new[] { "WorkedCallsign" }),
         new AwardDefinition("grid", "HamHub", "Grids", "Worked Maidenhead grid squares.", "active", "grids", new[] { 100, 250, 500, 1000 }, new[] { "Locator" }),
-        new AwardDefinition("waz", "CQ", "WAZ", "Worked all CQ zones.", "missing-data", "cqz", new[] { 40 }, new[] { "CqZone" }),
-        new AwardDefinition("itu-zones", "IARU", "ITU Zones", "Worked ITU zones.", "missing-data", "ituz", new[] { 75 }, new[] { "ItuZone" }),
-        new AwardDefinition("was", "ARRL", "WAS", "Worked all US states.", "missing-data", "states", new[] { 50 }, new[] { "State" }),
-        new AwardDefinition("canada-provinces", "RAC", "Canadian provinces", "Worked Canadian provinces and territories.", "missing-data", "states", new[] { 13 }, new[] { "State" }),
+        new AwardDefinition("waz", "CQ", "WAZ", "Worked all CQ zones.", "active", "cqz", new[] { 40 }, new[] { "CqZone" }, EntityUniverse: Enumerable.Range(1, 40).Select(item => item.ToString()).ToArray()),
+        new AwardDefinition("itu-zones", "IARU", "ITU Zones", "Worked ITU zones.", "active", "ituz", new[] { 75 }, new[] { "ItuZone" }, EntityUniverse: Enumerable.Range(1, 75).Select(item => item.ToString()).ToArray()),
+        new AwardDefinition("was", "ARRL", "WAS", "Worked all US states.", "active", "states-us", new[] { 50 }, new[] { "State", "Dxcc" }, EntityUniverse: UsStates),
+        new AwardDefinition("canada-provinces", "RAC", "Canadian provinces", "Worked Canadian provinces and territories.", "active", "states-ca", new[] { 13 }, new[] { "State", "Dxcc" }, EntityUniverse: CanadianProvinces),
         new AwardDefinition("counties", "CQ", "Counties", "Worked counties.", "coming-next", "cnty", new[] { 500, 1000, 2000, 3181 }, new[] { "County" }),
         new AwardDefinition("iota", "RSGB", "IOTA", "Islands on the Air references.", "coming-next", "iota", new[] { 100 }, new[] { "Iota" }),
         new AwardDefinition("pota", "POTA", "POTA", "Parks on the Air references.", "coming-next", "pota", new[] { 10, 50, 100 }, new[] { "PotaRefs" }),
