@@ -70,15 +70,18 @@ public class LotwSyncService
             if (!BandMap.TryGetValue(record.Band, out var band)) { unmatched++; continue; }
             if (!ModeMap.TryGetValue(record.Mode, out var mode)) { unmatched++; continue; }
 
-            var lower = record.TimeOn.AddSeconds(-30);
-            var upper = record.TimeOn.AddSeconds(30);
-            var match = await _db.QsoEntries.FirstOrDefaultAsync(q =>
+            var lower = record.TimeOn.AddHours(-2).AddSeconds(-60);
+            var upper = record.TimeOn.AddHours(2).AddSeconds(60);
+            var candidates = await _db.QsoEntries.Where(q =>
                 q.UserId == userId &&
                 q.WorkedCallsign == record.Call &&
                 q.DateUtc >= lower &&
                 q.DateUtc <= upper &&
-                q.Band == band &&
-                q.Mode == mode, ct);
+                q.Mode == mode)
+                .OrderByDescending(q => q.UpdatedAt)
+                .ToListAsync(ct);
+
+            var match = candidates.FirstOrDefault(q => IsLotwMatch(q, userId, record, band, mode));
 
             if (match == null)
             {
@@ -139,5 +142,19 @@ public class LotwSyncService
         qso.LotwLastResult = "LoTW status opdateret: ikke fundet";
         qso.UpdatedAt = nowUtc;
         return true;
+    }
+
+    internal static bool IsLotwMatch(QsoEntry qso, string userId, LotwQslRecord record, Band band, Mode mode)
+    {
+        return QsoIdentity.IsDuplicateCandidate(
+            qso,
+            userId,
+            qso.OwnCallsign,
+            record.Call,
+            record.TimeOn,
+            band,
+            mode,
+            TimeSpan.FromSeconds(60),
+            allowLocalTimeOffset: true);
     }
 }

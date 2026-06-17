@@ -69,4 +69,35 @@ public class LotwSyncServiceTests
         Assert.Equal(new DateTime(2026, 6, 17, 8, 10, 11, DateTimeKind.Utc), confirmedQso.LotwConfirmedAt);
         Assert.Equal("LoTW bekræftet", confirmedQso.LotwLastResult);
     }
+
+    [Fact]
+    public void IsLotwMatchAllowsKnownLocalTimeOffset()
+    {
+        var qso = new QsoEntry
+        {
+            UserId = "user-1",
+            OwnCallsign = "OZ4MT",
+            WorkedCallsign = "DL1ABC",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8
+        };
+        var lotw = new LotwQslRecord(
+            Call: "DL1ABC",
+            TimeOn: new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
+            Band: "20M",
+            Mode: "FT8",
+            QslDate: null,
+            ReceivedAt: null,
+            Gridsquare: null,
+            Country: null,
+            Dxcc: null,
+            Continent: null,
+            State: null,
+            CqZone: null,
+            ItuZone: null,
+            Iota: null);
+
+        Assert.True(LotwSyncService.IsLotwMatch(qso, "user-1", lotw, Band.M20, Mode.FT8));
+    }
 }
