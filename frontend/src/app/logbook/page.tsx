@@ -11,6 +11,7 @@ import { Band, BandLabels, Mode, ModeLabels, type Qso } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { buildQsoAwardLabels, type QsoAwardLabelTone } from './awardLabels'
 import { lotwTitle, lotwTone, type QslBadgeTone } from './qslBadges'
 
 const PAGE_SIZE = 25
@@ -79,6 +80,21 @@ function QslStatusBadge({ label, tone, title }: { label: string; tone: QslBadgeT
   return (
     <span title={title} className={`inline-flex min-w-12 items-center justify-center rounded border px-2 py-0.5 text-[11px] font-semibold ${classes[tone]}`}>
       {label}
+    </span>
+  )
+}
+
+function AwardLabelBadge({ text, tone, title }: { text: string; tone: QsoAwardLabelTone; title: string }) {
+  const classes: Record<QsoAwardLabelTone, string> = {
+    dxcc: 'border-cyan-800/70 bg-cyan-950/40 text-cyan-100',
+    zone: 'border-blue-800/70 bg-blue-950/40 text-blue-100',
+    reference: 'border-violet-800/70 bg-violet-950/40 text-violet-100',
+    county: 'border-slate-700 bg-slate-900/70 text-slate-100',
+  }
+
+  return (
+    <span title={title} className={`inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-semibold ${classes[tone]}`}>
+      {text}
     </span>
   )
 }
@@ -212,7 +228,7 @@ export default function LogbookPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'QSL'].map(h => (
+                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'Awards', 'QSL'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -231,6 +247,13 @@ export default function LogbookPage() {
                       <td className="px-4 py-3"><Badge>{ModeLabels[q.mode]}</Badge></td>
                       <td className="px-4 py-3 text-gray-400">{q.rstSent}/{q.rstReceived}</td>
                       <td className="px-4 py-3 text-gray-400">{q.country || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex max-w-xs flex-wrap gap-1.5">
+                          {buildQsoAwardLabels(q).length > 0 ? buildQsoAwardLabels(q).map(label => (
+                            <AwardLabelBadge key={label.key} text={label.text} title={label.title} tone={label.tone} />
+                          )) : <span className="text-gray-600">â€”</span>}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
                           <QslStatusBadge label="QRZ" tone={qrzTone(q)} title={qrzTitle(q)} />
