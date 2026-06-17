@@ -179,7 +179,21 @@ public class QsosController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var qso = _mapper.Map<QsoEntry>(dto);
         qso.UserId = userId;
+        qso.OwnCallsign = qso.OwnCallsign.Trim().ToUpperInvariant();
+        qso.WorkedCallsign = qso.WorkedCallsign.Trim().ToUpperInvariant();
+        qso.Band = NormalizeBand(qso.Band, qso.Frequency);
         qso.UpdatedAt = DateTime.UtcNow;
+
+        var duplicate = await FindDuplicateQsoAsync(userId, qso);
+        if (duplicate != null)
+        {
+            MergeQsoFields(duplicate, qso);
+            duplicate.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            _trigger.NotifyQsoChanged(userId);
+            return Ok(_mapper.Map<QsoDto>(duplicate));
+        }
+
         _context.QsoEntries.Add(qso);
         await _context.SaveChangesAsync();
         _trigger.NotifyQsoChanged(userId);
@@ -304,7 +318,7 @@ public class QsosController : ControllerBase
         qso.DateUtc = dto.DateUtc;
         qso.OwnCallsign = dto.OwnCallsign;
         qso.WorkedCallsign = dto.WorkedCallsign;
-        qso.Band = dto.Band;
+        qso.Band = NormalizeBand(dto.Band, dto.Frequency);
         qso.Frequency = dto.Frequency;
         qso.Mode = dto.Mode;
         qso.RstSent = dto.RstSent;
@@ -334,6 +348,59 @@ public class QsosController : ControllerBase
         await _context.SaveChangesAsync();
         _trigger.NotifyQsoChanged(userId!);
         return Ok(_mapper.Map<QsoDto>(qso));
+    }
+
+    private async Task<QsoEntry?> FindDuplicateQsoAsync(string userId, QsoEntry qso, CancellationToken ct = default)
+    {
+        var lower = qso.DateUtc.AddSeconds(-60);
+        var upper = qso.DateUtc.AddSeconds(60);
+        var candidates = await _context.QsoEntries
+            .Where(existing =>
+                existing.UserId == userId &&
+                existing.WorkedCallsign == qso.WorkedCallsign &&
+                existing.DateUtc >= lower &&
+                existing.DateUtc <= upper &&
+                existing.Mode == qso.Mode)
+            .OrderByDescending(existing => existing.UpdatedAt)
+            .ToListAsync(ct);
+
+        return candidates.FirstOrDefault(existing => QsoIdentity.IsDuplicateCandidate(
+            existing,
+            userId,
+            qso.OwnCallsign,
+            qso.WorkedCallsign,
+            qso.DateUtc,
+            qso.Band,
+            qso.Mode,
+            TimeSpan.FromSeconds(60)));
+    }
+
+    private static Band NormalizeBand(Band band, double? frequency)
+    {
+        if (Enum.IsDefined(band) && (int)band != 0) return band;
+        return QsoIdentity.InferBandFromFrequency(frequency) ?? band;
+    }
+
+    private static void MergeQsoFields(QsoEntry target, QsoEntry incoming)
+    {
+        target.Band = NormalizeBand(target.Band, target.Frequency) is var normalizedTarget && (int)normalizedTarget != 0
+            ? normalizedTarget
+            : NormalizeBand(incoming.Band, incoming.Frequency);
+        target.Frequency ??= incoming.Frequency;
+        target.RstSent ??= incoming.RstSent;
+        target.RstReceived ??= incoming.RstReceived;
+        target.Submode ??= incoming.Submode;
+        target.Locator ??= incoming.Locator;
+        target.MyGridsquare ??= incoming.MyGridsquare;
+        target.Country ??= incoming.Country;
+        target.Dxcc ??= incoming.Dxcc;
+        target.Continent ??= incoming.Continent;
+        target.State ??= incoming.State;
+        target.Iota ??= incoming.Iota;
+        target.Name ??= incoming.Name;
+        target.Qth ??= incoming.Qth;
+        target.TxPower ??= incoming.TxPower;
+        target.Comment ??= incoming.Comment;
     }
 
     [HttpPost("import/adif")]

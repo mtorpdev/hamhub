@@ -110,14 +110,27 @@ public class QrzSyncService : BackgroundService
                 if (!BandMap.TryGetValue(qrzQso.Band, out var band)) continue;
                 if (!ModeMap.TryGetValue(qrzQso.Mode, out var mode)) continue;
 
-                var lower = qrzQso.TimeOn.AddSeconds(-30);
-                var upper = qrzQso.TimeOn.AddSeconds(30);
+                var lower = qrzQso.TimeOn.AddSeconds(-60);
+                var upper = qrzQso.TimeOn.AddSeconds(60);
 
-                var match = await db.QsoEntries.FirstOrDefaultAsync(q =>
-                    q.UserId == userId &&
-                    q.WorkedCallsign == qrzQso.Call &&
-                    q.DateUtc >= lower && q.DateUtc <= upper &&
-                    q.Mode == mode && q.Band == band, ct);
+                var candidates = await db.QsoEntries
+                    .Where(q =>
+                        q.UserId == userId &&
+                        q.WorkedCallsign == qrzQso.Call &&
+                        q.DateUtc >= lower && q.DateUtc <= upper &&
+                        q.Mode == mode)
+                    .OrderByDescending(q => q.UpdatedAt)
+                    .ToListAsync(ct);
+
+                var match = candidates.FirstOrDefault(q => QsoIdentity.IsDuplicateCandidate(
+                    q,
+                    userId,
+                    user.Callsign ?? string.Empty,
+                    qrzQso.Call,
+                    qrzQso.TimeOn,
+                    band,
+                    mode,
+                    TimeSpan.FromSeconds(60)));
 
                 if (match == null)
                 {
@@ -154,11 +167,11 @@ public class QrzSyncService : BackgroundService
                 }
                 else if (match.QrzId == null)
                 {
-                    // Match found, not yet linked. Newest-wins: compare local UpdatedAt vs QRZ QSO date.
-                    // If local was modified after the QSO time (i.e., user edited it locally), local is newer.
-                    if (match.UpdatedAt > match.CreatedAt)
+                    // Match found, not yet linked. QRZ already has this QSO, so link it
+                    // instead of inserting another QRZ record and echoing back a duplicate.
+                    if (ShouldUploadMatchedLocalQso(match))
                     {
-                        // Local was edited after creation — upload local version to QRZ
+                        // Reserved for a future explicit "replace QRZ record" flow.
                         try
                         {
                             var adifQso = new AdifQso(
@@ -194,12 +207,15 @@ public class QrzSyncService : BackgroundService
                     else
                     {
                         // QRZ is authoritative — overwrite local fields and link
+                        match.Band = band;
                         match.RstSent = qrzQso.RstSent ?? match.RstSent;
                         match.RstReceived = qrzQso.RstReceived ?? match.RstReceived;
                         match.Locator = qrzQso.Gridsquare ?? match.Locator;
                         match.Country = qrzQso.Country ?? match.Country;
                         match.QrzId = qrzQso.LogId;
                     }
+                    if (!Enum.IsDefined(match.Band) || (int)match.Band == 0)
+                        match.Band = band;
                     ApplyQrzConfirmation(match, qrzQso);
                     match.UpdatedAt = DateTime.UtcNow;
                 }
@@ -276,4 +292,11 @@ public class QrzSyncService : BackgroundService
 
     private static bool IsQrzConfirmed(string? status) =>
         string.Equals(status, "C", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ShouldUploadMatchedLocalQso(QsoEntry qso)
+    {
+        // A QRZ fetch match means QRZ already has this QSO. Linking the fetched LOGID is
+        // safer than inserting another QRZ record, which can echo back as a HamHub duplicate.
+        return false;
+    }
 }

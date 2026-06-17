@@ -50,11 +50,12 @@ public class HamHubApiClient
             ownCallsign = qso.OwnCallsign,
             workedCallsign = qso.WorkedCallsign,
             frequency = qso.FrequencyMhz,
+            band = MapBand(qso.FrequencyMhz),
             mode = MapMode(qso.Mode),
             rstSent = qso.RstSent,
             rstReceived = qso.RstReceived,
             locator = qso.Locator,
-            notes = qso.Notes
+            comment = qso.Notes
         };
         await SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, "/api/qsos", body), ct);
     }
@@ -184,5 +185,23 @@ public class HamHubApiClient
         "FM"   => 7,
         "AM"   => 8,
         _      => 3
+    };
+
+    private static int MapBand(double frequencyMhz) => frequencyMhz switch
+    {
+        >= 1.8 and <= 2.0 => 1,
+        >= 3.5 and <= 4.0 => 2,
+        >= 5.0 and <= 5.5 => 3,
+        >= 7.0 and <= 7.3 => 4,
+        >= 10.1 and <= 10.15 => 5,
+        >= 14.0 and <= 14.35 => 6,
+        >= 18.068 and <= 18.168 => 7,
+        >= 21.0 and <= 21.45 => 8,
+        >= 24.89 and <= 24.99 => 9,
+        >= 28.0 and <= 29.7 => 10,
+        >= 50.0 and <= 54.0 => 11,
+        >= 144.0 and <= 148.0 => 12,
+        >= 420.0 and <= 450.0 => 13,
+        _ => 6
     };
 }
