@@ -36,7 +36,8 @@ public static class QsoIdentity
         DateTime dateUtc,
         Band band,
         Mode mode,
-        TimeSpan tolerance)
+        TimeSpan tolerance,
+        bool allowLocalTimeOffset = false)
     {
         if (existing.UserId != userId) return false;
         if (!SameCallsign(existing.WorkedCallsign, workedCallsign)) return false;
@@ -46,7 +47,7 @@ public static class QsoIdentity
         if (existing.Mode != mode) return false;
         if (!BandsMatch(existing.Band, band)) return false;
 
-        return (existing.DateUtc - dateUtc).Duration() <= tolerance;
+        return TimesMatch(existing.DateUtc, dateUtc, tolerance, allowLocalTimeOffset);
     }
 
     public static bool BandsMatch(Band existing, Band incoming)
@@ -58,4 +59,16 @@ public static class QsoIdentity
 
     private static bool SameCallsign(string left, string right) =>
         string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool TimesMatch(DateTime existingUtc, DateTime incomingUtc, TimeSpan tolerance, bool allowLocalTimeOffset)
+    {
+        var delta = existingUtc - incomingUtc;
+        if (delta.Duration() <= tolerance) return true;
+        if (!allowLocalTimeOffset) return false;
+
+        var knownOffsets = new[] { TimeSpan.FromHours(1), TimeSpan.FromHours(2) };
+        return knownOffsets.Any(offset =>
+            (delta - offset).Duration() <= tolerance ||
+            (delta + offset).Duration() <= tolerance);
+    }
 }

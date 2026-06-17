@@ -110,8 +110,8 @@ public class QrzSyncService : BackgroundService
                 if (!BandMap.TryGetValue(qrzQso.Band, out var band)) continue;
                 if (!ModeMap.TryGetValue(qrzQso.Mode, out var mode)) continue;
 
-                var lower = qrzQso.TimeOn.AddSeconds(-60);
-                var upper = qrzQso.TimeOn.AddSeconds(60);
+                var lower = qrzQso.TimeOn.AddHours(-2).AddSeconds(-60);
+                var upper = qrzQso.TimeOn.AddHours(2).AddSeconds(60);
 
                 var candidates = await db.QsoEntries
                     .Where(q =>
@@ -130,7 +130,8 @@ public class QrzSyncService : BackgroundService
                     qrzQso.TimeOn,
                     band,
                     mode,
-                    TimeSpan.FromSeconds(60)));
+                    TimeSpan.FromSeconds(60),
+                    allowLocalTimeOffset: true));
 
                 if (match == null)
                 {

@@ -42,6 +42,56 @@ public class QsoIdentityTests
     }
 
     [Fact]
+    public void IsDuplicateCandidateCanMatchKnownLocalTimeOffsetForExternalLogSync()
+    {
+        var existing = new QsoEntry
+        {
+            UserId = "user-1",
+            OwnCallsign = "OZ4MT",
+            WorkedCallsign = "4U1A",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8,
+            Frequency = 14.075562
+        };
+
+        Assert.True(QsoIdentity.IsDuplicateCandidate(
+            existing,
+            userId: "user-1",
+            ownCallsign: "OZ4MT",
+            workedCallsign: "4U1A",
+            dateUtc: new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
+            band: Band.M20,
+            mode: Mode.FT8,
+            tolerance: TimeSpan.FromSeconds(60),
+            allowLocalTimeOffset: true));
+    }
+
+    [Fact]
+    public void IsDuplicateCandidateDoesNotMatchLocalTimeOffsetUnlessExplicitlyAllowed()
+    {
+        var existing = new QsoEntry
+        {
+            UserId = "user-1",
+            OwnCallsign = "OZ4MT",
+            WorkedCallsign = "4U1A",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8
+        };
+
+        Assert.False(QsoIdentity.IsDuplicateCandidate(
+            existing,
+            userId: "user-1",
+            ownCallsign: "OZ4MT",
+            workedCallsign: "4U1A",
+            dateUtc: new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
+            band: Band.M20,
+            mode: Mode.FT8,
+            tolerance: TimeSpan.FromSeconds(60)));
+    }
+
+    [Fact]
     public void IsDuplicateCandidateRejectsDifferentCallsigns()
     {
         var existing = new QsoEntry
