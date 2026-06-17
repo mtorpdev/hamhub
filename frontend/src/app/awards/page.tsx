@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Band, BandLabels, Mode, ModeLabels, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { awardEntityHref } from './awardLinks'
 import { awardEntitySectionLabel, awardStatusClass, awardStatusLabel, nextThresholdText, progressPercent } from './awardSummary'
 
 const STATUS_OPTIONS: Array<{ value: AwardStatus | ''; label: string }> = [
@@ -263,16 +265,7 @@ function EntityList({ title, entities, emptyText, limit = 40 }: { title: string;
       {visible.length > 0 ? (
         <div className="max-h-72 overflow-y-auto p-2">
           <div className="flex flex-wrap gap-2">
-            {visible.map(entity => (
-              <span key={entity.key} className="inline-flex items-center gap-1 border border-gray-800 bg-gray-900 px-2 py-1 font-mono text-xs text-gray-200">
-                <span>{entity.label}</span>
-                {entity.confirmationSources.map(source => (
-                  <span key={source} className="border border-emerald-900 bg-emerald-950 px-1 text-[10px] text-emerald-200">
-                    {source}
-                  </span>
-                ))}
-              </span>
-            ))}
+            {visible.map(entity => <EntityBadge key={entity.key} entity={entity} />)}
           </div>
           {entities.length > visible.length && <p className="mt-3 text-xs text-gray-500">Viser {visible.length} af {entities.length}.</p>}
         </div>
@@ -280,6 +273,31 @@ function EntityList({ title, entities, emptyText, limit = 40 }: { title: string;
         <p className="px-3 py-6 text-sm text-gray-500">{emptyText}</p>
       )}
     </div>
+  )
+}
+
+function EntityBadge({ entity }: { entity: AwardEntityProgress }) {
+  const href = awardEntityHref(entity)
+  const className = 'inline-flex items-center gap-1 border border-gray-800 bg-gray-900 px-2 py-1 font-mono text-xs text-gray-200 hover:border-cyan-700 hover:text-white'
+  const content = (
+    <>
+      <span>{entity.label}</span>
+      {entity.confirmationSources.map(source => (
+        <span key={source} className="border border-emerald-900 bg-emerald-950 px-1 text-[10px] text-emerald-200">
+          {source}
+        </span>
+      ))}
+    </>
+  )
+
+  return href ? (
+    <Link href={href} className={className} title="Ã…bn QSO i logbogen">
+      {content}
+    </Link>
+  ) : (
+    <span className={className}>
+      {content}
+    </span>
   )
 }
 
