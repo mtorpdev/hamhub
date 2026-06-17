@@ -89,11 +89,13 @@ export default function DecodePage() {
     let cancelled = false
     const refreshStatus = async () => {
       try {
-        const status = await api.wsjtx.getStatus()
+        const [status, agentStatus] = await Promise.all([
+          api.wsjtx.getStatus(),
+          api.wsjtx.getAgentStatus(),
+        ])
         if (!cancelled) {
           setWsjtxStatus(status)
-          const updatedAt = status ? new Date(status.updatedAtUtc).getTime() : 0
-          setAgentConnected(Boolean(updatedAt && Date.now() - updatedAt < 30_000))
+          setAgentConnected(agentStatus.connected)
         }
       } catch {
         if (!cancelled) {

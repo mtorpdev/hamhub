@@ -374,6 +374,11 @@ export interface WsjtxStatus {
   updatedAtUtc: string
 }
 
+export interface WsjtxAgentStatus {
+  connected: boolean
+  lastSeenAtUtc: string | null
+}
+
 export interface QrzStatus {
   connected: boolean
   lastSyncedAt: string | null

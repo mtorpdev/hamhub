@@ -270,6 +270,8 @@ export const api = {
       request<import('./types').WsjtxCommandResult[]>('/api/wsjtx/commands/results'),
     getStatus: async () =>
       (await request<import('./types').WsjtxStatus | undefined>('/api/wsjtx/status')) ?? null,
+    getAgentStatus: () =>
+      request<import('./types').WsjtxAgentStatus>('/api/wsjtx/agent-status'),
   },
   eqsl: {
     status: () =>

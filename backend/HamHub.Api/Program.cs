@@ -112,6 +112,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddSingleton<HamHub.Api.Services.WsjtxBroadcaster>();
 builder.Services.AddSingleton<HamHub.Api.Services.WsjtxCommandQueue>();
 builder.Services.AddSingleton<HamHub.Api.Services.WsjtxStatusCache>();
+builder.Services.AddSingleton<HamHub.Api.Services.WsjtxAgentPresenceCache>();
 builder.Services.AddSingleton<HamHub.Api.Services.CommunityPresenceTracker>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxccLookupService>();

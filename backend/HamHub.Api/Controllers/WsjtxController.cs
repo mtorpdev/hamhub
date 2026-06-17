@@ -26,6 +26,7 @@ public class WsjtxController : ControllerBase
     private readonly WsjtxBroadcaster _broadcaster;
     private readonly WsjtxCommandQueue _commands;
     private readonly WsjtxStatusCache _statusCache;
+    private readonly WsjtxAgentPresenceCache _agentPresence;
     private readonly DxccLookupService _dxccLookup;
 
     public WsjtxController(
@@ -33,12 +34,14 @@ public class WsjtxController : ControllerBase
         WsjtxBroadcaster broadcaster,
         WsjtxCommandQueue commands,
         WsjtxStatusCache statusCache,
+        WsjtxAgentPresenceCache agentPresence,
         DxccLookupService dxccLookup)
     {
         _db = db;
         _broadcaster = broadcaster;
         _commands = commands;
         _statusCache = statusCache;
+        _agentPresence = agentPresence;
         _dxccLookup = dxccLookup;
     }
 
@@ -63,6 +66,7 @@ public class WsjtxController : ControllerBase
         if (dtos is null or { Length: 0 }) return BadRequest("Batch must not be empty.");
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        _agentPresence.Touch(userId);
 
         var columns = await GetWsjtxDecodeColumnsAsync();
         var outDtos = new List<WsjtxDecodeDto>(dtos.Length);
@@ -351,6 +355,7 @@ public class WsjtxController : ControllerBase
     public IActionResult GetNextCommand()
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        _agentPresence.Touch(userId);
         return _commands.TryDequeue(userId, out var command) ? Ok(command) : NoContent();
     }
 
@@ -376,6 +381,7 @@ public class WsjtxController : ControllerBase
     public IActionResult PostStatus([FromBody] WsjtxStatusDto status)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        _agentPresence.Touch(userId);
         _statusCache.Update(userId, status);
         return NoContent();
     }
@@ -387,6 +393,14 @@ public class WsjtxController : ControllerBase
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         var status = _statusCache.GetLatest(userId);
         return status is null ? NoContent() : Ok(status);
+    }
+
+    [Authorize]
+    [HttpGet("agent-status")]
+    public IActionResult GetAgentStatus()
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        return Ok(_agentPresence.GetStatus(userId));
     }
 
     // GET /api/wsjtx/stream  — intentionally public (community feed)
