@@ -47,10 +47,10 @@ public static class AwardCatalog
         new AwardDefinition("itu-zones", "IARU", "ITU Zones", "Worked ITU zones.", "active", "ituz", new[] { 75 }, new[] { "ItuZone" }, EntityUniverse: Enumerable.Range(1, 75).Select(item => item.ToString()).ToArray()),
         new AwardDefinition("was", "ARRL", "WAS", "Worked all US states.", "active", "states-us", new[] { 50 }, new[] { "State", "Dxcc" }, EntityUniverse: UsStates),
         new AwardDefinition("canada-provinces", "RAC", "Canadian provinces", "Worked Canadian provinces and territories.", "active", "states-ca", new[] { 13 }, new[] { "State", "Dxcc" }, EntityUniverse: CanadianProvinces),
-        new AwardDefinition("counties", "CQ", "Counties", "Worked counties.", "coming-next", "cnty", new[] { 500, 1000, 2000, 3181 }, new[] { "County" }),
-        new AwardDefinition("iota", "RSGB", "IOTA", "Islands on the Air references.", "coming-next", "iota", new[] { 100 }, new[] { "Iota" }),
-        new AwardDefinition("pota", "POTA", "POTA", "Parks on the Air references.", "coming-next", "pota", new[] { 10, 50, 100 }, new[] { "PotaRefs" }),
-        new AwardDefinition("sota", "SOTA", "SOTA", "Summits on the Air references.", "coming-next", "sota", new[] { 10, 50, 100 }, new[] { "SotaRefs" }),
+        new AwardDefinition("counties", "CQ", "Counties", "Worked counties.", "active", "cnty", new[] { 500, 1000, 2000, 3181 }, new[] { "County" }),
+        new AwardDefinition("iota", "RSGB", "IOTA", "Islands on the Air references.", "active", "iota", new[] { 100 }, new[] { "Iota" }),
+        new AwardDefinition("pota", "POTA", "POTA", "Parks on the Air references.", "active", "pota", new[] { 10, 50, 100 }, new[] { "PotaRefs" }),
+        new AwardDefinition("sota", "SOTA", "SOTA", "Summits on the Air references.", "active", "sota", new[] { 10, 50, 100 }, new[] { "SotaRefs" }),
     };
 
     public static AwardCatalogItemDto[] Items() => All

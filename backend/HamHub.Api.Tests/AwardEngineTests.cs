@@ -84,7 +84,9 @@ public class AwardEngineTests
         var response = engine.Calculate(Array.Empty<QsoEntry>(), new AwardQuery());
 
         Assert.DoesNotContain(response.Awards, award => award.Id == "waz" && award.Status == "missing-data");
-        Assert.Contains(response.Awards, award => award.Id == "pota" && award.Status == "coming-next");
+        Assert.Contains(response.Awards, award => award.Id == "pota" && award.Status == "active");
+        Assert.Contains(response.Awards, award => award.Id == "sota" && award.Status == "active");
+        Assert.Contains(response.Awards, award => award.Id == "iota" && award.Status == "active");
     }
 
     [Fact]
@@ -145,6 +147,58 @@ public class AwardEngineTests
         Assert.DoesNotContain(canada.Entities, entity => entity.Key == "DK");
     }
 
+    [Fact]
+    public void CalculateSupportsIotaPotaSotaAndCountyAwards()
+    {
+        var engine = new AwardEngine();
+        var qsos = new[]
+        {
+            Qso(
+                "OZ1AAA",
+                dxcc: 221,
+                country: "Denmark",
+                iota: "eu-029",
+                potaRefs: "DK-0001, DK-0002",
+                sotaRefs: "OZ/OZ-001; OZ/OZ-002",
+                county: "DK-AR",
+                confirmed: true),
+            Qso(
+                "K1ABC",
+                dxcc: 291,
+                country: "United States",
+                potaRefs: "US-1234 US-5678",
+                county: "MA-Middlesex")
+        };
+
+        var response = engine.Calculate(qsos, new AwardQuery());
+        var iota = Assert.Single(response.Awards, award => award.Id == "iota");
+        var pota = Assert.Single(response.Awards, award => award.Id == "pota");
+        var sota = Assert.Single(response.Awards, award => award.Id == "sota");
+        var counties = Assert.Single(response.Awards, award => award.Id == "counties");
+
+        Assert.Equal("active", iota.Status);
+        Assert.Equal(1, iota.WorkedCount);
+        Assert.Equal(1, iota.ConfirmedCount);
+        Assert.Contains(iota.Entities, entity => entity.Key == "EU-029" && entity.Status == "confirmed");
+
+        Assert.Equal("active", pota.Status);
+        Assert.Equal(4, pota.WorkedCount);
+        Assert.Equal(2, pota.ConfirmedCount);
+        Assert.Contains(pota.Entities, entity => entity.Key == "DK-0001" && entity.Status == "confirmed");
+        Assert.Contains(pota.Entities, entity => entity.Key == "US-1234" && entity.Status == "worked");
+
+        Assert.Equal("active", sota.Status);
+        Assert.Equal(2, sota.WorkedCount);
+        Assert.Equal(2, sota.ConfirmedCount);
+        Assert.Contains(sota.Entities, entity => entity.Key == "OZ/OZ-001");
+
+        Assert.Equal("active", counties.Status);
+        Assert.Equal(2, counties.WorkedCount);
+        Assert.Equal(1, counties.ConfirmedCount);
+        Assert.Contains(counties.Entities, entity => entity.Key == "DK-AR");
+        Assert.Contains(counties.Entities, entity => entity.Key == "MA-MIDDLESEX");
+    }
+
     private static QsoEntry Qso(
         string callsign,
         int dxcc,
@@ -156,6 +210,10 @@ public class AwardEngineTests
         int? cqZone = null,
         int? ituZone = null,
         string? state = null,
+        string? county = null,
+        string? iota = null,
+        string? potaRefs = null,
+        string? sotaRefs = null,
         bool confirmed = false)
     {
         return new QsoEntry
@@ -172,6 +230,10 @@ public class AwardEngineTests
             CqZone = cqZone,
             ItuZone = ituZone,
             State = state,
+            County = county,
+            Iota = iota,
+            PotaRefs = potaRefs,
+            SotaRefs = sotaRefs,
             Locator = locator,
             LotwConfirmedAt = confirmed ? new DateTime(2026, 6, 17, 11, 0, 0, DateTimeKind.Utc) : null
         };

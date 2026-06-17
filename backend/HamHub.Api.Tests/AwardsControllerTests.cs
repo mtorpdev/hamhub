@@ -24,7 +24,7 @@ public class AwardsControllerTests
         var ok = Assert.IsType<OkObjectResult>(result);
         var catalog = Assert.IsAssignableFrom<IReadOnlyList<AwardCatalogItemDto>>(ok.Value);
         Assert.Contains(catalog, award => award.Id == "dxcc" && award.Status == "active");
-        Assert.Contains(catalog, award => award.Id == "pota" && award.Status == "coming-next");
+        Assert.Contains(catalog, award => award.Id == "pota" && award.Status == "active");
     }
 
     [Fact]

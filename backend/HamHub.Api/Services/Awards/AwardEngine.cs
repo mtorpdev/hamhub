@@ -59,15 +59,14 @@ public class AwardEngine
 
         foreach (var qso in qsos)
         {
-            var entity = EntityFor(definition.RuleType, qso);
-            if (entity is null) continue;
+            foreach (var (key, label) in EntitiesFor(definition.RuleType, qso))
+            {
+                if (!worked.ContainsKey(key))
+                    worked[key] = new AwardEntityProgressDto(key, label, "worked", qso.Id == 0 ? null : qso.Id);
 
-            var (key, label) = entity.Value;
-            if (!worked.ContainsKey(key))
-                worked[key] = new AwardEntityProgressDto(key, label, "worked", qso.Id == 0 ? null : qso.Id);
-
-            if (IsConfirmed(qso))
-                confirmed.Add(key);
+                if (IsConfirmed(qso))
+                    confirmed.Add(key);
+            }
         }
 
         var entities = worked.Values
@@ -95,9 +94,9 @@ public class AwardEngine
             UnconfirmedEntities: unconfirmed);
     }
 
-    private static (string Key, string Label)? EntityFor(string ruleType, QsoEntry qso)
+    private static IEnumerable<(string Key, string Label)> EntitiesFor(string ruleType, QsoEntry qso)
     {
-        return ruleType switch
+        (string Key, string Label)? entity = ruleType switch
         {
             "dxcc" or "confirmed-dxcc" => qso.Dxcc.HasValue && qso.Dxcc.Value > 0
                 ? (qso.Dxcc.Value.ToString(), qso.Country ?? qso.Dxcc.Value.ToString())
@@ -115,8 +114,26 @@ public class AwardEngine
             "ituz" => qso.ItuZone is >= 1 and <= 75 ? (qso.ItuZone.Value.ToString(), qso.ItuZone.Value.ToString()) : null,
             "states-us" => IsUsDxcc(qso.Dxcc) && Normalize(qso.State) is { Length: 2 } usState && IsUsState(usState) ? (usState, usState) : null,
             "states-ca" => qso.Dxcc == 1 && Normalize(qso.State) is { Length: 2 } caProvince && IsCanadianProvince(caProvince) ? (caProvince, caProvince) : null,
+            "cnty" => Normalize(qso.County) is { Length: > 0 } county ? (county, county) : null,
+            "iota" => Normalize(qso.Iota) is { Length: > 0 } iota ? (iota, iota) : null,
             _ => null,
         };
+
+        if (entity is not null)
+        {
+            yield return entity.Value;
+            yield break;
+        }
+
+        var refs = ruleType switch
+        {
+            "pota" => ReferenceValues(qso.PotaRefs),
+            "sota" => ReferenceValues(qso.SotaRefs),
+            _ => Array.Empty<string>()
+        };
+
+        foreach (var reference in refs)
+            yield return (reference, reference);
     }
 
     private static IEnumerable<AwardEntityProgressDto> MissingEntities(AwardDefinition definition, IEnumerable<string> workedKeys)
@@ -138,6 +155,12 @@ public class AwardEngine
         string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase);
 
     private static string Normalize(string? value) => value?.Trim().ToUpperInvariant() ?? string.Empty;
+
+    private static string[] ReferenceValues(string? value) =>
+        Normalize(value)
+            .Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static bool IsUsDxcc(int? dxcc) => dxcc is 6 or 110 or 291;
 

@@ -496,9 +496,17 @@ public class QsosController : ControllerBase
                 Submode = GetField(rec, "SUBMODE"),
                 Country = GetField(rec, "COUNTRY"),
                 Dxcc = int.TryParse(GetField(rec, "DXCC"), out var dxcc) ? dxcc : null,
+                CqZone = int.TryParse(GetField(rec, "CQZ"), out var cqz) ? cqz : null,
+                ItuZone = int.TryParse(GetField(rec, "ITUZ"), out var ituz) ? ituz : null,
                 Continent = GetField(rec, "CONT"),
                 State = GetField(rec, "STATE"),
+                County = NormalizeAwardText(GetField(rec, "CNTY")),
+                MyState = NormalizeAwardText(GetField(rec, "MY_STATE")),
+                MyCounty = NormalizeAwardText(GetField(rec, "MY_CNTY")),
                 Iota = GetField(rec, "IOTA"),
+                PotaRefs = NormalizeAwardText(GetField(rec, "POTA_REF") ?? GetField(rec, "POTA_REFS")),
+                SotaRefs = NormalizeAwardText(GetField(rec, "SOTA_REF") ?? GetField(rec, "SOTA_REFS")),
+                AwardRefs = NormalizeAwardText(GetField(rec, "AWARD_SUBMITTED") ?? GetField(rec, "AWARD_GRANTED")),
                 Name = GetField(rec, "NAME"),
                 Qth = GetField(rec, "QTH"),
                 TxPower = double.TryParse(GetField(rec, "TX_PWR"), System.Globalization.NumberStyles.Any,
@@ -563,9 +571,17 @@ public class QsosController : ControllerBase
             if (!string.IsNullOrEmpty(q.Qth)) lines.Append(F("QTH", q.Qth));
             if (!string.IsNullOrEmpty(q.Country)) lines.Append(F("COUNTRY", q.Country));
             if (q.Dxcc.HasValue) lines.Append(F("DXCC", q.Dxcc.Value.ToString()));
+            if (q.CqZone.HasValue) lines.Append(F("CQZ", q.CqZone.Value.ToString()));
+            if (q.ItuZone.HasValue) lines.Append(F("ITUZ", q.ItuZone.Value.ToString()));
             if (!string.IsNullOrEmpty(q.Continent)) lines.Append(F("CONT", q.Continent));
             if (!string.IsNullOrEmpty(q.State)) lines.Append(F("STATE", q.State));
+            if (!string.IsNullOrEmpty(q.County)) lines.Append(F("CNTY", q.County));
+            if (!string.IsNullOrEmpty(q.MyState)) lines.Append(F("MY_STATE", q.MyState));
+            if (!string.IsNullOrEmpty(q.MyCounty)) lines.Append(F("MY_CNTY", q.MyCounty));
             if (!string.IsNullOrEmpty(q.Iota)) lines.Append(F("IOTA", q.Iota));
+            if (!string.IsNullOrEmpty(q.PotaRefs)) lines.Append(F("POTA_REF", q.PotaRefs));
+            if (!string.IsNullOrEmpty(q.SotaRefs)) lines.Append(F("SOTA_REF", q.SotaRefs));
+            if (!string.IsNullOrEmpty(q.AwardRefs)) lines.Append(F("AWARD_SUBMITTED", q.AwardRefs));
             if (!string.IsNullOrEmpty(q.Locator)) lines.Append(F("GRIDSQUARE", q.Locator));
             if (!string.IsNullOrEmpty(q.MyGridsquare)) lines.Append(F("MY_GRIDSQUARE", q.MyGridsquare));
             if (q.TxPower.HasValue) lines.Append(F("TX_PWR", q.TxPower.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)));
@@ -575,6 +591,12 @@ public class QsosController : ControllerBase
 
         var filename = $"hamhub-logbog-{DateTime.UtcNow:yyyy-MM-dd}.adi";
         return File(System.Text.Encoding.UTF8.GetBytes(lines.ToString()), "text/plain", filename);
+    }
+
+    private static string? NormalizeAwardText(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized.ToUpperInvariant();
     }
 
     [HttpDelete("{id}")]
