@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Content Include="Data\cty.dat" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\dxcc-entity-codes.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

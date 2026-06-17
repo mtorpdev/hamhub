@@ -59,6 +59,28 @@ ITU HQ:                   14:  28:  EU:   46.17:    -6.05:    -1.0:  4U1ITU:
         Assert.Equal(ituZone, result.ItuZone);
     }
 
+    [Theory]
+    [InlineData("OZ1ABC", 221)]
+    [InlineData("DL1ABC", 230)]
+    [InlineData("OH0ABC", 5)]
+    public void LookupReturnsAdifDxccEntityCode(string callsign, int dxcc)
+    {
+        using var directory = new TemporaryCtyDirectory("""
+Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
+    5P,5Q,OU,OV,OW,OX,OY,OZ;
+Fed. Rep. of Germany:     14:  28:  EU:   51.00:   -10.00:    -1.0:  DL:
+    DA,DB,DC,DD,DE,DF,DG,DH,DI,DJ,DK,DL,DM,DN,DO,DP,DQ,DR;
+Aland Islands:            15:  18:  EU:   60.13:   -20.37:    -2.0:  OH0:
+    OF0,OG0,OH0,OI0;
+""");
+        var service = new DxccLookupService(directory.Environment, NullLogger<DxccLookupService>.Instance);
+
+        var result = service.Lookup(callsign);
+
+        Assert.NotNull(result);
+        Assert.Equal(dxcc, result.Dxcc);
+    }
+
     private sealed class TemporaryCtyDirectory : IDisposable
     {
         private readonly string _path = Path.Combine(Path.GetTempPath(), $"hamhub-cty-{Guid.NewGuid():N}");
@@ -67,6 +89,12 @@ ITU HQ:                   14:  28:  EU:   46.17:    -6.05:    -1.0:  4U1ITU:
         {
             Directory.CreateDirectory(Path.Combine(_path, "Data"));
             File.WriteAllText(Path.Combine(_path, "Data", "cty.dat"), ctyContent);
+            File.WriteAllText(Path.Combine(_path, "Data", "dxcc-entity-codes.csv"), """
+"Enumeration Name","Entity Code","Entity Name","Deleted","Import-only","Comments","ADIF Version","ADIF Status"
+"DXCC_Entity_Code","5","ALAND IS.","","","","3.1.7","Released"
+"DXCC_Entity_Code","221","DENMARK","","","","3.1.7","Released"
+"DXCC_Entity_Code","230","FED. REP. OF GERMANY","","","","3.1.7","Released"
+""");
             Environment = new TestWebHostEnvironment(_path);
         }
 

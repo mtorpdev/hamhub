@@ -8,10 +8,16 @@ public sealed class DxccLookupService
     private readonly IReadOnlyList<DxccEntry> _entries;
     private readonly IReadOnlyDictionary<string, DxccEntry> _exactAliases;
     private readonly IReadOnlyDictionary<string, DxccEntry> _prefixAliases;
+    private readonly IReadOnlyDictionary<string, int> _adifCodes;
 
     public DxccLookupService(IWebHostEnvironment environment, ILogger<DxccLookupService> logger)
     {
         var path = Path.Combine(environment.ContentRootPath, "Data", "cty.dat");
+        var adifPath = Path.Combine(environment.ContentRootPath, "Data", "dxcc-entity-codes.csv");
+        _adifCodes = File.Exists(adifPath)
+            ? LoadAdifCodes(File.ReadLines(adifPath))
+            : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
         if (!File.Exists(path))
         {
             logger.LogWarning("DXCC country file was not found at {Path}", path);
@@ -105,10 +111,11 @@ public sealed class DxccLookupService
         return entries;
     }
 
-    private static DxccLookupResult ToResult(string matchedPrefix, string wpxSource, DxccEntry entry)
+    private DxccLookupResult ToResult(string matchedPrefix, string wpxSource, DxccEntry entry)
     {
         return new DxccLookupResult(
             Country: entry.Name,
+            Dxcc: ResolveAdifCode(entry.Name),
             Continent: entry.Continent,
             PrimaryPrefix: entry.PrimaryPrefix,
             MatchedPrefix: matchedPrefix,
@@ -118,6 +125,12 @@ public sealed class DxccLookupService
             Latitude: entry.Latitude,
             Longitude: entry.Longitude,
             UtcOffset: entry.UtcOffset);
+    }
+
+    private int? ResolveAdifCode(string entityName)
+    {
+        var normalized = NormalizeEntityName(entityName);
+        return _adifCodes.TryGetValue(normalized, out var code) ? code : null;
     }
 
     private static IEnumerable<string> BuildCandidates(string normalized)
@@ -137,6 +150,83 @@ public sealed class DxccLookupService
 
     private static string NormalizeCallsign(string? callsign) =>
         Regex.Replace(callsign?.Trim().ToUpperInvariant() ?? string.Empty, @"[^A-Z0-9/]", "");
+
+    private static Dictionary<string, int> LoadAdifCodes(IEnumerable<string> lines)
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var header = Array.Empty<string>();
+
+        foreach (var line in lines)
+        {
+            var columns = SplitCsv(line);
+            if (columns.Length == 0) continue;
+            if (columns[0].Equals("Enumeration Name", StringComparison.OrdinalIgnoreCase))
+            {
+                header = columns;
+                continue;
+            }
+
+            var codeIndex = Array.FindIndex(header, item => item.Equals("Entity Code", StringComparison.OrdinalIgnoreCase));
+            var nameIndex = Array.FindIndex(header, item => item.Equals("Entity Name", StringComparison.OrdinalIgnoreCase));
+            var deletedIndex = Array.FindIndex(header, item => item.Equals("Deleted", StringComparison.OrdinalIgnoreCase));
+            if (codeIndex < 0 || nameIndex < 0) continue;
+            if (deletedIndex >= 0 && !string.IsNullOrWhiteSpace(columns.ElementAtOrDefault(deletedIndex))) continue;
+            if (!int.TryParse(columns.ElementAtOrDefault(codeIndex), NumberStyles.Integer, CultureInfo.InvariantCulture, out var code)) continue;
+
+            var name = NormalizeEntityName(columns.ElementAtOrDefault(nameIndex));
+            if (name.Length > 0) result.TryAdd(name, code);
+        }
+
+        return result;
+    }
+
+    private static string NormalizeEntityName(string? value)
+    {
+        var normalized = Regex.Replace(value?.ToUpperInvariant() ?? string.Empty, @"\b(IS\.?|ISLANDS?|THE|OF|AND)\b", " ");
+        normalized = normalized.Replace("&", " ");
+        normalized = Regex.Replace(normalized, @"[^A-Z0-9]", " ");
+        normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
+        if (normalized == "FED REP GERMANY") return "FED REP GERMANY";
+        if (normalized == "UNITED STATES" || normalized == "UNITED STATES AMERICA") return "UNITED STATES AMERICA";
+        return normalized;
+    }
+
+    private static string[] SplitCsv(string line)
+    {
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var character = line[i];
+            if (character == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    current.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+                continue;
+            }
+
+            if (character == ',' && !inQuotes)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        result.Add(current.ToString());
+        return result.ToArray();
+    }
 
     private static string BuildWpxPrefix(string prefix)
     {
@@ -168,6 +258,7 @@ public sealed class DxccLookupService
 
 public sealed record DxccLookupResult(
     string Country,
+    int? Dxcc,
     string Continent,
     string PrimaryPrefix,
     string MatchedPrefix,

@@ -37,7 +37,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         var qso = Assert.Single(context.QsoEntries);
         Assert.Equal("OZ1AAA", qso.WorkedCallsign);
         Assert.Equal("Denmark", qso.Country);
-        Assert.Null(qso.Dxcc);
+        Assert.Equal(221, qso.Dxcc);
         Assert.Equal("EU", qso.Continent);
         Assert.Equal(14, qso.CqZone);
         Assert.Equal(18, qso.ItuZone);
@@ -159,6 +159,10 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         {
             Directory.CreateDirectory(Path.Combine(_path, "Data"));
             File.WriteAllText(Path.Combine(_path, "Data", "cty.dat"), ctyContent);
+            File.WriteAllText(Path.Combine(_path, "Data", "dxcc-entity-codes.csv"), """
+"Enumeration Name","Entity Code","Entity Name","Deleted","Import-only","Comments","ADIF Version","ADIF Status"
+"DXCC_Entity_Code","221","DENMARK","","","","3.1.7","Released"
+""");
             Lookup = new DxccLookupService(new TestWebHostEnvironment(_path), NullLogger<DxccLookupService>.Instance);
         }
 

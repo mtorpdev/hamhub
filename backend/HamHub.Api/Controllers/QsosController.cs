@@ -210,6 +210,7 @@ public class QsosController : ControllerBase
         if (lookup is null) return;
 
         qso.Country ??= lookup.Country;
+        qso.Dxcc ??= lookup.Dxcc;
         qso.Continent ??= lookup.Continent;
         qso.CqZone ??= lookup.CqZone > 0 ? lookup.CqZone : null;
         qso.ItuZone ??= lookup.ItuZone > 0 ? lookup.ItuZone : null;
