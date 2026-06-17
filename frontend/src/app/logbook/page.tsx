@@ -120,6 +120,7 @@ export default function LogbookPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [qrzSyncing, setQrzSyncing] = useState(false)
+  const [lotwSyncing, setLotwSyncing] = useState(false)
 
   const load = (s?: string) => {
     setLoading(true)
@@ -167,6 +168,19 @@ export default function LogbookPage() {
     }
   }
 
+  const handleLotwSync = async () => {
+    setLotwSyncing(true)
+    try {
+      const result = await api.lotw.sync()
+      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.unmatched} ikke matchet.`)
+      load(search)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+    } finally {
+      setLotwSyncing(false)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
@@ -174,6 +188,9 @@ export default function LogbookPage() {
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleQrzSync} disabled={qrzSyncing}>
             {qrzSyncing ? 'Synkroniserer...' : 'QRZ Sync'}
+          </Button>
+          <Button variant="secondary" onClick={handleLotwSync} disabled={lotwSyncing}>
+            {lotwSyncing ? 'Synkroniserer...' : 'LoTW Sync'}
           </Button>
           {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>Eksporter ADIF</Button>}
           <label className="cursor-pointer">

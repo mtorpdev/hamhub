@@ -10,6 +10,7 @@ import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type 
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
+import { externalPrimaryAction } from '../qsoExternalActions'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
@@ -38,43 +39,45 @@ export default function EditQsoPage() {
   const [conditionsLoading, setConditionsLoading] = useState(false)
   const [conditionsError, setConditionsError] = useState('')
 
+  const applyQsoToForm = (q: Qso) => {
+    setForm({
+      dateUtc: new Date(q.dateUtc).toISOString().slice(0, 16),
+      ownCallsign: q.ownCallsign,
+      workedCallsign: q.workedCallsign,
+      band: q.band,
+      frequency: q.frequency?.toString() ?? '',
+      mode: q.mode,
+      rstSent: q.rstSent ?? '',
+      rstReceived: q.rstReceived ?? '',
+      submode: q.submode ?? '',
+      locator: q.locator ?? '',
+      myGridsquare: q.myGridsquare ?? '',
+      country: q.country ?? '',
+      dxcc: q.dxcc?.toString() ?? '',
+      continent: q.continent ?? '',
+      state: q.state ?? '',
+      cqZone: q.cqZone?.toString() ?? '',
+      ituZone: q.ituZone?.toString() ?? '',
+      county: q.county ?? '',
+      myState: q.myState ?? '',
+      myCounty: q.myCounty ?? '',
+      iota: q.iota ?? '',
+      potaRefs: q.potaRefs ?? '',
+      sotaRefs: q.sotaRefs ?? '',
+      awardRefs: q.awardRefs ?? '',
+      name: q.name ?? '',
+      qth: q.qth ?? '',
+      txPower: q.txPower?.toString() ?? '',
+      comment: q.comment ?? '',
+    })
+  }
+
   useEffect(() => {
     if (!id) return
     const qsoId = Number(id)
     let cancelled = false
 
-    api.qsos.getById(qsoId).then((q: Qso) => {
-      setForm({
-        dateUtc: new Date(q.dateUtc).toISOString().slice(0, 16),
-        ownCallsign: q.ownCallsign,
-        workedCallsign: q.workedCallsign,
-        band: q.band,
-        frequency: q.frequency?.toString() ?? '',
-        mode: q.mode,
-        rstSent: q.rstSent ?? '',
-        rstReceived: q.rstReceived ?? '',
-        submode: q.submode ?? '',
-        locator: q.locator ?? '',
-        myGridsquare: q.myGridsquare ?? '',
-        country: q.country ?? '',
-        dxcc: q.dxcc?.toString() ?? '',
-        continent: q.continent ?? '',
-        state: q.state ?? '',
-        cqZone: q.cqZone?.toString() ?? '',
-        ituZone: q.ituZone?.toString() ?? '',
-        county: q.county ?? '',
-        myState: q.myState ?? '',
-        myCounty: q.myCounty ?? '',
-        iota: q.iota ?? '',
-        potaRefs: q.potaRefs ?? '',
-        sotaRefs: q.sotaRefs ?? '',
-        awardRefs: q.awardRefs ?? '',
-        name: q.name ?? '',
-        qth: q.qth ?? '',
-        txPower: q.txPower?.toString() ?? '',
-        comment: q.comment ?? '',
-      })
-    }).catch(() => router.replace('/logbook')).finally(() => setLoading(false))
+    api.qsos.getById(qsoId).then(applyQsoToForm).catch(() => router.replace('/logbook')).finally(() => setLoading(false))
 
     async function loadExternalStatus() {
       setExternalLoading(true)
@@ -211,7 +214,27 @@ export default function EditQsoPage() {
 
   const handleFetchExternal = (provider: string) => {
     if (provider === 'QRZ') return syncQrz()
+    if (provider === 'LoTW') return syncLotw()
     if (provider === 'eQSL') return refreshExternalStatus()
+  }
+
+  const syncLotw = async () => {
+    setExternalLoading(true)
+    try {
+      const result = await api.lotw.sync()
+      const qsoId = Number(id)
+      const [qso, statuses] = await Promise.all([
+        api.qsos.getById(qsoId),
+        api.qsos.getExternalStatus(qsoId),
+      ])
+      applyQsoToForm(qso)
+      setExternalStatuses(statuses)
+      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.unmatched} ikke matchet.`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+    } finally {
+      setExternalLoading(false)
+    }
   }
 
   const handleSetupExternal = (provider: string) => {
@@ -797,6 +820,10 @@ export default function EditQsoPage() {
                 <div className="grid gap-4 lg:grid-cols-3">
                   {externalStatuses.map(status => (
                     <div key={status.provider} className={`rounded-lg border p-4 ${providerTone(status)}`}>
+                      {(() => {
+                        const action = externalPrimaryAction(status)
+                        return (
+                          <>
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-base font-semibold text-white">{status.provider}</h3>
@@ -828,19 +855,19 @@ export default function EditQsoPage() {
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {!status.isConfigured || status.provider === 'LoTW' ? (
+                        {action.kind === 'setup' ? (
                           <Button type="button" size="sm" variant="secondary" onClick={() => handleSetupExternal(status.provider)}>
-                            {status.sendActionLabel}
+                            {action.label}
                           </Button>
-                        ) : (
+                        ) : action.kind === 'send' ? (
                           <>
                             <Button
                               type="button"
                               size="sm"
                               onClick={() => handleSendExternal(status.provider)}
-                              disabled={!status.canSend || externalLoading}
+                              disabled={action.disabled || externalLoading}
                             >
-                              {status.sendActionLabel}
+                              {action.label}
                             </Button>
                             {status.canFetch && (
                               <Button
@@ -854,8 +881,21 @@ export default function EditQsoPage() {
                               </Button>
                             )}
                           </>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleFetchExternal(status.provider)}
+                            disabled={action.disabled || externalLoading}
+                          >
+                            {action.label}
+                          </Button>
                         )}
                       </div>
+                          </>
+                        )
+                      })()}
                     </div>
                   ))}
                   {externalStatuses.length === 0 && (
