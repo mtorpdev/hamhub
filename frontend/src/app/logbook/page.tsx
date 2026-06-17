@@ -11,10 +11,9 @@ import { Band, BandLabels, Mode, ModeLabels, type Qso } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { lotwTitle, lotwTone, type QslBadgeTone } from './qslBadges'
 
 const PAGE_SIZE = 25
-
-type QslBadgeTone = 'confirmed' | 'pending' | 'missing'
 
 const BAND_ADIF: Record<Band, string> = {
   [Band.M160]: '160M', [Band.M80]: '80M', [Band.M60]: '60M', [Band.M40]: '40M',
@@ -206,6 +205,7 @@ export default function LogbookPage() {
                         <div className="flex flex-wrap gap-1.5">
                           <QslStatusBadge label="QRZ" tone={qrzTone(q)} title={qrzTitle(q)} />
                           <QslStatusBadge label="eQSL" tone={eqslTone(q)} title={eqslTitle(q)} />
+                          <QslStatusBadge label="LoTW" tone={lotwTone(q)} title={lotwTitle(q)} />
                         </div>
                       </td>
                     </tr>
