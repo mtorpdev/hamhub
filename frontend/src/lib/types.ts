@@ -350,6 +350,7 @@ export interface WsjtxDecodeItem {
   dxLongitude: number | null
   dxUtcOffset: number | null
   decodedAt: string
+  serverReceivedAtUtc: string
 }
 
 export interface WsjtxCommandResult {
@@ -372,6 +373,7 @@ export interface WsjtxStatus {
   rxDf: number
   txDf: number
   updatedAtUtc: string
+  serverReceivedAtUtc: string
 }
 
 export interface WsjtxAgentStatus {

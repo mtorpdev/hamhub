@@ -24,5 +24,6 @@ public class WsjtxDecodeConfiguration : IEntityTypeConfiguration<WsjtxDecode>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(d => d.DecodedAt);
+        builder.HasIndex(d => d.ServerReceivedAtUtc);
     }
 }

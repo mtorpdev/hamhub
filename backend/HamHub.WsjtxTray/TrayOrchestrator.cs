@@ -137,6 +137,7 @@ public class TrayOrchestrator : IDisposable
                 _apiClient = new HamHubApiClient(_httpClient, _config,
                     loggerFactory.CreateLogger<HamHubApiClient>());
                 await _apiClient.LoginAsync(ct);
+                await _apiClient.CheckServerClockSkewAsync(loggerFactory.CreateLogger("HamHub.Clock"), ct);
                 WpfApplication.Current.Dispatcher.Invoke(() => UpdateIcon(ConnectionState.Connected));
                 break;
             }

@@ -67,12 +67,13 @@ public class WsjtxController : ControllerBase
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         _agentPresence.Touch(userId);
+        var serverReceivedAtUtc = DateTime.UtcNow;
 
         var columns = await GetWsjtxDecodeColumnsAsync();
         var outDtos = new List<WsjtxDecodeDto>(dtos.Length);
         foreach (var dto in dtos)
         {
-            var id = await InsertDecodeCompatAsync(userId, dto, columns);
+            var id = await InsertDecodeCompatAsync(userId, dto, serverReceivedAtUtc, columns);
             outDtos.Add(BuildDecodeDto(
                 id,
                 string.IsNullOrWhiteSpace(dto.WsjtxId) ? "WSJT-X" : dto.WsjtxId,
@@ -89,7 +90,8 @@ public class WsjtxController : ControllerBase
                 dto.Mode,
                 dto.LowConfidence,
                 IsCallableMessage(dto.Message),
-                dto.DecodedAt));
+                dto.DecodedAt,
+                serverReceivedAtUtc));
         }
         _broadcaster.Broadcast(outDtos);
 
@@ -147,7 +149,8 @@ public class WsjtxController : ControllerBase
                     "FrequencyMhz",
                     "Mode",
                     {ColumnOrDefault(columns, "LowConfidence", "false")} as "LowConfidence",
-                    "DecodedAt"
+                    "DecodedAt",
+                    {ColumnOrDefault(columns, "ServerReceivedAtUtc", "\"DecodedAt\"")} as "ServerReceivedAtUtc"
                 from "WsjtxDecodes"
                 where "UserId" = @userId
                 order by "DecodedAt" desc
@@ -178,7 +181,8 @@ public class WsjtxController : ControllerBase
                     reader.GetString(12),
                     reader.GetBoolean(13),
                     IsCallableMessage(message),
-                    reader.GetDateTime(14)));
+                    reader.GetDateTime(14),
+                    reader.GetDateTime(15)));
             }
 
             return result;
@@ -189,7 +193,7 @@ public class WsjtxController : ControllerBase
         }
     }
 
-    private async Task<int> InsertDecodeCompatAsync(string userId, PostDecodeDto dto, HashSet<string> columns)
+    private async Task<int> InsertDecodeCompatAsync(string userId, PostDecodeDto dto, DateTime serverReceivedAtUtc, HashSet<string> columns)
     {
         var insertColumns = new List<string>
         {
@@ -224,6 +228,7 @@ public class WsjtxController : ControllerBase
         if (columns.Contains("WsjtxTimeMs")) AddColumn("WsjtxTimeMs", "@wsjtxTimeMs");
         if (columns.Contains("SpotterGrid")) AddColumn("SpotterGrid", "@spotterGrid");
         if (columns.Contains("LowConfidence")) AddColumn("LowConfidence", "@lowConfidence");
+        if (columns.Contains("ServerReceivedAtUtc")) AddColumn("ServerReceivedAtUtc", "@serverReceivedAtUtc");
 
         var sql = $"""
             insert into "WsjtxDecodes" ({string.Join(", ", insertColumns.Select(c => $@"""{c}"""))})
@@ -252,6 +257,7 @@ public class WsjtxController : ControllerBase
             command.Parameters.AddWithValue("wsjtxTimeMs", (long)dto.WsjtxTimeMs);
             command.Parameters.AddWithValue("spotterGrid", (object?)TrimMax(dto.SpotterGrid, 10) ?? DBNull.Value);
             command.Parameters.AddWithValue("lowConfidence", dto.LowConfidence);
+            command.Parameters.AddWithValue("serverReceivedAtUtc", serverReceivedAtUtc);
 
             return (int)(await command.ExecuteScalarAsync() ?? 0);
         }
@@ -292,7 +298,8 @@ public class WsjtxController : ControllerBase
         string mode,
         bool lowConfidence,
         bool isCallable,
-        DateTime decodedAt)
+        DateTime decodedAt,
+        DateTime serverReceivedAtUtc)
     {
         var dxcc = _dxccLookup.Lookup(dxCallsign);
         return new WsjtxDecodeDto(
@@ -321,7 +328,8 @@ public class WsjtxController : ControllerBase
             dxcc?.Latitude,
             dxcc?.Longitude,
             dxcc?.UtcOffset,
-            decodedAt);
+            decodedAt,
+            serverReceivedAtUtc);
     }
 
     [Authorize]
@@ -401,6 +409,13 @@ public class WsjtxController : ControllerBase
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         return Ok(_agentPresence.GetStatus(userId));
+    }
+
+    [Authorize]
+    [HttpGet("time")]
+    public IActionResult GetServerTime()
+    {
+        return Ok(new { serverTimeUtc = DateTime.UtcNow });
     }
 
     // GET /api/wsjtx/stream  — intentionally public (community feed)

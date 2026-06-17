@@ -18,6 +18,7 @@ public class WsjtxDecode
     public string Mode { get; set; } = string.Empty;
     public bool LowConfidence { get; set; }
     public DateTime DecodedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ServerReceivedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ApplicationUser User { get; set; } = null!;
 }

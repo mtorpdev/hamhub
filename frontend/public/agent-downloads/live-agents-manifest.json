@@ -1,13 +1,13 @@
 ﻿{
-    "builtAtUtc":  "2026-06-17T05:29:53.9949325Z",
+    "builtAtUtc":  "2026-06-17T05:47:45.9076871Z",
     "files":  [
                   {
                       "name":  "HamHub-WSJTX-Agent-Windows-x64.zip",
-                      "sizeBytes":  67014837
+                      "sizeBytes":  67016153
                   },
                   {
                       "name":  "HamHub-WSJTX-Agent-macOS-arm64.zip",
-                      "sizeBytes":  28613856
+                      "sizeBytes":  28615181
                   }
               ]
 }

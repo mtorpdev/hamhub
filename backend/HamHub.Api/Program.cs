@@ -179,6 +179,7 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("safety", () => EnsureSafetySchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("article feed", () => EnsureArticleFeedSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("QSO external status", () => EnsureQsoExternalStatusSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("WSJT-X timing", () => EnsureWsjtxTimingSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
 
     var importer = scope.ServiceProvider.GetRequiredService<HamHub.Api.Services.ArticleFeedImportService>();
@@ -346,6 +347,17 @@ static async Task EnsureQsoExternalStatusSchemaAsync(ApplicationDbContext contex
         ADD COLUMN IF NOT EXISTS "QrzConfirmationStatus" character varying(1),
         ADD COLUMN IF NOT EXISTS "QrzConfirmedAt" timestamp with time zone,
         ADD COLUMN IF NOT EXISTS "QrzQslDate" timestamp with time zone;
+        """);
+}
+
+static async Task EnsureWsjtxTimingSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "WsjtxDecodes"
+        ADD COLUMN IF NOT EXISTS "ServerReceivedAtUtc" timestamp with time zone NOT NULL DEFAULT NOW();
+
+        CREATE INDEX IF NOT EXISTS "IX_WsjtxDecodes_ServerReceivedAtUtc"
+            ON "WsjtxDecodes" ("ServerReceivedAtUtc");
         """);
 }
 

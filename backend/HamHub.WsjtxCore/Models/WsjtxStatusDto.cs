@@ -11,4 +11,5 @@ public record WsjtxStatusDto(
     bool TxWatchdog,
     int RxDf,
     int TxDf,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc,
+    DateTime ServerReceivedAtUtc = default);

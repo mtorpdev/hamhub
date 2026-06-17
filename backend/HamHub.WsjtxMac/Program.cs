@@ -143,6 +143,7 @@ internal static class Program
             try
             {
                 await api.LoginAsync(ct);
+                await api.CheckServerClockSkewAsync(loggerFactory.CreateLogger("HamHub.Clock"), ct);
                 break;
             }
             catch (OperationCanceledException) { throw; }

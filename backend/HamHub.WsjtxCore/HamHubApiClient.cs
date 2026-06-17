@@ -64,6 +64,52 @@ public class HamHubApiClient
         await SendWithRetryAsync(() => BuildRequest(HttpMethod.Post, "/api/wsjtx/status", status), ct);
     }
 
+    public async Task<TimeSpan?> GetServerClockOffsetAsync(CancellationToken ct = default)
+    {
+        var before = DateTime.UtcNow;
+        var res = await _http.SendAsync(BuildRequest(HttpMethod.Get, "/api/wsjtx/time"), ct);
+        var after = DateTime.UtcNow;
+
+        if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _logger.LogWarning("Got 401 while checking server time, re-logging in...");
+            await LoginAsync(ct);
+            before = DateTime.UtcNow;
+            res = await _http.SendAsync(BuildRequest(HttpMethod.Get, "/api/wsjtx/time"), ct);
+            after = DateTime.UtcNow;
+        }
+
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Server time check failed {Status}: {Body}", (int)res.StatusCode, err);
+            return null;
+        }
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>(ct);
+        var serverTimeUtc = json.GetProperty("serverTimeUtc").GetDateTime();
+        var localMidpointUtc = before + TimeSpan.FromTicks((after - before).Ticks / 2);
+        return serverTimeUtc - localMidpointUtc;
+    }
+
+    public async Task CheckServerClockSkewAsync(ILogger logger, CancellationToken ct = default)
+    {
+        var offset = await GetServerClockOffsetAsync(ct);
+        if (offset is null) return;
+
+        var absoluteOffset = offset.Value.Duration();
+        if (absoluteOffset > TimeSpan.FromSeconds(5))
+        {
+            logger.LogWarning(
+                "Computer clock differs from HamHub server by {OffsetSeconds:N1}s. Enable automatic time sync to keep WSJT-X timestamps reliable.",
+                offset.Value.TotalSeconds);
+        }
+        else
+        {
+            logger.LogInformation("Computer clock is in sync with HamHub server ({OffsetSeconds:N1}s offset).", offset.Value.TotalSeconds);
+        }
+    }
+
     public async Task<WsjtxAgentCommand?> GetNextCommandAsync(CancellationToken ct = default)
     {
         var res = await _http.SendAsync(BuildRequest(HttpMethod.Get, "/api/wsjtx/commands/next"), ct);

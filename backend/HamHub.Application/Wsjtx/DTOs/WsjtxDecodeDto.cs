@@ -26,7 +26,8 @@ public record WsjtxDecodeDto(
     double? DxLatitude,
     double? DxLongitude,
     double? DxUtcOffset,
-    DateTime DecodedAt
+    DateTime DecodedAt,
+    DateTime ServerReceivedAtUtc
 );
 
 // Inbound from plugin

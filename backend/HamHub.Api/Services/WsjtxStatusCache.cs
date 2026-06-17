@@ -7,10 +7,10 @@ public class WsjtxStatusCache
 {
     private readonly ConcurrentDictionary<string, WsjtxStatusDto> _latestByUser = new();
 
-    public void Update(string userId, WsjtxStatusDto status)
+    public void Update(string userId, WsjtxStatusDto status, DateTime? serverReceivedAtUtc = null)
     {
         if (string.IsNullOrWhiteSpace(userId)) return;
-        _latestByUser[userId] = status;
+        _latestByUser[userId] = status with { ServerReceivedAtUtc = serverReceivedAtUtc ?? DateTime.UtcNow };
     }
 
     public WsjtxStatusDto? GetLatest(string userId) =>
