@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$downloadsDir = Join-Path $root "frontend\public\downloads"
+$downloadsDir = Join-Path $root "frontend\public\agent-downloads"
 $artifactsDir = Join-Path $root "artifacts\live-agents"
 $windowsPublishDir = Join-Path $artifactsDir "windows-x64"
 $macPublishDir = Join-Path $artifactsDir "macos-arm64\publish"

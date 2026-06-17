@@ -499,7 +499,7 @@ export default function ProfilePage() {
                 <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
                   <h3 className="text-white font-semibold mb-1">macOS</h3>
                   <p className="text-gray-400 text-sm mb-4">Til Apple Silicon Mac. Pak zip-filen ud og start appen.</p>
-                  <a href="/downloads/HamHub-WSJTX-Agent-macOS-arm64.zip" download>
+                  <a href="/agent-downloads/HamHub-WSJTX-Agent-macOS-arm64.zip" download>
                     <Button type="button">Download til Mac</Button>
                   </a>
                 </div>
@@ -507,7 +507,7 @@ export default function ProfilePage() {
                 <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
                   <h3 className="text-white font-semibold mb-1">Windows</h3>
                   <p className="text-gray-400 text-sm mb-4">Til 64-bit Windows. Pak zip-filen ud og start HamHub.WsjtxTray.exe.</p>
-                  <a href="/downloads/HamHub-WSJTX-Agent-Windows-x64.zip" download>
+                  <a href="/agent-downloads/HamHub-WSJTX-Agent-Windows-x64.zip" download>
                     <Button type="button">Download til Windows</Button>
                   </a>
                 </div>
