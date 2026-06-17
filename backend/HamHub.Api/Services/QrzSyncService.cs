@@ -153,7 +153,11 @@ public class QrzSyncService : BackgroundService
                         Dxcc = qrzQso.Dxcc,
                         Continent = qrzQso.Continent,
                         State = qrzQso.State,
+                        County = qrzQso.County,
                         Iota = qrzQso.Iota,
+                        PotaRefs = qrzQso.PotaRefs,
+                        SotaRefs = qrzQso.SotaRefs,
+                        AwardRefs = qrzQso.AwardRefs,
                         Name = qrzQso.Name,
                         Qth = qrzQso.Qth,
                         TxPower = qrzQso.TxPower,
@@ -189,7 +193,11 @@ public class QrzSyncService : BackgroundService
                                 Dxcc: match.Dxcc,
                                 Continent: match.Continent,
                                 State: match.State,
+                                County: match.County,
                                 Iota: match.Iota,
+                                PotaRefs: match.PotaRefs,
+                                SotaRefs: match.SotaRefs,
+                                AwardRefs: match.AwardRefs,
                                 Name: match.Name,
                                 Qth: match.Qth,
                                 TxPower: match.TxPower,
@@ -212,7 +220,7 @@ public class QrzSyncService : BackgroundService
                         match.RstSent = qrzQso.RstSent ?? match.RstSent;
                         match.RstReceived = qrzQso.RstReceived ?? match.RstReceived;
                         match.Locator = qrzQso.Gridsquare ?? match.Locator;
-                        match.Country = qrzQso.Country ?? match.Country;
+                        ApplyFetchedQrzFields(match, qrzQso);
                         match.QrzId = qrzQso.LogId;
                     }
                     if (!Enum.IsDefined(match.Band) || (int)match.Band == 0)
@@ -250,7 +258,11 @@ public class QrzSyncService : BackgroundService
                         Dxcc: qso.Dxcc,
                         Continent: qso.Continent,
                         State: qso.State,
+                        County: qso.County,
                         Iota: qso.Iota,
+                        PotaRefs: qso.PotaRefs,
+                        SotaRefs: qso.SotaRefs,
+                        AwardRefs: qso.AwardRefs,
                         Name: qso.Name,
                         Qth: qso.Qth,
                         TxPower: qso.TxPower,
@@ -293,6 +305,19 @@ public class QrzSyncService : BackgroundService
 
     private static bool IsQrzConfirmed(string? status) =>
         string.Equals(status, "C", StringComparison.OrdinalIgnoreCase);
+
+    internal static void ApplyFetchedQrzFields(QsoEntry qso, AdifQso qrzQso)
+    {
+        qso.Country ??= qrzQso.Country;
+        qso.Dxcc ??= qrzQso.Dxcc;
+        qso.Continent ??= qrzQso.Continent;
+        qso.State ??= qrzQso.State;
+        qso.County ??= qrzQso.County;
+        qso.Iota ??= qrzQso.Iota;
+        qso.PotaRefs ??= qrzQso.PotaRefs;
+        qso.SotaRefs ??= qrzQso.SotaRefs;
+        qso.AwardRefs ??= qrzQso.AwardRefs;
+    }
 
     private static bool ShouldUploadMatchedLocalQso(QsoEntry qso)
     {

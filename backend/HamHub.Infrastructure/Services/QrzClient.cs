@@ -31,7 +31,11 @@ public record AdifQso(
     int? Dxcc,
     string? Continent,
     string? State,
+    string? County,
     string? Iota,
+    string? PotaRefs,
+    string? SotaRefs,
+    string? AwardRefs,
     string? Name,
     string? Qth,
     double? TxPower,
@@ -219,7 +223,11 @@ public class QrzClient
                 Dxcc: int.TryParse(GetField(rec, "DXCC"), out var dxccVal) ? dxccVal : null,
                 Continent: GetField(rec, "CONT"),
                 State: GetField(rec, "STATE"),
+                County: NormalizeAwardText(GetField(rec, "CNTY")),
                 Iota: GetField(rec, "IOTA"),
+                PotaRefs: NormalizeAwardText(GetField(rec, "POTA_REF") ?? GetField(rec, "POTA_REFS")),
+                SotaRefs: NormalizeAwardText(GetField(rec, "SOTA_REF") ?? GetField(rec, "SOTA_REFS")),
+                AwardRefs: NormalizeAwardText(GetField(rec, "AWARD_SUBMITTED") ?? GetField(rec, "AWARD_GRANTED")),
                 Name: GetField(rec, "NAME"),
                 Qth: GetField(rec, "QTH"),
                 TxPower: double.TryParse(GetField(rec, "TX_PWR"), System.Globalization.NumberStyles.Any,
@@ -273,7 +281,11 @@ public class QrzClient
         if (qso.Dxcc.HasValue) sb.Append(F("DXCC", qso.Dxcc.Value.ToString()));
         if (!string.IsNullOrEmpty(qso.Continent)) sb.Append(F("CONT", qso.Continent));
         if (!string.IsNullOrEmpty(qso.State)) sb.Append(F("STATE", qso.State));
+        if (!string.IsNullOrEmpty(qso.County)) sb.Append(F("CNTY", qso.County));
         if (!string.IsNullOrEmpty(qso.Iota)) sb.Append(F("IOTA", qso.Iota));
+        if (!string.IsNullOrEmpty(qso.PotaRefs)) sb.Append(F("POTA_REF", qso.PotaRefs));
+        if (!string.IsNullOrEmpty(qso.SotaRefs)) sb.Append(F("SOTA_REF", qso.SotaRefs));
+        if (!string.IsNullOrEmpty(qso.AwardRefs)) sb.Append(F("AWARD_SUBMITTED", qso.AwardRefs));
         if (!string.IsNullOrEmpty(qso.Gridsquare)) sb.Append(F("GRIDSQUARE", qso.Gridsquare));
         if (!string.IsNullOrEmpty(qso.MyGridsquare)) sb.Append(F("MY_GRIDSQUARE", qso.MyGridsquare));
         if (qso.TxPower.HasValue) sb.Append(F("TX_PWR", qso.TxPower.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)));
@@ -287,6 +299,12 @@ public class QrzClient
             .Select(p => p.Split('=', 2))
             .Where(p => p.Length == 2)
             .ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1]));
+
+    private static string? NormalizeAwardText(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized.ToUpperInvariant();
+    }
 }
 
 internal static class StringExtensions
