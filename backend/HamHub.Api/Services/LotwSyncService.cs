@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 
 namespace HamHub.Api.Services;
 
-public record LotwSyncResult(int Confirmed, int Unmatched, DateTime SyncedAtUtc);
+public record LotwSyncResult(int Confirmed, int Unmatched, int CheckedNotFound, DateTime SyncedAtUtc);
 
 public class LotwSyncService
 {
@@ -61,6 +61,8 @@ public class LotwSyncService
         var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, user.LotwLastSyncedAt, ct);
         var confirmed = 0;
         var unmatched = 0;
+        var checkedNotFound = 0;
+        var matchedQsoIds = new HashSet<int>();
         var now = DateTime.UtcNow;
 
         foreach (var record in records)
@@ -85,12 +87,26 @@ public class LotwSyncService
             }
 
             ApplyConfirmation(match, record, now);
+            matchedQsoIds.Add(match.Id);
             confirmed++;
+        }
+
+        var notConfirmed = await _db.QsoEntries
+            .Where(q =>
+                q.UserId == userId &&
+                q.LotwConfirmedAt == null &&
+                q.DateUtc <= now)
+            .ToListAsync(ct);
+
+        foreach (var qso in notConfirmed)
+        {
+            if (matchedQsoIds.Contains(qso.Id)) continue;
+            if (MarkNotFound(qso, now)) checkedNotFound++;
         }
 
         user.LotwLastSyncedAt = now;
         await _db.SaveChangesAsync(ct);
-        return new LotwSyncResult(confirmed, unmatched, now);
+        return new LotwSyncResult(confirmed, unmatched, checkedNotFound, now);
     }
 
     public static void ApplyConfirmation(QsoEntry qso, LotwQslRecord record, DateTime nowUtc)
@@ -114,5 +130,14 @@ public class LotwSyncService
         qso.CqZone ??= record.CqZone;
         qso.ItuZone ??= record.ItuZone;
         qso.Iota ??= record.Iota;
+    }
+
+    public static bool MarkNotFound(QsoEntry qso, DateTime nowUtc)
+    {
+        if (qso.LotwConfirmedAt.HasValue) return false;
+
+        qso.LotwLastResult = "LoTW status opdateret: ikke fundet";
+        qso.UpdatedAt = nowUtc;
+        return true;
     }
 }

@@ -49,4 +49,24 @@ public class LotwSyncServiceTests
         Assert.Equal("JO55WM", qso.Locator);
         Assert.NotNull(qso.LotwConfirmedAt);
     }
+
+    [Fact]
+    public void MarkNotFoundUpdatesUncheckedQsoWithoutClearingConfirmation()
+    {
+        var uncheckedQso = new QsoEntry();
+        var confirmedQso = new QsoEntry
+        {
+            LotwConfirmedAt = new DateTime(2026, 6, 17, 8, 10, 11, DateTimeKind.Utc),
+            LotwLastResult = "LoTW bekræftet"
+        };
+        var now = new DateTime(2026, 6, 17, 9, 0, 0, DateTimeKind.Utc);
+
+        Assert.True(LotwSyncService.MarkNotFound(uncheckedQso, now));
+        Assert.False(LotwSyncService.MarkNotFound(confirmedQso, now));
+
+        Assert.Equal("LoTW status opdateret: ikke fundet", uncheckedQso.LotwLastResult);
+        Assert.Equal(now, uncheckedQso.UpdatedAt);
+        Assert.Equal(new DateTime(2026, 6, 17, 8, 10, 11, DateTimeKind.Utc), confirmedQso.LotwConfirmedAt);
+        Assert.Equal("LoTW bekræftet", confirmedQso.LotwLastResult);
+    }
 }

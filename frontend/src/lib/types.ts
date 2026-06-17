@@ -455,6 +455,7 @@ export interface LotwStatus {
 export interface LotwSyncResult {
   confirmed: number
   unmatched: number
+  checkedNotFound: number
   syncedAtUtc: string
 }
 

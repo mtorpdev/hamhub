@@ -229,7 +229,7 @@ export default function EditQsoPage() {
       ])
       applyQsoToForm(qso)
       setExternalStatuses(statuses)
-      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.unmatched} ikke matchet.`)
+      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.checkedNotFound} tjekket uden match, ${result.unmatched} ikke matchet.`)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
     } finally {

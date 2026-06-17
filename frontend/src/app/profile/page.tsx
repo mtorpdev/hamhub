@@ -238,7 +238,7 @@ export default function ProfilePage() {
     try {
       const result = await api.lotw.sync()
       setLotwStatus(await api.lotw.status())
-      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.unmatched} ikke matchet.`)
+      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.checkedNotFound} tjekket uden match, ${result.unmatched} ikke matchet.`)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
     } finally {
