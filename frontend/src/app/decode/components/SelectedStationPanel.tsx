@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 import { bandModeLabel, formatTime, snrText } from '../decodeFormatters'
 import { type DecodeRow, type LiveRosterEntry } from '../decodeScoring'
+import { commandDecodeForEntry } from '../decodeUiState'
 
 type SelectedStationPanelProps = {
   entry: LiveRosterEntry | null
@@ -43,6 +44,7 @@ export default function SelectedStationPanel({
   }
 
   const decode = entry.latest
+  const commandDecode = commandDecodeForEntry(entry)
 
   return (
     <Card>
@@ -117,11 +119,11 @@ export default function SelectedStationPanel({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => onCallDecode(decode)}
-                disabled={pendingCommand || !decode.canRespond}
+                onClick={() => onCallDecode(commandDecode)}
+                disabled={pendingCommand || !commandDecode.canRespond}
                 className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-400"
               >
-                {decode.callsMe ? 'Svar i WSJT-X' : 'Kald station'}
+                {commandDecode.callsMe ? 'Svar i WSJT-X' : 'Kald station'}
               </button>
               <button
                 type="button"

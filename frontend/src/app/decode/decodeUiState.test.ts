@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
-import { type DecodeRow } from './decodeScoring'
+import { commandDecodeForEntry, commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
+import { type DecodeRow, type LiveRosterEntry } from './decodeScoring'
 
 function row(overrides: Partial<DecodeRow>): DecodeRow {
   return {
@@ -60,4 +60,28 @@ test('formats successful command results from the agent', () => {
 
 test('formats failed command results from the agent', () => {
   assert.equal(commandResultMessage({ success: false, message: 'WSJT-X kontrol Stop Tx er ikke aktiv.' }), 'Fejl fra WSJT-X agent: WSJT-X kontrol Stop Tx er ikke aktiv.')
+})
+
+test('uses latest calling-me decode as command target even when another message is newer', () => {
+  const callingMe = row({
+    id: 1,
+    message: 'DL1ABC OZ1ME -10',
+    callsMe: true,
+    canRespond: true,
+    decodedAt: '2026-06-17T10:00:00Z',
+  })
+  const newerNonReply = row({
+    id: 2,
+    message: 'DL1ABC F4XYZ 73',
+    callsMe: false,
+    canRespond: false,
+    decodedAt: '2026-06-17T10:00:15Z',
+  })
+  const entry = {
+    callsign: 'DL1ABC',
+    latest: newerNonReply,
+    decodes: [newerNonReply, callingMe],
+  } as LiveRosterEntry
+
+  assert.equal(commandDecodeForEntry(entry), callingMe)
 })
