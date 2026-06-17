@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddHttpClient<QrzClient>();
         services.AddHttpClient<EqslClient>();
         services.AddHttpClient<LotwActivityClient>();
+        services.AddHttpClient<LotwReportClient>();
 
         return services;
     }

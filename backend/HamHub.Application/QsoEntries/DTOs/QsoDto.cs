@@ -32,6 +32,9 @@ public record QsoDto(
     DateTime? EqslSentAt,
     DateTime? EqslConfirmedAt,
     string? EqslLastResult,
+    DateTime? LotwConfirmedAt,
+    DateTime? LotwQslDate,
+    string? LotwLastResult,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

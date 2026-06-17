@@ -23,8 +23,10 @@ public class UsersController : ControllerBase
     private readonly IDataProtector _protector;
     private readonly IDataProtector _xmlProtector;
     private readonly IDataProtector _eqslProtector;
+    private readonly IDataProtector _lotwProtector;
     private readonly QrzClient _qrzClient;
     private readonly EqslClient _eqslClient;
+    private readonly LotwReportClient _lotwClient;
 
     public UsersController(
         UserManager<ApplicationUser> userManager,
@@ -32,7 +34,8 @@ public class UsersController : ControllerBase
         IMapper mapper,
         IDataProtectionProvider dataProtectionProvider,
         QrzClient qrzClient,
-        EqslClient eqslClient)
+        EqslClient eqslClient,
+        LotwReportClient lotwClient)
     {
         _userManager = userManager;
         _context = context;
@@ -40,8 +43,10 @@ public class UsersController : ControllerBase
         _protector = dataProtectionProvider.CreateProtector("QrzApiKey");
         _xmlProtector = dataProtectionProvider.CreateProtector("QrzXmlPassword");
         _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
+        _lotwProtector = dataProtectionProvider.CreateProtector("LotwPassword");
         _qrzClient = qrzClient;
         _eqslClient = eqslClient;
+        _lotwClient = lotwClient;
     }
 
     [HttpGet]
@@ -179,6 +184,37 @@ public class UsersController : ControllerBase
         return Ok(new { username = user.EqslUsername, qthNickname = user.EqslQthNickname });
     }
 
+    [HttpPut("me/lotw-credentials")]
+    [Authorize]
+    public async Task<IActionResult> SaveLotwCredentials([FromBody] SaveLotwCredentialsDto dto, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest("LoTW brugernavn og adgangskode er påkrævet");
+
+        try
+        {
+            await _lotwClient.FetchConfirmedQsosAsync(dto.Username.Trim(), dto.Password, DateTime.UtcNow.Date, ct);
+        }
+        catch (LotwApiException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception)
+        {
+            return BadRequest("Kunne ikke forbinde til LoTW. Kontroller brugernavn og adgangskode.");
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        user.LotwUsername = dto.Username.Trim();
+        user.LotwPassword = _lotwProtector.Protect(dto.Password);
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { username = user.LotwUsername });
+    }
+
     [HttpPut("me/qrz-key")]
     [Authorize]
     public async Task<IActionResult> SaveQrzKey([FromBody] SaveQrzKeyDto dto, CancellationToken ct)
@@ -215,4 +251,5 @@ public class UsersController : ControllerBase
 public record SaveQrzKeyDto(string? ApiKey);
 public record SaveQrzCredentialsDto(string? Username, string? Password);
 public record SaveEqslCredentialsDto(string? Username, string? Password, string? QthNickname);
+public record SaveLotwCredentialsDto(string? Username, string? Password);
 public record ChangePasswordDto(string? CurrentPassword, string? NewPassword, string? ConfirmPassword);

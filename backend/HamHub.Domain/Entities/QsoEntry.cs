@@ -33,6 +33,9 @@ public class QsoEntry
     public DateTime? EqslSentAt { get; set; }
     public DateTime? EqslConfirmedAt { get; set; }
     public string? EqslLastResult { get; set; }
+    public DateTime? LotwConfirmedAt { get; set; }
+    public DateTime? LotwQslDate { get; set; }
+    public string? LotwLastResult { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type QrzStatus } from '@/lib/types'
+import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type LotwStatus, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -34,6 +34,11 @@ export default function ProfilePage() {
   const [eqslPassword, setEqslPassword] = useState('')
   const [eqslQthNickname, setEqslQthNickname] = useState('')
   const [eqslLoading, setEqslLoading] = useState(false)
+  const [lotwStatus, setLotwStatus] = useState<LotwStatus | null>(null)
+  const [lotwUsername, setLotwUsername] = useState('')
+  const [lotwPassword, setLotwPassword] = useState('')
+  const [lotwLoading, setLotwLoading] = useState(false)
+  const [lotwSyncing, setLotwSyncing] = useState(false)
   const [friends, setFriends] = useState<Friendship[]>([])
   const [friendsLoading, setFriendsLoading] = useState(false)
   const [removingFriendId, setRemovingFriendId] = useState<string | null>(null)
@@ -85,6 +90,9 @@ export default function ProfilePage() {
       }).catch(() => {})
       api.eqsl.status().then(status => {
         if (!cancelled) setEqslStatus(status)
+      }).catch(() => {})
+      api.lotw.status().then(status => {
+        if (!cancelled) setLotwStatus(status)
       }).catch(() => {})
       api.friends.getAll().then(items => {
         if (!cancelled) setFriends(items)
@@ -205,6 +213,36 @@ export default function ProfilePage() {
       toast(err instanceof Error ? err.message : 'Kunne ikke gemme eQSL login', 'error')
     } finally {
       setEqslLoading(false)
+    }
+  }
+
+  const handleSaveLotwCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!lotwUsername.trim() || !lotwPassword) return
+    setLotwLoading(true)
+    try {
+      await api.lotw.saveCredentials(lotwUsername.trim(), lotwPassword)
+      toast('LoTW login gemt og verificeret!')
+      setLotwUsername('')
+      setLotwPassword('')
+      setLotwStatus(await api.lotw.status())
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke gemme LoTW login', 'error')
+    } finally {
+      setLotwLoading(false)
+    }
+  }
+
+  const handleLotwSync = async () => {
+    setLotwSyncing(true)
+    try {
+      const result = await api.lotw.sync()
+      setLotwStatus(await api.lotw.status())
+      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.unmatched} ikke matchet.`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+    } finally {
+      setLotwSyncing(false)
     }
   }
 
@@ -422,6 +460,57 @@ export default function ProfilePage() {
                 />
                 <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
                   {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>LoTW Integration</CardTitle></CardHeader>
+            <CardContent>
+              {lotwStatus?.connected ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-green-400 text-sm">
+                    Tilsluttet som {lotwStatus.username}
+                    {lotwStatus.lastSyncedAt && (
+                      <span className="text-gray-400 ml-2">
+                        Sidst synkroniseret: {new Date(lotwStatus.lastSyncedAt).toLocaleString('da-DK')}
+                      </span>
+                    )}
+                  </p>
+                  <Button onClick={handleLotwSync} disabled={lotwSyncing} variant="secondary">
+                    {lotwSyncing ? 'Synkroniserer...' : 'Hent LoTW bekræftelser'}
+                  </Button>
+                </div>
+              ) : lotwStatus?.credentialError ? (
+                <p className="text-yellow-300 text-sm mb-3">
+                  LoTW-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
+                </p>
+              ) : (
+                <p className="text-gray-400 text-sm mb-3">
+                  Ikke tilsluttet. Indtast dit LoTW brugernavn og adgangskode for at hente bekræftelser.
+                </p>
+              )}
+              <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
+                HamHub henter bekræftede LoTW QSL records og matcher dem mod dine lokale QSOer. Upload til LoTW kræver stadig TQSL/signering og kommer i agentfasen.
+              </div>
+              <form onSubmit={handleSaveLotwCredentials} className="flex flex-col gap-3">
+                <Input
+                  label="LoTW brugernavn"
+                  value={lotwUsername}
+                  onChange={e => setLotwUsername(e.target.value)}
+                  placeholder={lotwStatus?.username ?? 'OZ1ABC'}
+                  autoComplete="username"
+                />
+                <Input
+                  label="LoTW adgangskode"
+                  type="password"
+                  value={lotwPassword}
+                  onChange={e => setLotwPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <Button type="submit" disabled={lotwLoading || !lotwUsername.trim() || !lotwPassword}>
+                  {lotwLoading ? 'Verificerer...' : 'Gem og verificer'}
                 </Button>
               </form>
             </CardContent>

@@ -18,6 +18,7 @@ public class QsoEntryConfiguration : IEntityTypeConfiguration<QsoEntry>
         builder.Property(q => q.QrzId).HasMaxLength(30);
         builder.Property(q => q.QrzConfirmationStatus).HasMaxLength(1);
         builder.Property(q => q.EqslLastResult).HasMaxLength(500);
+        builder.Property(q => q.LotwLastResult).HasMaxLength(500);
 
         builder.HasOne(q => q.User)
             .WithMany(u => u.QsoEntries)

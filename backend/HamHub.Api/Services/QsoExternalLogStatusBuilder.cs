@@ -22,7 +22,8 @@ public static class QsoExternalLogStatusBuilder
         QsoEntry qso,
         ApplicationUser user,
         bool? qrzCredentialReadable = null,
-        bool? eqslCredentialReadable = null)
+        bool? eqslCredentialReadable = null,
+        bool? lotwCredentialReadable = null)
     {
         var qrzSynced = !string.IsNullOrWhiteSpace(qso.QrzId);
         var qrzStored = !string.IsNullOrWhiteSpace(user.QrzApiKey);
@@ -30,6 +31,13 @@ public static class QsoExternalLogStatusBuilder
         var qrzUnreadable = qrzStored && qrzCredentialReadable == false;
         var qrzConfirmed = qso.QrzConfirmedAt.HasValue || string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase);
         var qrzStatus = QrzStatusText(qso.QrzConfirmationStatus);
+
+        var lotwStored = !string.IsNullOrWhiteSpace(user.LotwUsername) && !string.IsNullOrWhiteSpace(user.LotwPassword);
+        var lotwConfigured = lotwStored && (lotwCredentialReadable ?? true);
+        var lotwUnreadable = lotwStored && lotwCredentialReadable == false;
+        var lotwConfirmed = qso.LotwConfirmedAt.HasValue;
+        var lotwChecked = qso.LotwLastResult?.StartsWith("LoTW status opdateret:", StringComparison.OrdinalIgnoreCase) == true;
+
         var eqslConfigured = !string.IsNullOrWhiteSpace(user.EqslUsername) && !string.IsNullOrWhiteSpace(user.EqslPassword);
         var eqslReady = eqslConfigured && (eqslCredentialReadable ?? true);
         var eqslUnreadable = eqslConfigured && eqslCredentialReadable == false;
@@ -63,17 +71,25 @@ public static class QsoExternalLogStatusBuilder
                 LastResult: qrzSynced ? qrzStatus : null),
             new QsoExternalLogStatusDto(
                 Provider: "LoTW",
-                Status: "not-configured",
-                Label: "Kræver TQSL/lokal agent",
+                Status: lotwUnreadable ? "credential-error" : !lotwConfigured ? "not-configured" : lotwConfirmed ? "confirmed" : lotwChecked ? "missing" : "ready",
+                Label: lotwUnreadable ? "LoTW login skal gemmes igen" : !lotwConfigured ? "LoTW ikke sat op" : lotwConfirmed ? "Bekræftet på LoTW" : lotwChecked ? "Ikke bekræftet på LoTW" : "Klar til LoTW sync",
                 ExternalId: null,
                 CanSend: false,
-                CanFetch: false,
-                Description: "LoTW accepterer signerede logs via TrustedQSL/TQSL. HamHub skal derfor bruge den lokale agent til signering, før direkte upload kan aktiveres.",
-                IsConfigured: false,
-                SendActionLabel: "Kommer senere",
-                FetchActionLabel: "Kommer senere",
-                LastUpdatedAt: null,
-                LastResult: "Ikke aktiv endnu, fordi LoTW kræver certifikat og station location i TQSL."),
+                CanFetch: lotwConfigured,
+                Description: lotwUnreadable
+                    ? "Det gemte LoTW login kan ikke læses efter serverens nøgleskift. Gem LoTW login igen på profilen."
+                    : !lotwConfigured
+                    ? "Gem LoTW brugernavn og adgangskode på profilen for at hente bekræftelser fra LoTW."
+                    : lotwConfirmed
+                    ? $"LoTW har en matchende bekræftelse for denne QSO{(qso.LotwQslDate.HasValue ? $" {qso.LotwQslDate.Value:yyyy-MM-dd} UTC" : "")}."
+                    : lotwChecked
+                    ? "Denne QSO er tjekket mod LoTW, men er ikke bekræftet endnu."
+                    : "LoTW sync henter bekræftede QSL records og matcher dem mod dine lokale QSOer på call, tidspunkt, bånd og mode.",
+                IsConfigured: lotwConfigured,
+                SendActionLabel: "Kræver TQSL",
+                FetchActionLabel: lotwConfigured ? "Hent LoTW" : "Opsæt LoTW",
+                LastUpdatedAt: qso.LotwConfirmedAt ?? qso.LotwQslDate ?? user.LotwLastSyncedAt,
+                LastResult: qso.LotwLastResult),
             new QsoExternalLogStatusDto(
                 Provider: "eQSL",
                 Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslConfirmed ? "confirmed" : eqslSent ? "sent" : eqslMissing ? "missing" : "ready",

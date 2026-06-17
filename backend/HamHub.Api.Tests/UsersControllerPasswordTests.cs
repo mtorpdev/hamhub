@@ -53,7 +53,8 @@ public class UsersControllerPasswordTests
             mapper: null!,
             dataProtectionProvider: DataProtectionProvider.Create("HamHub.Api.Tests"),
             qrzClient: null!,
-            eqslClient: null!);
+            eqslClient: null!,
+            lotwClient: null!);
 
         controller.ControllerContext = new ControllerContext
         {

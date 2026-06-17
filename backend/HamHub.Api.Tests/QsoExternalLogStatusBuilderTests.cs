@@ -192,4 +192,27 @@ public class QsoExternalLogStatusBuilderTests
         Assert.False(qrz.CanFetch);
         Assert.False(qrz.IsConfigured);
     }
+
+    [Fact]
+    public void BuildMarksLotwConfirmedWhenQsoHasLotwConfirmation()
+    {
+        var qso = new QsoEntry
+        {
+            LotwConfirmedAt = new DateTime(2026, 6, 17, 8, 10, 11, DateTimeKind.Utc),
+            LotwQslDate = new DateTime(2026, 6, 17, 0, 0, 0, DateTimeKind.Utc),
+            LotwLastResult = "LoTW bekræftet 2026-06-17 UTC"
+        };
+        var user = new ApplicationUser { LotwUsername = "OZ1ABC", LotwPassword = "protected" };
+
+        var statuses = QsoExternalLogStatusBuilder.Build(qso, user, lotwCredentialReadable: true);
+
+        var lotw = Assert.Single(statuses, status => status.Provider == "LoTW");
+        Assert.Equal("confirmed", lotw.Status);
+        Assert.Equal("Bekræftet på LoTW", lotw.Label);
+        Assert.False(lotw.CanSend);
+        Assert.True(lotw.CanFetch);
+        Assert.True(lotw.IsConfigured);
+        Assert.Equal(qso.LotwConfirmedAt, lotw.LastUpdatedAt);
+        Assert.Equal(qso.LotwLastResult, lotw.LastResult);
+    }
 }

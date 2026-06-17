@@ -27,6 +27,10 @@ public class ApplicationUser : IdentityUser
     public string? EqslQthNickname { get; set; }
     public DateTime? EqslLastSyncedAt { get; set; }
 
+    public string? LotwUsername { get; set; }
+    public string? LotwPassword { get; set; }
+    public DateTime? LotwLastSyncedAt { get; set; }
+
     public ICollection<StationProfile> Stations { get; set; } = new List<StationProfile>();
     public ICollection<QsoEntry> QsoEntries { get; set; } = new List<QsoEntry>();
     public ICollection<DxSpot> DxSpots { get; set; } = new List<DxSpot>();

@@ -25,6 +25,7 @@ public class QsosController : ControllerBase
     private readonly EqslClient _eqslClient;
     private readonly IDataProtector _eqslProtector;
     private readonly IDataProtector _qrzProtector;
+    private readonly IDataProtector _lotwProtector;
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
 
@@ -45,6 +46,7 @@ public class QsosController : ControllerBase
         _propagationService = propagationService;
         _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
         _qrzProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _lotwProtector = dataProtectionProvider.CreateProtector("LotwPassword");
     }
 
     [HttpGet]
@@ -82,6 +84,7 @@ public class QsosController : ControllerBase
 
         var qrzReadable = CanUnprotect(qso.User.QrzApiKey, _qrzProtector);
         var eqslReadable = CanUnprotect(qso.User.EqslPassword, _eqslProtector);
+        var lotwReadable = CanUnprotect(qso.User.LotwPassword, _lotwProtector);
         if (eqslReadable == true)
         {
             try
@@ -96,7 +99,7 @@ public class QsosController : ControllerBase
             }
         }
 
-        return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User, qrzReadable, eqslReadable));
+        return Ok(QsoExternalLogStatusBuilder.Build(qso, qso.User, qrzReadable, eqslReadable, lotwReadable));
     }
 
     [HttpGet("{id}/conditions")]
@@ -324,6 +327,9 @@ public class QsosController : ControllerBase
         qso.QrzConfirmationStatus = null;
         qso.QrzConfirmedAt = null;
         qso.QrzQslDate = null;
+        qso.LotwConfirmedAt = null;
+        qso.LotwQslDate = null;
+        qso.LotwLastResult = null;
 
         await _context.SaveChangesAsync();
         _trigger.NotifyQsoChanged(userId!);

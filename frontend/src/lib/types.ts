@@ -94,6 +94,9 @@ export interface Qso {
   eqslSentAt: string | null
   eqslConfirmedAt: string | null
   eqslLastResult: string | null
+  lotwConfirmedAt: string | null
+  lotwQslDate: string | null
+  lotwLastResult: string | null
   createdAt: string
   updatedAt: string
 }
@@ -384,6 +387,21 @@ export interface WsjtxAgentStatus {
 export interface LotwActivity {
   callsign: string
   lastUploadDate: string
+}
+
+export interface LotwStatus {
+  connected: boolean
+  username: string | null
+  lastSyncedAt: string | null
+  credentialReadable: boolean | null
+  credentialError: boolean
+  statusMessage: string | null
+}
+
+export interface LotwSyncResult {
+  confirmed: number
+  unmatched: number
+  syncedAtUtc: string
 }
 
 export interface QrzStatus {

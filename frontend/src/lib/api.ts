@@ -252,6 +252,15 @@ export const api = {
       request<import('./types').LotwActivity[]>(
         `/api/lotw/activity?callsigns=${encodeURIComponent(callsigns.join(','))}`
       ),
+    status: () =>
+      request<import('./types').LotwStatus>('/api/lotw/status'),
+    sync: () =>
+      request<import('./types').LotwSyncResult>('/api/lotw/sync', { method: 'POST' }),
+    saveCredentials: (username: string, password: string) =>
+      request<{ username: string }>('/api/users/me/lotw-credentials', {
+        method: 'PUT',
+        body: JSON.stringify({ username, password }),
+      }),
   },
   wsjtx: {
     getRecentDecodes: (limit = 200) =>

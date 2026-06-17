@@ -128,6 +128,7 @@ builder.Services.AddHostedService<HamHub.Api.Services.WsjtxPruneService>();
 builder.Services.AddHostedService<HamHub.Api.Services.ArticleFeedImportHostedService>();
 builder.Services.AddSingleton<HamHub.Api.Services.IQrzSyncTrigger, HamHub.Api.Services.QrzSyncTrigger>();
 builder.Services.AddHostedService<HamHub.Api.Services.QrzSyncService>();
+builder.Services.AddScoped<HamHub.Api.Services.LotwSyncService>();
 
 builder.Services.AddCors(options =>
 {
@@ -179,6 +180,7 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("safety", () => EnsureSafetySchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("article feed", () => EnsureArticleFeedSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("QSO external status", () => EnsureQsoExternalStatusSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("LoTW integration", () => EnsureLotwSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("WSJT-X timing", () => EnsureWsjtxTimingSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
 
@@ -347,6 +349,21 @@ static async Task EnsureQsoExternalStatusSchemaAsync(ApplicationDbContext contex
         ADD COLUMN IF NOT EXISTS "QrzConfirmationStatus" character varying(1),
         ADD COLUMN IF NOT EXISTS "QrzConfirmedAt" timestamp with time zone,
         ADD COLUMN IF NOT EXISTS "QrzQslDate" timestamp with time zone;
+        """);
+}
+
+static async Task EnsureLotwSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "AspNetUsers"
+        ADD COLUMN IF NOT EXISTS "LotwUsername" character varying(50),
+        ADD COLUMN IF NOT EXISTS "LotwPassword" text,
+        ADD COLUMN IF NOT EXISTS "LotwLastSyncedAt" timestamp with time zone;
+
+        ALTER TABLE "QsoEntries"
+        ADD COLUMN IF NOT EXISTS "LotwConfirmedAt" timestamp with time zone,
+        ADD COLUMN IF NOT EXISTS "LotwQslDate" timestamp with time zone,
+        ADD COLUMN IF NOT EXISTS "LotwLastResult" character varying(500);
         """);
 }
 
