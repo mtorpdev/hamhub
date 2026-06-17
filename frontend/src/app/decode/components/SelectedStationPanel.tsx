@@ -1,13 +1,9 @@
 'use client'
 
-import { type ChangeEventHandler, type FormEventHandler } from 'react'
-import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { BandLabels, ModeLabels, type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
+import { type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 import { bandModeLabel, formatTime, snrText } from '../decodeFormatters'
 import { type DecodeRow, type LiveRosterEntry } from '../decodeScoring'
-import { type QsoEditForm } from '../qsoEdit'
 
 type SelectedStationPanelProps = {
   entry: LiveRosterEntry | null
@@ -19,13 +15,8 @@ type SelectedStationPanelProps = {
   selectedTxCount: number
   commandStatus: string | null
   pendingCommand: boolean
-  qsoForm: QsoEditForm
-  qsoSaving: boolean
-  qsoSaveStatus: string | null
   onCallDecode: (decode: DecodeRow) => void
   onStopTx: () => void
-  onQsoFieldChange: (key: keyof QsoEditForm) => ChangeEventHandler<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  onSaveLoggedQso: FormEventHandler<HTMLFormElement>
 }
 
 export default function SelectedStationPanel({
@@ -38,13 +29,8 @@ export default function SelectedStationPanel({
   selectedTxCount,
   commandStatus,
   pendingCommand,
-  qsoForm,
-  qsoSaving,
-  qsoSaveStatus,
   onCallDecode,
   onStopTx,
-  onQsoFieldChange,
-  onSaveLoggedQso,
 }: SelectedStationPanelProps) {
   if (!entry) {
     return (
@@ -150,7 +136,7 @@ export default function SelectedStationPanel({
           {commandStatus && <p className="mt-3 text-sm text-gray-300">{commandStatus}</p>}
         </div>
 
-        <div className="px-5">
+        <div className="px-5 pb-5">
           <h3 className="mb-3 text-sm font-semibold text-white">Kommunikation</h3>
           <div className="max-h-52 overflow-auto border border-gray-800 bg-black/30">
             {selectedTrail.length > 0 ? selectedTrail.map(item => (
@@ -164,63 +150,6 @@ export default function SelectedStationPanel({
             )}
           </div>
         </div>
-
-        {selectedLoggedQso && (
-          <form onSubmit={onSaveLoggedQso} className="border-t border-gray-800 px-5 py-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-white">Logget QSO</h3>
-                <p className="mt-1 text-sm text-gray-400">
-                  QSO #{selectedLoggedQso.id} er logget fra WSJT-X. Ret felterne og gem i HamHub.
-                </p>
-              </div>
-              <Button type="button" variant="secondary" onClick={() => window.open(`/logbook/${selectedLoggedQso.id}`, '_blank')}>
-                Åbn fuld QSO
-              </Button>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input label="Dato/tid UTC" type="datetime-local" value={qsoForm.dateUtc} onChange={onQsoFieldChange('dateUtc')} required />
-              <Input label="Eget kaldesignal" value={qsoForm.ownCallsign} onChange={onQsoFieldChange('ownCallsign')} required />
-              <Input label="Kontaktens kaldesignal" value={qsoForm.workedCallsign} onChange={onQsoFieldChange('workedCallsign')} required />
-              <Input label="Frekvens (MHz)" type="number" step="0.001" value={qsoForm.frequency} onChange={onQsoFieldChange('frequency')} />
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-4">
-              <SelectField label="Band" value={qsoForm.band} onChange={onQsoFieldChange('band')} options={BandLabels} />
-              <SelectField label="Mode" value={qsoForm.mode} onChange={onQsoFieldChange('mode')} options={ModeLabels} />
-              <Input label="RST sendt" value={qsoForm.rstSent} onChange={onQsoFieldChange('rstSent')} />
-              <Input label="RST modtaget" value={qsoForm.rstReceived} onChange={onQsoFieldChange('rstReceived')} />
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <Input label="Kontaktens grid" value={qsoForm.locator} onChange={onQsoFieldChange('locator')} />
-              <Input label="Mit grid" value={qsoForm.myGridsquare} onChange={onQsoFieldChange('myGridsquare')} />
-              <Input label="Land" value={qsoForm.country} onChange={onQsoFieldChange('country')} />
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <Input label="Navn" value={qsoForm.name} onChange={onQsoFieldChange('name')} />
-              <Input label="QTH" value={qsoForm.qth} onChange={onQsoFieldChange('qth')} />
-              <Input label="TX effekt (W)" type="number" step="0.1" value={qsoForm.txPower} onChange={onQsoFieldChange('txPower')} />
-            </div>
-
-            <div className="mt-3 flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Kommentar</label>
-              <textarea
-                rows={2}
-                value={qsoForm.comment}
-                onChange={onQsoFieldChange('comment')}
-                className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
-              />
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              {qsoSaveStatus && <p className="text-sm text-gray-300">{qsoSaveStatus}</p>}
-              <Button type="submit" disabled={qsoSaving}>{qsoSaving ? 'Gemmer...' : 'Gem QSO'}</Button>
-            </div>
-          </form>
-        )}
       </CardContent>
     </Card>
   )
@@ -231,29 +160,6 @@ function Info({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs uppercase text-gray-500">{label}</p>
       <p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p>
-    </div>
-  )
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string | number
-  options: Record<number, string>
-  onChange: ChangeEventHandler<HTMLSelectElement>
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm font-medium text-gray-300">{label}</label>
-      <select value={value} onChange={onChange} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
-        {Object.entries(options).map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>{optionLabel}</option>
-        ))}
-      </select>
     </div>
   )
 }

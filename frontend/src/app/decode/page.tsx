@@ -6,6 +6,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
 import { type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 import AwardProgressPanel from './components/AwardProgressPanel'
+import LoggedQsoPopup from './components/LoggedQsoPopup'
 import LiveMapPanel from './components/LiveMapPanel'
 import LiveRoster from './components/LiveRoster'
 import RawDecodeDrawer from './components/RawDecodeDrawer'
@@ -22,6 +23,7 @@ import {
   type RosterFilters,
 } from './decodeScoring'
 import { commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
+import { nextLoggedQsoPopupId } from './loggedQsoPopup'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -52,11 +54,14 @@ export default function DecodePage() {
   const [qsoDrafts, setQsoDrafts] = useState<Record<number, QsoEditForm>>({})
   const [qsoSaveStatuses, setQsoSaveStatuses] = useState<Record<number, string>>({})
   const [qsoSaving, setQsoSaving] = useState(false)
+  const [loggedQsoPopupId, setLoggedQsoPopupId] = useState<number | null>(null)
+  const [dismissedLoggedQsoIds, setDismissedLoggedQsoIds] = useState<Set<number>>(() => new Set())
   const [rosterFilters, setRosterFilters] = useState<RosterFilters>(DEFAULT_ROSTER_FILTERS)
   const [rawOpen, setRawOpen] = useState(false)
   const [lotwActivity, setLotwActivity] = useState<Record<string, string>>({})
   const lastTxRef = useRef({ call: '', transmitting: false })
   const latestCommandResultIdRef = useRef('')
+  const previousQsosRef = useRef<Qso[] | null>(null)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -158,9 +163,12 @@ export default function DecodePage() {
   const selectedLoggedQso = useMemo(() => {
     return selectedCall ? logbook.byCallsign.get(selectedCall) ?? null : null
   }, [logbook, selectedCall])
-  const qsoForm = selectedLoggedQso ? qsoDrafts[selectedLoggedQso.id] ?? qsoToEditForm(selectedLoggedQso) : EMPTY_QSO_FORM
-  const qsoSaveStatus = selectedLoggedQso
-    ? qsoSaveStatuses[selectedLoggedQso.id] ?? 'QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.'
+  const popupLoggedQso = useMemo(() => {
+    return loggedQsoPopupId ? qsos.find(qso => qso.id === loggedQsoPopupId) ?? null : null
+  }, [loggedQsoPopupId, qsos])
+  const qsoForm = popupLoggedQso ? qsoDrafts[popupLoggedQso.id] ?? qsoToEditForm(popupLoggedQso) : EMPTY_QSO_FORM
+  const qsoSaveStatus = popupLoggedQso
+    ? qsoSaveStatuses[popupLoggedQso.id] ?? 'QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.'
     : null
 
   const wsjtxStatusCall = wsjtxStatus?.dxCall?.toUpperCase() ?? ''
@@ -230,6 +238,14 @@ export default function DecodePage() {
     }
   }, [selectedCall, selectedLoggedQso])
 
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const nextId = nextLoggedQsoPopupId(previousQsosRef.current, qsos, dismissedLoggedQsoIds)
+    if (nextId && !loggedQsoPopupId) setLoggedQsoPopupId(nextId)
+    previousQsosRef.current = qsos
+  }, [dismissedLoggedQsoIds, isAuthenticated, loggedQsoPopupId, qsos])
+
   const handleSelectEntry = (entry: { callsign: string }) => {
     setSelectedCallsign(entry.callsign)
     setCommandStatus(null)
@@ -270,35 +286,43 @@ export default function DecodePage() {
   }
 
   const setQsoField = (key: keyof QsoEditForm) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    if (!selectedLoggedQso) return
+    if (!popupLoggedQso) return
     const value = event.target.value
     setQsoDrafts(current => ({
       ...current,
-      [selectedLoggedQso.id]: {
-        ...(current[selectedLoggedQso.id] ?? qsoToEditForm(selectedLoggedQso)),
+      [popupLoggedQso.id]: {
+        ...(current[popupLoggedQso.id] ?? qsoToEditForm(popupLoggedQso)),
         [key]: value,
       },
     }))
   }
 
+  const closeLoggedQsoPopup = () => {
+    if (loggedQsoPopupId) {
+      setDismissedLoggedQsoIds(current => new Set(current).add(loggedQsoPopupId))
+    }
+    setLoggedQsoPopupId(null)
+  }
+
   const handleSaveLoggedQso = async (event: FormEvent) => {
     event.preventDefault()
-    if (!selectedLoggedQso || qsoSaving) return
+    if (!popupLoggedQso || qsoSaving) return
     try {
       setQsoSaving(true)
-      setQsoSaveStatuses(current => ({ ...current, [selectedLoggedQso.id]: 'Gemmer QSO...' }))
-      const updated = await api.qsos.update(selectedLoggedQso.id, qsoFormPayload(qsoForm))
+      setQsoSaveStatuses(current => ({ ...current, [popupLoggedQso.id]: 'Gemmer QSO...' }))
+      const updated = await api.qsos.update(popupLoggedQso.id, qsoFormPayload(qsoForm))
       setQsos(current => mergeQsos(current, [updated]))
       setQsoDrafts(current => {
         const next = { ...current }
-        delete next[selectedLoggedQso.id]
+        delete next[popupLoggedQso.id]
         return next
       })
-      setQsoSaveStatuses(current => ({ ...current, [selectedLoggedQso.id]: 'QSO gemt i HamHub.' }))
+      setDismissedLoggedQsoIds(current => new Set(current).add(popupLoggedQso.id))
+      setLoggedQsoPopupId(null)
     } catch (err) {
       setQsoSaveStatuses(current => ({
         ...current,
-        [selectedLoggedQso.id]: err instanceof Error ? err.message : 'Kunne ikke gemme QSO',
+        [popupLoggedQso.id]: err instanceof Error ? err.message : 'Kunne ikke gemme QSO',
       }))
     } finally {
       setQsoSaving(false)
@@ -337,13 +361,8 @@ export default function DecodePage() {
             selectedTxCount={selectedTxCount}
             commandStatus={commandStatus}
             pendingCommand={pendingCommand}
-            qsoForm={qsoForm}
-            qsoSaving={qsoSaving}
-            qsoSaveStatus={qsoSaveStatus}
             onCallDecode={handleCallDecode}
             onStopTx={handleStopTx}
-            onQsoFieldChange={setQsoField}
-            onSaveLoggedQso={handleSaveLoggedQso}
           />
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -361,6 +380,18 @@ export default function DecodePage() {
           if (decode.dxCallsign) handleSelectEntry({ callsign: decode.dxCallsign.toUpperCase() })
         }}
       />
+
+      {popupLoggedQso && (
+        <LoggedQsoPopup
+          qso={popupLoggedQso}
+          qsoForm={qsoForm}
+          qsoSaving={qsoSaving}
+          qsoSaveStatus={qsoSaveStatus}
+          onQsoFieldChange={setQsoField}
+          onSaveLoggedQso={handleSaveLoggedQso}
+          onClose={closeLoggedQsoPopup}
+        />
+      )}
     </div>
   )
 }
