@@ -15,6 +15,12 @@ public class QsoEntryConfiguration : IEntityTypeConfiguration<QsoEntry>
         builder.Property(q => q.RstReceived).HasMaxLength(10);
         builder.Property(q => q.Locator).HasMaxLength(10);
         builder.Property(q => q.Country).HasMaxLength(100);
+        builder.Property(q => q.County).HasMaxLength(128);
+        builder.Property(q => q.MyState).HasMaxLength(128);
+        builder.Property(q => q.MyCounty).HasMaxLength(128);
+        builder.Property(q => q.PotaRefs).HasMaxLength(512);
+        builder.Property(q => q.SotaRefs).HasMaxLength(512);
+        builder.Property(q => q.AwardRefs).HasMaxLength(512);
         builder.Property(q => q.QrzId).HasMaxLength(30);
         builder.Property(q => q.QrzConfirmationStatus).HasMaxLength(1);
         builder.Property(q => q.EqslLastResult).HasMaxLength(500);

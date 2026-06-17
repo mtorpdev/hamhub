@@ -82,7 +82,15 @@ export interface Qso {
   dxcc: number | null
   continent: string | null
   state: string | null
+  cqZone: number | null
+  ituZone: number | null
+  county: string | null
+  myState: string | null
+  myCounty: string | null
   iota: string | null
+  potaRefs: string | null
+  sotaRefs: string | null
+  awardRefs: string | null
   name: string | null
   qth: string | null
   txPower: number | null
@@ -377,6 +385,52 @@ export interface WsjtxStatus {
   txDf: number
   updatedAtUtc: string
   serverReceivedAtUtc: string
+}
+
+export type AwardStatus = 'active' | 'missing-data' | 'coming-next' | string
+
+export interface AwardCatalogItem {
+  id: string
+  sponsor: string
+  name: string
+  description: string
+  status: AwardStatus
+  ruleType: string
+  nextThreshold: number | null
+  dataRequirements: string[]
+}
+
+export interface AwardEntityProgress {
+  key: string
+  label: string
+  status: 'confirmed' | 'worked' | 'missing' | string
+  qsoId: number | null
+}
+
+export interface AwardProgress extends AwardCatalogItem {
+  workedCount: number
+  confirmedCount: number
+  missingCount: number
+  warnings: string[]
+  entities: AwardEntityProgress[]
+  missingEntities: AwardEntityProgress[]
+  unconfirmedEntities: AwardEntityProgress[]
+}
+
+export interface AwardSummaryResponse {
+  awards: AwardProgress[]
+}
+
+export interface AwardDetailResponse {
+  award: AwardProgress
+}
+
+export interface AwardFilters {
+  callsign?: string
+  band?: Band
+  mode?: Mode
+  sponsor?: string
+  status?: AwardStatus
 }
 
 export interface WsjtxAgentStatus {

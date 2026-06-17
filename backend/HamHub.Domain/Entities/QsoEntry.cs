@@ -21,7 +21,15 @@ public class QsoEntry
     public int? Dxcc { get; set; }             // DXCC entity number
     public string? Continent { get; set; }     // CONT
     public string? State { get; set; }         // STATE
+    public int? CqZone { get; set; }           // CQZ
+    public int? ItuZone { get; set; }          // ITUZ
+    public string? County { get; set; }        // CNTY
+    public string? MyState { get; set; }       // MY_STATE
+    public string? MyCounty { get; set; }      // MY_CNTY
     public string? Iota { get; set; }          // IOTA island reference
+    public string? PotaRefs { get; set; }      // comma-separated POTA refs
+    public string? SotaRefs { get; set; }      // comma-separated SOTA refs
+    public string? AwardRefs { get; set; }     // generic award refs from ADIF or manual entry
     public string? Name { get; set; }          // NAME (operator name)
     public string? Qth { get; set; }           // QTH (city)
     public double? TxPower { get; set; }       // TX_PWR in watts

@@ -116,6 +116,7 @@ builder.Services.AddSingleton<HamHub.Api.Services.WsjtxAgentPresenceCache>();
 builder.Services.AddSingleton<HamHub.Api.Services.CommunityPresenceTracker>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxccLookupService>();
+builder.Services.AddScoped<HamHub.Api.Services.Awards.AwardEngine>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.Kc2gMufFof2Service>();
@@ -181,6 +182,7 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("article feed", () => EnsureArticleFeedSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("QSO external status", () => EnsureQsoExternalStatusSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("LoTW integration", () => EnsureLotwSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("award fields", () => EnsureAwardFieldsSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("WSJT-X timing", () => EnsureWsjtxTimingSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
 
@@ -364,6 +366,21 @@ static async Task EnsureLotwSchemaAsync(ApplicationDbContext context)
         ADD COLUMN IF NOT EXISTS "LotwConfirmedAt" timestamp with time zone,
         ADD COLUMN IF NOT EXISTS "LotwQslDate" timestamp with time zone,
         ADD COLUMN IF NOT EXISTS "LotwLastResult" character varying(500);
+        """);
+}
+
+static async Task EnsureAwardFieldsSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "QsoEntries"
+        ADD COLUMN IF NOT EXISTS "AwardRefs" character varying(512),
+        ADD COLUMN IF NOT EXISTS "County" character varying(128),
+        ADD COLUMN IF NOT EXISTS "CqZone" integer,
+        ADD COLUMN IF NOT EXISTS "ItuZone" integer,
+        ADD COLUMN IF NOT EXISTS "MyCounty" character varying(128),
+        ADD COLUMN IF NOT EXISTS "MyState" character varying(128),
+        ADD COLUMN IF NOT EXISTS "PotaRefs" character varying(512),
+        ADD COLUMN IF NOT EXISTS "SotaRefs" character varying(512);
         """);
 }
 

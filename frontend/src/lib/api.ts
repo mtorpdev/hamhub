@@ -24,6 +24,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json()
 }
 
+function queryString(params: Record<string, string | number | undefined | null>) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') query.set(key, String(value))
+  }
+  const serialized = query.toString()
+  return serialized ? `?${serialized}` : ''
+}
+
 export const api = {
   auth: {
     login: (email: string, password: string) =>
@@ -89,6 +98,13 @@ export const api = {
       a.click()
       URL.revokeObjectURL(a.href)
     },
+  },
+  awards: {
+    getCatalog: () => request<import('./types').AwardCatalogItem[]>('/api/awards/catalog'),
+    getSummary: (filters: import('./types').AwardFilters = {}) =>
+      request<import('./types').AwardSummaryResponse>(`/api/awards/summary${queryString(filters as Record<string, string | number | undefined | null>)}`),
+    getDetail: (id: string, filters: import('./types').AwardFilters = {}) =>
+      request<import('./types').AwardDetailResponse>(`/api/awards/${encodeURIComponent(id)}${queryString(filters as Record<string, string | number | undefined | null>)}`),
   },
   spots: {
     getLatest: (limit = 50) => request<import('./types').DxSpot[]>(`/api/spots?limit=${limit}`),
