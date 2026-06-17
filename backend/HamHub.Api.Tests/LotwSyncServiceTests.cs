@@ -1,0 +1,52 @@
+using HamHub.Api.Services;
+using HamHub.Domain.Entities;
+using HamHub.Domain.Enums;
+using HamHub.Infrastructure.Services;
+using Xunit;
+
+namespace HamHub.Api.Tests;
+
+public class LotwSyncServiceTests
+{
+    [Fact]
+    public void ApplyConfirmationFillsMissingAwardFieldsWithoutOverwritingExistingData()
+    {
+        var qso = new QsoEntry
+        {
+            WorkedCallsign = "OZ1ABC",
+            DateUtc = new DateTime(2026, 6, 16, 12, 30, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8,
+            Country = "Local Denmark",
+            Dxcc = 221
+        };
+
+        var lotw = new LotwQslRecord(
+            Call: "OZ1ABC",
+            TimeOn: qso.DateUtc,
+            Band: "20M",
+            Mode: "FT8",
+            QslDate: new DateTime(2026, 6, 17, 0, 0, 0, DateTimeKind.Utc),
+            ReceivedAt: new DateTime(2026, 6, 17, 8, 10, 11, DateTimeKind.Utc),
+            Gridsquare: "JO55WM",
+            Country: "Denmark",
+            Dxcc: 999,
+            Continent: "EU",
+            State: "SJ",
+            CqZone: 14,
+            ItuZone: 18,
+            Iota: "EU-029");
+
+        LotwSyncService.ApplyConfirmation(qso, lotw, new DateTime(2026, 6, 17, 9, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("Local Denmark", qso.Country);
+        Assert.Equal(221, qso.Dxcc);
+        Assert.Equal("EU", qso.Continent);
+        Assert.Equal("SJ", qso.State);
+        Assert.Equal(14, qso.CqZone);
+        Assert.Equal(18, qso.ItuZone);
+        Assert.Equal("EU-029", qso.Iota);
+        Assert.Equal("JO55WM", qso.Locator);
+        Assert.NotNull(qso.LotwConfirmedAt);
+    }
+}

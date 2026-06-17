@@ -12,7 +12,14 @@ public record LotwQslRecord(
     string Mode,
     DateTime? QslDate,
     DateTime? ReceivedAt,
-    string? Gridsquare);
+    string? Gridsquare,
+    string? Country,
+    int? Dxcc,
+    string? Continent,
+    string? State,
+    int? CqZone,
+    int? ItuZone,
+    string? Iota);
 
 public class LotwReportClient
 {
@@ -88,7 +95,14 @@ public class LotwReportClient
                 Mode: mode.ToUpperInvariant(),
                 QslDate: ParseAdifDate(GetField(record, "QSLRDATE")),
                 ReceivedAt: ParseLotwTimestamp(GetField(record, "APP_LoTW_RXQSL")),
-                Gridsquare: GetField(record, "GRIDSQUARE")));
+                Gridsquare: NormalizeAwardText(GetField(record, "GRIDSQUARE")),
+                Country: NormalizeAwardText(GetField(record, "COUNTRY")),
+                Dxcc: ParseAdifInt(GetField(record, "DXCC")),
+                Continent: NormalizeAwardText(GetField(record, "CONT")),
+                State: NormalizeAwardText(GetField(record, "STATE")),
+                CqZone: ParseAdifInt(GetField(record, "CQZ")),
+                ItuZone: ParseAdifInt(GetField(record, "ITUZ")),
+                Iota: NormalizeAwardText(GetField(record, "IOTA"))));
         }
 
         return result;
@@ -118,6 +132,19 @@ public class LotwReportClient
         return DateTime.TryParseExact(value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? new DateTime(date.Year, date.Month, date.Day, 0, 0, 0, DateTimeKind.Utc)
             : null;
+    }
+
+    private static int? ParseAdifInt(string? value)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static string? NormalizeAwardText(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static DateTime? ParseLotwTimestamp(string? value)

@@ -23,7 +23,8 @@ export default function EditQsoPage() {
     band: Band.M20, frequency: '', mode: Mode.SSB,
     rstSent: '', rstReceived: '',
     submode: '', locator: '', myGridsquare: '',
-    country: '', dxcc: '', continent: '', state: '', iota: '',
+    country: '', dxcc: '', continent: '', state: '', cqZone: '', ituZone: '', county: '',
+    myState: '', myCounty: '', iota: '', potaRefs: '', sotaRefs: '', awardRefs: '',
     name: '', qth: '', txPower: '', comment: '',
   })
   const [loading, setLoading] = useState(true)
@@ -59,7 +60,15 @@ export default function EditQsoPage() {
         dxcc: q.dxcc?.toString() ?? '',
         continent: q.continent ?? '',
         state: q.state ?? '',
+        cqZone: q.cqZone?.toString() ?? '',
+        ituZone: q.ituZone?.toString() ?? '',
+        county: q.county ?? '',
+        myState: q.myState ?? '',
+        myCounty: q.myCounty ?? '',
         iota: q.iota ?? '',
+        potaRefs: q.potaRefs ?? '',
+        sotaRefs: q.sotaRefs ?? '',
+        awardRefs: q.awardRefs ?? '',
         name: q.name ?? '',
         qth: q.qth ?? '',
         txPower: q.txPower?.toString() ?? '',
@@ -96,6 +105,8 @@ export default function EditQsoPage() {
         dateUtc: new Date(form.dateUtc).toISOString(),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
         dxcc: form.dxcc ? parseInt(form.dxcc) : undefined,
+        cqZone: form.cqZone ? parseInt(form.cqZone) : undefined,
+        ituZone: form.ituZone ? parseInt(form.ituZone) : undefined,
         txPower: form.txPower ? parseFloat(form.txPower) : undefined,
       })
       toast('QSO gemt!')
@@ -390,7 +401,21 @@ export default function EditQsoPage() {
               <div className="grid grid-cols-3 gap-3 mt-3">
                 <Input label="Kontinent" value={form.continent} onChange={set('continent')} placeholder="EU" />
                 <Input label="Stat/Provins" value={form.state} onChange={set('state')} placeholder="CA" />
+                <Input label="County" value={form.county} onChange={set('county')} placeholder="Cook, IL" />
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <Input label="CQ zone" type="number" value={form.cqZone} onChange={set('cqZone')} placeholder="14" />
+                <Input label="ITU zone" type="number" value={form.ituZone} onChange={set('ituZone')} placeholder="18" />
                 <Input label="IOTA" value={form.iota} onChange={set('iota')} placeholder="EU-030" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <Input label="Min stat/provins" value={form.myState} onChange={set('myState')} placeholder="SJ" />
+                <Input label="Mit county" value={form.myCounty} onChange={set('myCounty')} placeholder="Aalborg" />
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <Input label="POTA refs" value={form.potaRefs} onChange={set('potaRefs')} placeholder="OZ-0001" />
+                <Input label="SOTA refs" value={form.sotaRefs} onChange={set('sotaRefs')} placeholder="OZ/OZ-001" />
+                <Input label="Award refs" value={form.awardRefs} onChange={set('awardRefs')} placeholder="SPECIAL-2026" />
               </div>
             </div>
 

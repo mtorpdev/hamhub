@@ -100,6 +100,19 @@ public class LotwSyncService
         qso.LotwLastResult = qso.LotwQslDate.HasValue
             ? $"LoTW bekræftet {qso.LotwQslDate.Value:yyyy-MM-dd} UTC"
             : "LoTW bekræftet";
+        ApplyFetchedLotwFields(qso, record);
         qso.UpdatedAt = nowUtc;
+    }
+
+    internal static void ApplyFetchedLotwFields(QsoEntry qso, LotwQslRecord record)
+    {
+        qso.Locator ??= record.Gridsquare;
+        qso.Country ??= record.Country;
+        qso.Dxcc ??= record.Dxcc;
+        qso.Continent ??= record.Continent;
+        qso.State ??= record.State;
+        qso.CqZone ??= record.CqZone;
+        qso.ItuZone ??= record.ItuZone;
+        qso.Iota ??= record.Iota;
     }
 }
