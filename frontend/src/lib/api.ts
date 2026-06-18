@@ -200,6 +200,8 @@ export const api = {
     center: () => request<import('./types').NotificationCenter>('/api/notifications/center'),
     history: () => request<import('./types').NotificationHistory>('/api/notifications/history'),
     markHistoryRead: () => request<void>('/api/notifications/history/read', { method: 'POST' }),
+    markActionHandled: (data: { type: string; relatedId: number | null; groupId: number | null }) =>
+      request<void>('/api/notifications/actions/handled', { method: 'POST', body: JSON.stringify(data) }),
   },
   safety: {
     getBlockedUsers: () => request<import('./types').BlockedUser[]>('/api/safety/blocks'),

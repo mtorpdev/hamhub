@@ -141,6 +141,26 @@ public class NotificationsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("actions/handled")]
+    public async Task<IActionResult> MarkActionHandled([FromBody] NotificationActionHandledRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Type)) return BadRequest("Notification type is required");
+
+        var unread = await _context.NotificationEvents
+            .Where(e =>
+                e.UserId == UserId &&
+                e.ReadAt == null &&
+                e.Type == request.Type &&
+                e.RelatedId == request.RelatedId &&
+                e.GroupId == request.GroupId)
+            .ToListAsync();
+
+        var readAt = DateTime.UtcNow;
+        foreach (var item in unread) item.ReadAt = readAt;
+        if (unread.Count > 0) await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     private async Task<NotificationSummaryDto> BuildSummaryAsync()
     {
         var unreadMessages = await _context.Messages.CountAsync(m =>
@@ -221,6 +241,8 @@ public record NotificationItemDto(
     int? GroupId,
     string? PrimaryAction,
     string? SecondaryAction);
+
+public record NotificationActionHandledRequest(string Type, int? RelatedId, int? GroupId);
 
 public record NotificationHistoryDto(
     int UnreadCount,

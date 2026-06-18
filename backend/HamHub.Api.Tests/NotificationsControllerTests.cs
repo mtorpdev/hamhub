@@ -207,6 +207,28 @@ public class NotificationsControllerTests
         Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == other.Id && e.ReadAt == null));
     }
 
+    [Fact]
+    public async Task MarkActionHandled_MarksMatchingCurrentUserEventsRead()
+    {
+        await using var context = CreateContext();
+        var me = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var other = new ApplicationUser { Id = "user-2", UserName = "oz2def@hamhub.local", Email = "oz2def@hamhub.local", Callsign = "OZ2DEF" };
+        context.Users.AddRange(me, other);
+        context.NotificationEvents.AddRange(
+            new NotificationEvent { UserId = me.Id, Type = "group-invitation", Title = "A", Description = "A", Href = "/community/groups/a", RelatedId = 11, GroupId = 5 },
+            new NotificationEvent { UserId = me.Id, Type = "group-invitation", Title = "B", Description = "B", Href = "/community/groups/b", RelatedId = 12, GroupId = 5 },
+            new NotificationEvent { UserId = other.Id, Type = "group-invitation", Title = "C", Description = "C", Href = "/community/groups/a", RelatedId = 11, GroupId = 5 });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, me.Id);
+
+        var result = await controller.MarkActionHandled(new NotificationActionHandledRequest("group-invitation", 11, 5));
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == me.Id && e.RelatedId == 11 && e.ReadAt != null));
+        Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == me.Id && e.RelatedId == 12 && e.ReadAt == null));
+        Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == other.Id && e.RelatedId == 11 && e.ReadAt == null));
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

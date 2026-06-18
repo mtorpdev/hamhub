@@ -38,6 +38,11 @@ export function useNotificationActions(onDone?: () => Promise<void> | void) {
           toast('Join request afvist')
         }
       }
+      await api.notifications.markActionHandled({
+        type: item.type,
+        relatedId: item.relatedId,
+        groupId: item.groupId,
+      })
       await onDone?.()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Kunne ikke behandle notifikationen', 'error')
