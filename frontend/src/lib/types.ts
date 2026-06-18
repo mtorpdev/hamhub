@@ -525,6 +525,16 @@ export interface QrzReconciliationApplyResponse {
   message: string
 }
 
+export interface QrzDuplicateDeleteRequest {
+  qrzLogId: string | null
+}
+
+export interface QrzDuplicateDeleteResponse {
+  status: string
+  message: string
+  deletedQrzLogId: string
+}
+
 export interface QrzReconciliationItem {
   status: QrzReconciliationStatus
   recommendedAction: QrzReconciliationAction

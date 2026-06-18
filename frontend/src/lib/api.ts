@@ -265,6 +265,8 @@ export const api = {
       request<import('./types').QrzReconciliationResponse>('/api/qrz/reconciliation'),
     applyReconciliation: (data: import('./types').QrzReconciliationApplyRequest) =>
       request<import('./types').QrzReconciliationApplyResponse>('/api/qrz/reconciliation/apply', { method: 'POST', body: JSON.stringify(data) }),
+    deleteDuplicate: (data: import('./types').QrzDuplicateDeleteRequest) =>
+      request<import('./types').QrzDuplicateDeleteResponse>('/api/qrz/reconciliation/duplicates/delete', { method: 'POST', body: JSON.stringify(data) }),
     saveKey: (apiKey: string) =>
       request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
     saveCredentials: (username: string, password: string) =>

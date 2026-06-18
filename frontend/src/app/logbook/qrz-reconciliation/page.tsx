@@ -41,6 +41,8 @@ export default function QrzReconciliationPage() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<QrzReconciliationStatus | 'all'>('all')
   const [applyingKey, setApplyingKey] = useState<string | null>(null)
+  const [deletingQrzLogId, setDeletingQrzLogId] = useState<string | null>(null)
+  const [pendingDeleteQrzLogId, setPendingDeleteQrzLogId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   const loadReconciliation = useCallback((cancelledRef?: { cancelled: boolean }, showLoading = true) => {
@@ -93,6 +95,27 @@ export default function QrzReconciliationPage() {
       setError(err instanceof Error ? err.message : 'Kunne ikke udføre QRZ handling')
     } finally {
       setApplyingKey(null)
+    }
+  }
+
+  const deleteDuplicate = async (qrzLogId: string) => {
+    if (pendingDeleteQrzLogId !== qrzLogId) {
+      setPendingDeleteQrzLogId(qrzLogId)
+      return
+    }
+
+    setDeletingQrzLogId(qrzLogId)
+    setActionMessage(null)
+    setError(null)
+    try {
+      const response = await api.qrz.deleteDuplicate({ qrzLogId })
+      setActionMessage(response.message)
+      setPendingDeleteQrzLogId(null)
+      await loadReconciliation()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke slette QRZ dublet')
+    } finally {
+      setDeletingQrzLogId(null)
     }
   }
 
@@ -149,7 +172,7 @@ export default function QrzReconciliationPage() {
 
           {result.qrzDuplicateGroups.length > 0 && (
             <div className="mb-4 rounded border border-yellow-800/60 bg-yellow-950/25 px-4 py-3 text-sm text-yellow-100">
-              QRZ har {result.qrzDuplicateGroups.length} mulig(e) dubletgruppe(r). Brug listen som beslutningsgrundlag, før noget slettes i QRZ.
+              QRZ har {result.qrzDuplicateGroups.length} mulig(e) dubletgruppe(r). Sletning kræver først valg af LOGID og derefter bekræftelse.
             </div>
           )}
 
@@ -200,7 +223,30 @@ export default function QrzReconciliationPage() {
                       <Badge variant="info">{group.band}</Badge>
                       <Badge>{group.mode}</Badge>
                     </div>
-                    <p className="mt-2 text-xs text-gray-400">{group.qrzLogIds.map((id, index) => `${id} · ${formatUtcDate(group.datesUtc[index])}`).join(' | ')}</p>
+                    <div className="mt-3 divide-y divide-gray-800 rounded border border-gray-800">
+                      {group.qrzLogIds.map((id, index) => {
+                        const pending = pendingDeleteQrzLogId === id
+                        const deleting = deletingQrzLogId === id
+                        return (
+                          <div key={id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-mono text-sm text-white">QRZ {id}</p>
+                              <p className="text-xs text-gray-400">{formatUtcDate(group.datesUtc[index])}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={pending ? 'danger' : 'secondary'}
+                              onClick={() => deleteDuplicate(id)}
+                              disabled={deleting}
+                              title="Sletter kun hvis LOGID stadig er en QRZ dublet ved frisk QRZ fetch."
+                            >
+                              {deleting ? 'Sletter...' : pending ? 'Bekræft sletning' : 'Vælg til sletning'}
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               ))}

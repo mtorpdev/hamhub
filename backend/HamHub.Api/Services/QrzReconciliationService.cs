@@ -89,6 +89,28 @@ public static class QrzReconciliationService
             QrzDuplicateGroups: duplicateGroups);
     }
 
+    public static bool TryFindDuplicateDeleteCandidate(
+        IReadOnlyCollection<AdifQso> qrzQsos,
+        string? qrzLogId,
+        out QrzDuplicateDeleteCandidateDto? candidate)
+    {
+        candidate = null;
+        if (string.IsNullOrWhiteSpace(qrzLogId)) return false;
+
+        var duplicateGroup = BuildQrzDuplicateGroups(qrzQsos)
+            .FirstOrDefault(group => group.QrzLogIds.Contains(qrzLogId, StringComparer.OrdinalIgnoreCase));
+        if (duplicateGroup == null) return false;
+
+        candidate = new QrzDuplicateDeleteCandidateDto(
+            QrzLogId: qrzLogId,
+            WorkedCallsign: duplicateGroup.WorkedCallsign,
+            Band: duplicateGroup.Band,
+            Mode: duplicateGroup.Mode,
+            GroupQrzLogIds: duplicateGroup.QrzLogIds,
+            GroupDatesUtc: duplicateGroup.DatesUtc);
+        return true;
+    }
+
     private static QrzDuplicateGroupDto[] BuildQrzDuplicateGroups(IReadOnlyCollection<AdifQso> qrzQsos)
     {
         var groups = new List<QrzDuplicateGroupDto>();
@@ -273,3 +295,11 @@ public record QrzDuplicateGroupDto(
     string Mode,
     string[] QrzLogIds,
     DateTime[] DatesUtc);
+
+public record QrzDuplicateDeleteCandidateDto(
+    string QrzLogId,
+    string WorkedCallsign,
+    string Band,
+    string Mode,
+    string[] GroupQrzLogIds,
+    DateTime[] GroupDatesUtc);
