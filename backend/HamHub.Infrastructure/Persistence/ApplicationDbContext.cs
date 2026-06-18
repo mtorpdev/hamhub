@@ -44,6 +44,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(p => p.CommunityRoomId);
 
         builder.Entity<Post>()
+            .Property(p => p.Title)
+            .HasMaxLength(160);
+
+        builder.Entity<Post>()
+            .Property(p => p.Tags)
+            .HasMaxLength(300);
+
+        builder.Entity<Post>()
             .HasOne(p => p.CommunityRoom)
             .WithMany(r => r.Posts)
             .HasForeignKey(p => p.CommunityRoomId)

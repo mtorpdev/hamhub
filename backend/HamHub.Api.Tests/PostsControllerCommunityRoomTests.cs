@@ -57,6 +57,38 @@ public class PostsControllerCommunityRoomTests
         Assert.Equal(room.Id, post.CommunityRoomId);
     }
 
+    [Fact]
+    public async Task ForumPostSupportsTitleTagsSearchAndSolvedState()
+    {
+        await using var context = CreateContext();
+        var user = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var room = new CommunityRoom { Name = "POTA / SOTA / Awards", Slug = "pota-sota-awards", SortOrder = 1, IsSystem = true };
+        context.Users.Add(user);
+        context.CommunityRooms.Add(room);
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, user.Id);
+
+        var create = await controller.Create(new CreatePostRequest(
+            Content: "How do I export an activation ADIF?",
+            RoomSlug: "pota-sota-awards",
+            Title: "POTA ADIF export",
+            Tags: "pota,adif"));
+
+        Assert.IsType<CreatedAtActionResult>(create);
+        var search = await controller.GetFeed(page: 1, pageSize: 20, room: null, search: "adif", tag: "pota", solved: null);
+        var ok = Assert.IsType<OkObjectResult>(search);
+        var payload = Assert.IsAssignableFrom<PostsFeedResponse>(ok.Value);
+        var item = Assert.Single(payload.Items);
+        Assert.Equal("POTA ADIF export", item.Title);
+        Assert.Equal(new[] { "pota", "adif" }, item.Tags);
+        Assert.False(item.IsSolved);
+
+        var solvedResult = await controller.SetSolved(item.Id, new SetPostSolvedRequest(true));
+
+        Assert.IsType<OkObjectResult>(solvedResult);
+        Assert.True(await context.Posts.Where(post => post.Id == item.Id).Select(post => post.IsSolved).SingleAsync());
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

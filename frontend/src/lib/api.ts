@@ -232,15 +232,17 @@ export const api = {
       ),
   },
   posts: {
-    getFeed: (page = 1, roomSlug?: string) =>
+    getFeed: (page = 1, roomSlug?: string, search?: string, tag?: string, solved?: boolean) =>
       request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(
-        `/api/posts?page=${page}${roomSlug ? `&room=${encodeURIComponent(roomSlug)}` : ''}`
+        `/api/posts${queryString({ page, room: roomSlug, search, tag, solved: solved === undefined ? undefined : String(solved) })}`
       ),
     getById: (id: number) => request<import('./types').Post>(`/api/posts/${id}`),
-    create: (content: string, roomSlug?: string) =>
-      request<import('./types').Post>('/api/posts', { method: 'POST', body: JSON.stringify({ content, roomSlug }) }),
+    create: (content: string, roomSlug?: string, title?: string, tags?: string) =>
+      request<import('./types').Post>('/api/posts', { method: 'POST', body: JSON.stringify({ content, roomSlug, title, tags }) }),
     delete: (id: number) => request<void>(`/api/posts/${id}`, { method: 'DELETE' }),
     toggleLike: (id: number) => request<{ liked: boolean }>(`/api/posts/${id}/like`, { method: 'POST' }),
+    setSolved: (id: number, isSolved: boolean) =>
+      request<import('./types').Post>(`/api/posts/${id}/solved`, { method: 'POST', body: JSON.stringify({ isSolved }) }),
     getComments: (id: number) => request<import('./types').PostComment[]>(`/api/posts/${id}/comments`),
     addComment: (id: number, content: string) =>
       request<import('./types').PostComment>(`/api/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),

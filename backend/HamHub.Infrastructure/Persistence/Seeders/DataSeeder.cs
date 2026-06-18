@@ -115,6 +115,7 @@ public static class DataSeeder
             new CommunityRoom { Name = "Alle opslag", Slug = "alle", Description = "Hele HamHub community-feedet.", SortOrder = 0, IsSystem = true },
             new CommunityRoom { Name = "DX", Slug = "dx", Description = "DX spots, jagt, pileups og sjældne lande.", SortOrder = 10, IsSystem = true },
             new CommunityRoom { Name = "FT8/FT4", Slug = "ft8-ft4", Description = "Digitale modes, WSJT-X og signalrapporter.", SortOrder = 20, IsSystem = true },
+            new CommunityRoom { Name = "POTA / SOTA / Awards", Slug = "pota-sota-awards", Description = "Parker, toppe og diplomer.", SortOrder = 25, IsSystem = true },
             new CommunityRoom { Name = "Teknik", Slug = "teknik", Description = "Radioer, antenner, software og fejlsøgning.", SortOrder = 30, IsSystem = true },
             new CommunityRoom { Name = "Køb/salg", Slug = "koeb-salg", Description = "Snak om udstyr, annoncer og gode fund.", SortOrder = 40, IsSystem = true },
             new CommunityRoom { Name = "Lokale klubber", Slug = "lokale-klubber", Description = "Klubber, møder, events og lokale net.", SortOrder = 50, IsSystem = true },

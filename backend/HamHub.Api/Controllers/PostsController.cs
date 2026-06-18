@@ -24,7 +24,13 @@ public class PostsController : ControllerBase
 
     // GET /api/posts?page=1&room=dx
     [HttpGet]
-    public async Task<IActionResult> GetFeed([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? room = null)
+    public async Task<IActionResult> GetFeed(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? room = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? tag = null,
+        [FromQuery] bool? solved = null)
     {
         var skip = (page - 1) * pageSize;
         var query = _context.Posts
@@ -40,6 +46,23 @@ public class PostsController : ControllerBase
             var normalizedRoom = room.Trim().ToLowerInvariant();
             query = query.Where(p => p.CommunityRoom != null && p.CommunityRoom.Slug == normalizedRoom);
         }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(p =>
+                (p.Title != null && p.Title.ToLower().Contains(term)) ||
+                p.Content.ToLower().Contains(term) ||
+                (p.Tags != null && p.Tags.ToLower().Contains(term)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(tag))
+        {
+            var normalizedTag = NormalizeTag(tag);
+            query = query.Where(p => p.Tags != null && p.Tags.ToLower().Contains(normalizedTag));
+        }
+
+        if (solved.HasValue) query = query.Where(p => p.IsSolved == solved.Value);
 
         var posts = await query
             .OrderByDescending(p => p.CreatedAt)
@@ -81,7 +104,14 @@ public class PostsController : ControllerBase
             if (room == null) return BadRequest("Community-rum ikke fundet");
         }
 
-        var post = new Post { UserId = UserId!, CommunityRoomId = room?.Id, Content = req.Content };
+        var post = new Post
+        {
+            UserId = UserId!,
+            CommunityRoomId = room?.Id,
+            Title = CleanTitle(req.Title),
+            Tags = NormalizeTags(req.Tags),
+            Content = req.Content.Trim()
+        };
         _context.Posts.Add(post);
         await _context.SaveChangesAsync();
 
@@ -161,6 +191,26 @@ public class PostsController : ControllerBase
         return Ok(new { liked = true });
     }
 
+    [HttpPost("{id:int}/solved")]
+    [Authorize]
+    public async Task<IActionResult> SetSolved(int id, [FromBody] SetPostSolvedRequest req)
+    {
+        var post = await _context.Posts
+            .Include(p => p.User)
+            .Include(p => p.CommunityRoom)
+            .Include(p => p.Images)
+            .Include(p => p.Likes)
+            .Include(p => p.Comments)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (post == null) return NotFound();
+        if (post.UserId != UserId && !User.IsInRole("Admin")) return Forbid();
+
+        post.IsSolved = req.IsSolved;
+        post.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok(MapDto(post, UserId));
+    }
+
     // GET /api/posts/{id}/comments
     [HttpGet("{id:int}/comments")]
     public async Task<IActionResult> GetComments(int id)
@@ -225,6 +275,9 @@ public class PostsController : ControllerBase
         p.CommunityRoomId,
         p.CommunityRoom?.Slug,
         p.CommunityRoom?.Name,
+        p.Title,
+        SplitTags(p.Tags),
+        p.IsSolved,
         p.Content,
         p.Images.OrderBy(i => i.Order).Select(i => $"/uploads/posts/{i.FileName}").ToList(),
         p.Likes.Count,
@@ -242,6 +295,34 @@ public class PostsController : ControllerBase
         c.Content,
         c.CreatedAt,
     };
+
+    private static string? CleanTitle(string? title)
+    {
+        var cleaned = title?.Trim();
+        if (string.IsNullOrWhiteSpace(cleaned)) return null;
+        return cleaned.Length <= 160 ? cleaned : cleaned[..160];
+    }
+
+    private static string? NormalizeTags(string? tags)
+    {
+        var normalized = SplitTags(tags);
+        return normalized.Count == 0 ? null : string.Join(",", normalized);
+    }
+
+    private static string NormalizeTag(string tag) =>
+        tag.Trim().TrimStart('#').ToLowerInvariant();
+
+    private static IReadOnlyList<string> SplitTags(string? tags)
+    {
+        if (string.IsNullOrWhiteSpace(tags)) return Array.Empty<string>();
+        return tags
+            .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeTag)
+            .Where(tag => tag.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToArray();
+    }
 }
 
 public record PostsFeedResponse(int Total, int Page, int PageSize, IReadOnlyList<PostDto> Items);
@@ -253,6 +334,9 @@ public record PostDto(
     int? CommunityRoomId,
     string? CommunityRoomSlug,
     string? CommunityRoomName,
+    string? Title,
+    IReadOnlyList<string> Tags,
+    bool IsSolved,
     string Content,
     IReadOnlyList<string> Images,
     int LikeCount,
@@ -260,5 +344,6 @@ public record PostDto(
     int CommentCount,
     DateTime CreatedAt,
     DateTime UpdatedAt);
-public record CreatePostRequest(string Content, string? RoomSlug = null);
+public record CreatePostRequest(string Content, string? RoomSlug = null, string? Title = null, string? Tags = null);
 public record AddCommentRequest(string Content);
+public record SetPostSolvedRequest(bool IsSolved);

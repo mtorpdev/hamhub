@@ -244,9 +244,16 @@ static async Task EnsureCommunitySchemaAsync(ApplicationDbContext context)
 
         ALTER TABLE "Posts"
         ADD COLUMN IF NOT EXISTS "CommunityRoomId" integer;
+        ALTER TABLE "Posts"
+        ADD COLUMN IF NOT EXISTS "Title" character varying(160);
+        ALTER TABLE "Posts"
+        ADD COLUMN IF NOT EXISTS "Tags" character varying(300);
+        ALTER TABLE "Posts"
+        ADD COLUMN IF NOT EXISTS "IsSolved" boolean NOT NULL DEFAULT false;
 
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_CommunityRooms_Slug" ON "CommunityRooms" ("Slug");
         CREATE INDEX IF NOT EXISTS "IX_Posts_CommunityRoomId" ON "Posts" ("CommunityRoomId");
+        CREATE INDEX IF NOT EXISTS "IX_Posts_IsSolved_CreatedAt" ON "Posts" ("IsSolved", "CreatedAt");
 
         DO $$
         BEGIN

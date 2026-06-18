@@ -91,6 +91,7 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-6">
             <Link href="/spots" className="text-gray-300 hover:text-white text-sm">DX Spots</Link>
             <Link href="/pota" className="text-gray-300 hover:text-white text-sm">POTA</Link>
+            <Link href="/forum" className="text-gray-300 hover:text-white text-sm">Forum</Link>
             <Link href="/articles" className="text-gray-300 hover:text-white text-sm">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 hover:text-white text-sm">Marked</Link>
             {isAuthenticated && <>
@@ -135,6 +136,7 @@ export function Navbar() {
           <div className="md:hidden py-3 border-t border-gray-800 flex flex-col gap-3">
             <Link href="/spots" className="text-gray-300 text-sm py-1">DX Spots</Link>
             <Link href="/pota" className="text-gray-300 text-sm py-1">POTA</Link>
+            <Link href="/forum" className="text-gray-300 text-sm py-1">Forum</Link>
             <Link href="/articles" className="text-gray-300 text-sm py-1">Artikler</Link>
             <Link href="/marketplace" className="text-gray-300 text-sm py-1">Marked</Link>
             {isAuthenticated ? <>

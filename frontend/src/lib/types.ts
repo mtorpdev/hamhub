@@ -769,6 +769,9 @@ export interface Post {
   communityRoomId: number | null
   communityRoomSlug: string | null
   communityRoomName: string | null
+  title: string | null
+  tags: string[]
+  isSolved: boolean
   content: string
   images: string[]
   likeCount: number
