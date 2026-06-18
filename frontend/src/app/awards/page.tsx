@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import { Band, BandLabels, Mode, ModeLabels, type AwardDataQuality, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type AwardBackfillResult, type AwardDataQuality, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { awardEntityHref } from './awardLinks'
@@ -27,6 +27,23 @@ export default function AwardsPage() {
   const [detail, setDetail] = useState<AwardDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<AwardBackfillResult | null>(null)
+
+  const loadSummary = () => {
+    setLoading(true)
+    return api.awards.getSummary(filters)
+      .then(result => {
+        setSummary(result)
+        setError(null)
+      })
+      .catch(err => {
+        setError(err instanceof Error ? err.message : 'Kunne ikke hente awards')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -98,6 +115,21 @@ export default function AwardsPage() {
     setDetailLoading(false)
   }
 
+  const runBackfill = async () => {
+    setBackfillLoading(true)
+    setBackfillResult(null)
+    setError(null)
+    try {
+      const result = await api.awards.backfill(false)
+      setBackfillResult(result)
+      await loadSummary()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke køre award backfill')
+    } finally {
+      setBackfillLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100">
       <div className={`${pageShellClass} space-y-6 py-6`}>
@@ -141,7 +173,14 @@ export default function AwardsPage() {
           <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
         </section>
 
-        {summary && <AwardDataQualityPanel dataQuality={summary.dataQuality} />}
+        {summary && (
+          <AwardDataQualityPanel
+            dataQuality={summary.dataQuality}
+            backfillLoading={backfillLoading}
+            backfillResult={backfillResult}
+            onBackfill={runBackfill}
+          />
+        )}
 
         <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           {loading && activeAwards.length === 0 ? (
@@ -244,7 +283,17 @@ function AwardCard({ award, selected, onSelect }: { award: AwardProgress; select
   )
 }
 
-function AwardDataQualityPanel({ dataQuality }: { dataQuality: AwardDataQuality }) {
+function AwardDataQualityPanel({
+  dataQuality,
+  backfillLoading,
+  backfillResult,
+  onBackfill,
+}: {
+  dataQuality: AwardDataQuality
+  backfillLoading: boolean
+  backfillResult: AwardBackfillResult | null
+  onBackfill: () => void
+}) {
   const qsoRows = dataQuality.qsos.slice(0, 12)
   const issueRows = dataQuality.issues.slice(0, 8)
 
@@ -254,10 +303,25 @@ function AwardDataQualityPanel({ dataQuality }: { dataQuality: AwardDataQuality 
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">Award datakvalitet</h2>
           <p className="text-xs text-gray-500">{dataQuality.issueQsoCount} QSOer mangler data til mindst et award-spor.</p>
+          {backfillResult && (
+            <p className="mt-1 text-xs text-cyan-200">
+              Backfill scannede {backfillResult.scanned} QSOer og opdaterede {backfillResult.updated}.
+            </p>
+          )}
         </div>
-        <span className={`font-mono text-lg font-bold ${dataQuality.issueQsoCount > 0 ? 'text-amber-200' : 'text-emerald-200'}`}>
-          {dataQuality.issueQsoCount}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className={`font-mono text-lg font-bold ${dataQuality.issueQsoCount > 0 ? 'text-amber-200' : 'text-emerald-200'}`}>
+            {dataQuality.issueQsoCount}
+          </span>
+          <button
+            type="button"
+            onClick={onBackfill}
+            disabled={backfillLoading}
+            className="h-9 border border-cyan-800 bg-cyan-950/40 px-3 text-sm font-semibold text-cyan-100 hover:border-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {backfillLoading ? 'Opdaterer...' : 'Kør backfill'}
+          </button>
+        </div>
       </div>
 
       {dataQuality.issueQsoCount === 0 ? (

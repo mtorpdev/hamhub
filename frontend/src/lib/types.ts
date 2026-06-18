@@ -453,6 +453,12 @@ export interface AwardDataQuality {
   qsos: AwardDataQualityQso[]
 }
 
+export interface AwardBackfillResult {
+  scanned: number
+  updated: number
+  dryRun: boolean
+}
+
 export interface AwardSummaryResponse {
   qsoCount: number
   confirmedQsoCount: number

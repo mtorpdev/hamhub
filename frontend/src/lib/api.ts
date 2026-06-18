@@ -108,6 +108,8 @@ export const api = {
       request<import('./types').AwardSummaryResponse>(`/api/awards/summary${queryString(filters as Record<string, string | number | undefined | null>)}`),
     getDetail: (id: string, filters: import('./types').AwardFilters = {}) =>
       request<import('./types').AwardDetailResponse>(`/api/awards/${encodeURIComponent(id)}${queryString(filters as Record<string, string | number | undefined | null>)}`),
+    backfill: (dryRun = false) =>
+      request<import('./types').AwardBackfillResult>('/api/awards/backfill', { method: 'POST', body: JSON.stringify({ dryRun }) }),
   },
   spots: {
     getLatest: (limit = 50) => request<import('./types').DxSpot[]>(`/api/spots?limit=${limit}`),
