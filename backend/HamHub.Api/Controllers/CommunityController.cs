@@ -1,9 +1,11 @@
 using HamHub.Api.Services;
+using HamHub.Api.Hubs;
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -15,11 +17,13 @@ public class CommunityController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly CommunityPresenceTracker _presence;
+    private readonly IHubContext<PrivateMessagesHub>? _hubContext;
 
-    public CommunityController(ApplicationDbContext context, CommunityPresenceTracker presence)
+    public CommunityController(ApplicationDbContext context, CommunityPresenceTracker presence, IHubContext<PrivateMessagesHub>? hubContext = null)
     {
         _context = context;
         _presence = presence;
+        _hubContext = hubContext;
     }
 
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -231,6 +235,7 @@ public class CommunityController : ControllerBase
             Status = CommunityGroupRequestStatus.Pending
         });
         await _context.SaveChangesAsync();
+        await BroadcastNotificationSummaryAsync(await GroupManagerIdsAsync(groupId));
         return Ok();
     }
 
@@ -276,6 +281,7 @@ public class CommunityController : ControllerBase
             });
         }
         await _context.SaveChangesAsync();
+        await BroadcastNotificationSummaryAsync((await GroupManagerIdsAsync(groupId)).Append(request.UserId));
         return Ok();
     }
 
@@ -291,6 +297,7 @@ public class CommunityController : ControllerBase
         request.Status = CommunityGroupRequestStatus.Rejected;
         request.ResolvedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+        await BroadcastNotificationSummaryAsync((await GroupManagerIdsAsync(groupId)).Append(request.UserId));
         return Ok();
     }
 
@@ -314,6 +321,7 @@ public class CommunityController : ControllerBase
                 Status = CommunityGroupRequestStatus.Pending
             });
             await _context.SaveChangesAsync();
+            await BroadcastNotificationSummaryAsync(request.UserId);
         }
         return Ok();
     }
@@ -357,6 +365,7 @@ public class CommunityController : ControllerBase
             });
         }
         await _context.SaveChangesAsync();
+        await BroadcastNotificationSummaryAsync(invitation.InviteeId, invitation.InviterId);
         return Ok();
     }
 
@@ -371,6 +380,7 @@ public class CommunityController : ControllerBase
         invitation.Status = CommunityGroupRequestStatus.Rejected;
         invitation.ResolvedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+        await BroadcastNotificationSummaryAsync(invitation.InviteeId, invitation.InviterId);
         return Ok();
     }
 
@@ -481,6 +491,35 @@ public class CommunityController : ControllerBase
             m.CommunityRoomId == groupId &&
             m.UserId == userId &&
             (m.Role == CommunityGroupRole.Owner || m.Role == CommunityGroupRole.Admin));
+    }
+
+    private async Task<IReadOnlyList<string>> GroupManagerIdsAsync(int groupId)
+    {
+        return await _context.CommunityGroupMemberships
+            .Where(m => m.CommunityRoomId == groupId && (m.Role == CommunityGroupRole.Owner || m.Role == CommunityGroupRole.Admin))
+            .Select(m => m.UserId)
+            .ToListAsync();
+    }
+
+    private async Task BroadcastNotificationSummaryAsync(params string[] userIds)
+    {
+        await BroadcastNotificationSummaryAsync((IEnumerable<string>)userIds);
+    }
+
+    private async Task BroadcastNotificationSummaryAsync(IEnumerable<string> userIds)
+    {
+        if (_hubContext == null) return;
+
+        var groups = userIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .Select(PrivateMessagesHub.UserGroup)
+            .ToArray();
+        if (groups.Length == 0) return;
+
+        await _hubContext.Clients
+            .Groups(groups)
+            .SendAsync("NotificationSummaryChanged");
     }
 
     private static CommunityGroupDto MapGroupDto(CommunityRoom room, string? userId)

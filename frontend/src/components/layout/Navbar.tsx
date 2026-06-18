@@ -9,6 +9,13 @@ import { type NotificationSummary } from '@/lib/types'
 import { viewportShellClass } from '@/lib/layout'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
+const emptySummary: NotificationSummary = {
+  unreadMessages: 0,
+  incomingFriendRequests: 0,
+  groupInvitations: 0,
+  groupJoinRequests: 0,
+  total: 0,
+}
 
 function Badge({ count }: { count: number }) {
   if (count <= 0) return null
@@ -23,19 +30,21 @@ export function Navbar() {
   const { isAuthenticated, user, logout, isAdmin } = useAuth()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [summary, setSummary] = useState<NotificationSummary>({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+  const [summary, setSummary] = useState<NotificationSummary>(emptySummary)
+  const messageBadgeCount = summary.unreadMessages + summary.incomingFriendRequests
+  const groupBadgeCount = summary.groupInvitations + summary.groupJoinRequests
   const homeHref = isAuthenticated ? '/dashboard' : '/'
 
   const loadSummary = useCallback(async () => {
     if (!isAuthenticated) {
-      setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+      setSummary(emptySummary)
       return
     }
 
     try {
       setSummary(await api.notifications.summary())
     } catch {
-      setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+      setSummary(emptySummary)
     }
   }, [isAuthenticated])
 
@@ -75,7 +84,7 @@ export function Navbar() {
 
   const handleLogout = () => {
     logout()
-    setSummary({ unreadMessages: 0, incomingFriendRequests: 0, total: 0 })
+    setSummary(emptySummary)
     router.push('/')
   }
 
@@ -97,11 +106,11 @@ export function Navbar() {
             {isAuthenticated && <>
               <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Roster</Link>
               <Link href="/awards" className="text-gray-300 hover:text-white text-sm">Awards</Link>
-              <Link href="/community" className="text-gray-300 hover:text-white text-sm">Grupper</Link>
+              <Link href="/community" className="text-gray-300 hover:text-white text-sm">Grupper<Badge count={groupBadgeCount} /></Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
               <Link href="/messages" className="text-gray-300 hover:text-white text-sm">
-                Beskeder<Badge count={summary.total} />
+                Beskeder<Badge count={messageBadgeCount} />
               </Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">Admin</Link>}
             </>}
@@ -142,11 +151,11 @@ export function Navbar() {
             {isAuthenticated ? <>
               <Link href="/decode" className="text-gray-300 text-sm py-1">Live Roster</Link>
               <Link href="/awards" className="text-gray-300 text-sm py-1">Awards</Link>
-              <Link href="/community" className="text-gray-300 text-sm py-1">Grupper</Link>
+              <Link href="/community" className="text-gray-300 text-sm py-1">Grupper<Badge count={groupBadgeCount} /></Link>
               <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
               <Link href="/messages" className="text-gray-300 text-sm py-1">
-                Beskeder<Badge count={summary.total} />
+                Beskeder<Badge count={messageBadgeCount} />
               </Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 text-sm py-1">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-300 text-sm py-1 text-left">Log ud</button>

@@ -681,6 +681,8 @@ export interface Message {
 export interface NotificationSummary {
   unreadMessages: number
   incomingFriendRequests: number
+  groupInvitations: number
+  groupJoinRequests: number
   total: number
 }
 
