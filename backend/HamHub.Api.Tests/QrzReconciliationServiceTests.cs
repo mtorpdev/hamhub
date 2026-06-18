@@ -36,6 +36,22 @@ public class QrzReconciliationServiceTests
         Assert.Contains(result.Items, item => item.Status == QrzReconciliationStatus.TimeDrift && item.WorkedCallsign == "F5RRS" && item.TimeDeltaSeconds == 7200);
         Assert.Contains(result.Items, item => item.Status == QrzReconciliationStatus.HamHubOnly && item.WorkedCallsign == "OZ1AAA");
         Assert.Contains(result.Items, item => item.Status == QrzReconciliationStatus.QrzOnly && item.WorkedCallsign == "DL1AAA");
+
+        var synced = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.InSync);
+        Assert.Equal(QrzReconciliationAction.None, synced.RecommendedAction);
+        Assert.Equal("Ingen handling", synced.ActionLabel);
+
+        var drift = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.TimeDrift);
+        Assert.Equal(QrzReconciliationAction.ReviewTime, drift.RecommendedAction);
+        Assert.Equal("Ret tid", drift.ActionLabel);
+
+        var hamHubOnly = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.HamHubOnly);
+        Assert.Equal(QrzReconciliationAction.RunSync, hamHubOnly.RecommendedAction);
+        Assert.Equal("Start sync", hamHubOnly.ActionLabel);
+
+        var qrzOnly = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.QrzOnly);
+        Assert.Equal(QrzReconciliationAction.RunSync, qrzOnly.RecommendedAction);
+        Assert.Equal("Start sync", qrzOnly.ActionLabel);
     }
 
     [Fact]

@@ -512,9 +512,13 @@ export interface QrzStatus {
 }
 
 export type QrzReconciliationStatus = 'InSync' | 'TimeDrift' | 'HamHubOnly' | 'QrzOnly' | string
+export type QrzReconciliationAction = 'None' | 'RunSync' | 'ReviewTime' | string
 
 export interface QrzReconciliationItem {
   status: QrzReconciliationStatus
+  recommendedAction: QrzReconciliationAction
+  actionLabel: string
+  actionDescription: string
   workedCallsign: string
   band: string
   mode: string
