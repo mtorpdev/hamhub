@@ -17,7 +17,6 @@ export function qrzTitle(qso: Qso) {
 export function eqslTone(qso: Qso): QslBadgeTone {
   if (qso.eqslConfirmedAt) return 'confirmed'
   if (qso.eqslSentAt) return 'pending'
-  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'missing'
   if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'missing'
   return 'pending'
 }
@@ -25,7 +24,7 @@ export function eqslTone(qso: Qso): QslBadgeTone {
 export function eqslTitle(qso: Qso) {
   if (qso.eqslConfirmedAt) return 'eQSL bekræftet af modparten'
   if (qso.eqslSentAt) return 'eQSL sendt, men ikke bekræftet endnu'
-  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'eQSL tjekket, men QSO er ikke fundet endnu'
+  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'eQSL tjekket, men QSO er ikke bekræftet endnu'
   if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'eQSL status kunne ikke verificeres'
   return 'eQSL er klar eller ikke tjekket endnu'
 }

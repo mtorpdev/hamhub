@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { lotwTitle, lotwTone } from './qslBadges'
+import { eqslTitle, eqslTone, lotwTitle, lotwTone } from './qslBadges'
 import { Band, Mode, type Qso } from '@/lib/types'
 
 function qso(overrides: Partial<Qso> = {}): Qso {
@@ -60,4 +60,11 @@ test('marks LoTW as pending before status has been checked', () => {
 
   assert.equal(lotwTone(unchecked), 'pending')
   assert.equal(lotwTitle(unchecked), 'LoTW er klar eller ikke tjekket endnu')
+})
+
+test('keeps eQSL not-found checks pending so unconfirmed matches are not shown as errors', () => {
+  const checked = qso({ eqslLastResult: 'eQSL status opdateret: QSO ikke fundet på eQSL endnu. QSO ikke fundet på eQSL endnu.' })
+
+  assert.equal(eqslTone(checked), 'pending')
+  assert.equal(eqslTitle(checked), 'eQSL tjekket, men QSO er ikke bekræftet endnu')
 })

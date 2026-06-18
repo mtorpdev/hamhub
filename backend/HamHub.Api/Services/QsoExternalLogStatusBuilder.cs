@@ -44,7 +44,6 @@ public static class QsoExternalLogStatusBuilder
         var eqslSent = qso.EqslSentAt.HasValue;
         var eqslConfirmed = qso.EqslConfirmedAt.HasValue;
         var eqslChecked = qso.EqslLastResult?.StartsWith("eQSL status opdateret:", StringComparison.OrdinalIgnoreCase) == true;
-        var eqslMissing = eqslChecked && !eqslSent && !eqslConfirmed;
 
         return new[]
         {
@@ -92,8 +91,8 @@ public static class QsoExternalLogStatusBuilder
                 LastResult: qso.LotwLastResult),
             new QsoExternalLogStatusDto(
                 Provider: "eQSL",
-                Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslConfirmed ? "confirmed" : eqslSent ? "sent" : eqslMissing ? "missing" : "ready",
-                Label: eqslUnreadable ? "eQSL login skal gemmes igen" : !eqslReady ? "Ikke sat op" : eqslConfirmed ? "Bekræftet på eQSL" : eqslSent ? "Sendt til eQSL" : eqslMissing ? "Ikke fundet på eQSL" : "Klar til eQSL",
+                Status: eqslUnreadable ? "credential-error" : !eqslReady ? "not-configured" : eqslConfirmed ? "confirmed" : eqslSent ? "sent" : "ready",
+                Label: eqslUnreadable ? "eQSL login skal gemmes igen" : !eqslReady ? "Ikke sat op" : eqslConfirmed ? "Bekræftet på eQSL" : eqslSent ? "Sendt til eQSL" : "Klar til eQSL",
                 ExternalId: null,
                 CanSend: eqslReady && !eqslSent,
                 CanFetch: eqslReady,
@@ -105,8 +104,8 @@ public static class QsoExternalLogStatusBuilder
                         ? $"Modpartens eQSL er fundet og denne QSO er bekræftet{(qso.EqslConfirmedAt.HasValue ? $" {qso.EqslConfirmedAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
                     : eqslSent
                         ? $"Denne QSO er sendt til eQSL{(qso.EqslSentAt.HasValue ? $" {qso.EqslSentAt.Value:yyyy-MM-dd HH:mm} UTC" : "")}."
-                    : eqslMissing
-                        ? "Denne QSO er tjekket hos eQSL, men blev ikke fundet endnu. Du kan sende den direkte herfra."
+                    : eqslChecked
+                        ? "Denne QSO er tjekket hos eQSL, men er ikke bekræftet endnu. Du kan sende den direkte herfra."
                         : "Denne QSO kan sendes direkte til eQSL via real-time ADIF upload.",
                 IsConfigured: eqslReady,
                 SendActionLabel: eqslSent ? "Sendt" : eqslReady ? "Send til eQSL" : "Opsæt eQSL",

@@ -143,7 +143,7 @@ public class QsoExternalLogStatusBuilderTests
     }
 
     [Fact]
-    public void BuildMarksEqslMissingWhenStatusWasCheckedButQsoWasNotFound()
+    public void BuildKeepsEqslReadyWhenStatusWasCheckedButQsoWasNotFound()
     {
         var qso = new QsoEntry
         {
@@ -154,11 +154,11 @@ public class QsoExternalLogStatusBuilderTests
         var statuses = QsoExternalLogStatusBuilder.Build(qso, user);
 
         var eqsl = Assert.Single(statuses, status => status.Provider == "eQSL");
-        Assert.Equal("missing", eqsl.Status);
-        Assert.Equal("Ikke fundet på eQSL", eqsl.Label);
+        Assert.Equal("ready", eqsl.Status);
+        Assert.Equal("Klar til eQSL", eqsl.Label);
         Assert.True(eqsl.CanSend);
         Assert.True(eqsl.CanFetch);
-        Assert.Contains("blev ikke fundet", eqsl.Description);
+        Assert.Contains("sende den direkte", eqsl.Description);
     }
 
     [Fact]
