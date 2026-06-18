@@ -58,6 +58,46 @@ public class AwardEngineTests
     }
 
     [Fact]
+    public void CalculateReportsAwardDataQualityIssuesForQsos()
+    {
+        var engine = new AwardEngine();
+        var qsos = new[]
+        {
+            new QsoEntry
+            {
+                Id = 101,
+                UserId = "user-1",
+                OwnCallsign = "OZ1ME",
+                WorkedCallsign = "K1ABC",
+                DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+                Band = Band.M20,
+                Mode = Mode.FT8,
+                Dxcc = 291,
+                Country = "United States",
+                Continent = "NA",
+                State = "MA",
+                County = "MA-Middlesex"
+            },
+            Qso("DL1ABC", dxcc: 230, country: "Fed. Rep. of Germany", continent: "EU", locator: "JO62", cqZone: 14, ituZone: 28)
+        };
+
+        var response = engine.Calculate(qsos, new AwardQuery());
+
+        Assert.Equal(1, response.DataQuality.IssueQsoCount);
+        Assert.Equal(3, response.DataQuality.Issues.Length);
+        Assert.Contains(response.DataQuality.Issues, issue => issue.Field == "Locator" && issue.AwardIds.Contains("grid"));
+        Assert.Contains(response.DataQuality.Issues, issue => issue.Field == "CqZone" && issue.AwardIds.Contains("waz"));
+        Assert.Contains(response.DataQuality.Issues, issue => issue.Field == "ItuZone" && issue.AwardIds.Contains("itu-zones"));
+
+        var qsoIssue = Assert.Single(response.DataQuality.Qsos);
+        Assert.Equal(101, qsoIssue.QsoId);
+        Assert.Equal("K1ABC", qsoIssue.WorkedCallsign);
+        Assert.Contains(qsoIssue.MissingFields, field => field.Field == "Locator");
+        Assert.Contains(qsoIssue.MissingFields, field => field.Field == "CqZone");
+        Assert.Contains(qsoIssue.MissingFields, field => field.Field == "ItuZone");
+    }
+
+    [Fact]
     public void CalculateIncludesConfirmationSourcesForConfirmedEntities()
     {
         var engine = new AwardEngine();

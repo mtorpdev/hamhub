@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import { Band, BandLabels, Mode, ModeLabels, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type AwardDataQuality, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { awardEntityHref } from './awardLinks'
@@ -140,6 +140,8 @@ export default function AwardsPage() {
           <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
         </section>
 
+        {summary && <AwardDataQualityPanel dataQuality={summary.dataQuality} />}
+
         <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           {loading && activeAwards.length === 0 ? (
             <div className="border border-gray-800 bg-gray-900 px-4 py-8 text-sm text-gray-400">Henter awards...</div>
@@ -238,6 +240,71 @@ function AwardCard({ award, selected, onSelect }: { award: AwardProgress; select
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function AwardDataQualityPanel({ dataQuality }: { dataQuality: AwardDataQuality }) {
+  const qsoRows = dataQuality.qsos.slice(0, 12)
+  const issueRows = dataQuality.issues.slice(0, 8)
+
+  return (
+    <section className="border border-gray-800 bg-gray-900">
+      <div className="flex flex-col gap-1 border-b border-gray-800 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">Award datakvalitet</h2>
+          <p className="text-xs text-gray-500">{dataQuality.issueQsoCount} QSOer mangler data til mindst et award-spor.</p>
+        </div>
+        <span className={`font-mono text-lg font-bold ${dataQuality.issueQsoCount > 0 ? 'text-amber-200' : 'text-emerald-200'}`}>
+          {dataQuality.issueQsoCount}
+        </span>
+      </div>
+
+      {dataQuality.issueQsoCount === 0 ? (
+        <p className="px-4 py-6 text-sm text-emerald-200">Alle QSOer har de centrale award-felter udfyldt.</p>
+      ) : (
+        <div className="grid gap-4 p-4 lg:grid-cols-[320px_1fr]">
+          <div className="space-y-2">
+            {issueRows.map(issue => (
+              <div key={issue.field} className="border border-gray-800 bg-gray-950 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-white">{issue.label}</p>
+                  <span className="font-mono text-sm text-amber-200">{issue.qsoCount}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">{issue.awardIds.join(', ')}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-hidden border border-gray-800 bg-gray-950">
+            <div className="grid grid-cols-[110px_1fr_90px_1.5fr_80px] border-b border-gray-800 px-3 py-2 text-xs font-semibold uppercase text-gray-500">
+              <span>Tid</span>
+              <span>Call</span>
+              <span>Band/mode</span>
+              <span>Mangler</span>
+              <span></span>
+            </div>
+            {qsoRows.map(qso => (
+              <div key={qso.qsoId} className="grid grid-cols-[110px_1fr_90px_1.5fr_80px] items-center gap-2 border-b border-gray-800 px-3 py-2 text-sm last:border-b-0">
+                <span className="font-mono text-xs text-gray-500">{qso.dateUtc.slice(0, 10)}</span>
+                <span className="font-mono text-gray-100">{qso.workedCallsign}</span>
+                <span className="text-xs text-gray-400">{qso.band} / {qso.mode}</span>
+                <span className="flex flex-wrap gap-1">
+                  {qso.missingFields.map(field => (
+                    <span key={field.field} className="border border-amber-900 bg-amber-950/40 px-1.5 py-0.5 text-xs text-amber-100">
+                      {field.label}
+                    </span>
+                  ))}
+                </span>
+                <Link href={`/logbook/${qso.qsoId}`} className="text-xs text-cyan-300 hover:text-cyan-100">Ret QSO</Link>
+              </div>
+            ))}
+            {dataQuality.qsos.length > qsoRows.length && (
+              <p className="px-3 py-2 text-xs text-gray-500">Viser {qsoRows.length} af {dataQuality.qsos.length} seneste QSOer med mangler.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

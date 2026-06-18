@@ -427,10 +427,37 @@ export interface AwardProgress extends AwardCatalogItem {
   unconfirmedEntities: AwardEntityProgress[]
 }
 
+export interface AwardMissingField {
+  field: string
+  label: string
+  severity: 'required' | 'reference' | string
+  awardIds: string[]
+}
+
+export interface AwardDataQualityIssue extends AwardMissingField {
+  qsoCount: number
+}
+
+export interface AwardDataQualityQso {
+  qsoId: number
+  dateUtc: string
+  workedCallsign: string
+  band: string
+  mode: string
+  missingFields: AwardMissingField[]
+}
+
+export interface AwardDataQuality {
+  issueQsoCount: number
+  issues: AwardDataQualityIssue[]
+  qsos: AwardDataQualityQso[]
+}
+
 export interface AwardSummaryResponse {
   qsoCount: number
   confirmedQsoCount: number
   awards: AwardProgress[]
+  dataQuality: AwardDataQuality
 }
 
 export interface AwardDetailResponse {

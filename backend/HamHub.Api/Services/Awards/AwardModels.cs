@@ -43,7 +43,33 @@ public record AwardProgressDto(
     AwardEntityProgressDto[] MissingEntities,
     AwardEntityProgressDto[] UnconfirmedEntities);
 
-public record AwardSummaryResponse(int QsoCount, int ConfirmedQsoCount, AwardProgressDto[] Awards);
+public record AwardSummaryResponse(int QsoCount, int ConfirmedQsoCount, AwardProgressDto[] Awards, AwardDataQualityResponse DataQuality);
+
+public record AwardDataQualityResponse(
+    int IssueQsoCount,
+    AwardDataQualityIssueDto[] Issues,
+    AwardDataQualityQsoDto[] Qsos);
+
+public record AwardDataQualityIssueDto(
+    string Field,
+    string Label,
+    string Severity,
+    int QsoCount,
+    string[] AwardIds);
+
+public record AwardDataQualityQsoDto(
+    int QsoId,
+    DateTime DateUtc,
+    string WorkedCallsign,
+    string Band,
+    string Mode,
+    AwardMissingFieldDto[] MissingFields);
+
+public record AwardMissingFieldDto(
+    string Field,
+    string Label,
+    string Severity,
+    string[] AwardIds);
 
 public record AwardDetailResponse(AwardProgressDto Award);
 

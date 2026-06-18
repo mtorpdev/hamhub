@@ -17,7 +17,8 @@ public class AwardEngine
         return new AwardSummaryResponse(
             filteredQsos.Length,
             filteredQsos.Count(qso => ConfirmationSources(qso).Length > 0),
-            awards);
+            awards,
+            CalculateDataQuality(filteredQsos));
     }
 
     public AwardDetailResponse? Detail(IEnumerable<QsoEntry> qsos, string id, AwardQuery query)
@@ -161,6 +162,69 @@ public class AwardEngine
 
     private static int? NextThreshold(int[] thresholds, int workedCount) =>
         thresholds.OrderBy(item => item).FirstOrDefault(item => item > workedCount) is var next && next > 0 ? next : null;
+
+    private static AwardDataQualityResponse CalculateDataQuality(QsoEntry[] qsos)
+    {
+        var qsoIssues = qsos
+            .Select(qso => new AwardDataQualityQsoDto(
+                qso.Id,
+                qso.DateUtc,
+                qso.WorkedCallsign,
+                BandLabel(qso.Band),
+                qso.Mode.ToString(),
+                MissingFields(qso).ToArray()))
+            .Where(qso => qso.MissingFields.Length > 0)
+            .OrderByDescending(qso => qso.DateUtc)
+            .Take(80)
+            .ToArray();
+
+        var issueGroups = qsos
+            .SelectMany(qso => MissingFields(qso))
+            .GroupBy(field => field.Field, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var first = group.First();
+                return new AwardDataQualityIssueDto(
+                    first.Field,
+                    first.Label,
+                    first.Severity,
+                    group.Count(),
+                    group.SelectMany(item => item.AwardIds).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray());
+            })
+            .OrderByDescending(issue => issue.Severity == "required")
+            .ThenByDescending(issue => issue.QsoCount)
+            .ThenBy(issue => issue.Label, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new AwardDataQualityResponse(
+            qsos.Count(qso => MissingFields(qso).Any()),
+            issueGroups,
+            qsoIssues);
+    }
+
+    private static IEnumerable<AwardMissingFieldDto> MissingFields(QsoEntry qso)
+    {
+        if (!qso.Dxcc.HasValue || qso.Dxcc.Value <= 0)
+            yield return Missing("Dxcc", "DXCC", "required", "dxcc", "dxcc-band", "dxcc-mode", "confirmed-dxcc");
+        if (string.IsNullOrWhiteSpace(qso.Continent))
+            yield return Missing("Continent", "Continent", "required", "wac");
+        if (Normalize(qso.Locator).Length < 4)
+            yield return Missing("Locator", "Grid", "required", "grid");
+        if (qso.CqZone is not (>= 1 and <= 40))
+            yield return Missing("CqZone", "CQ zone", "required", "waz");
+        if (qso.ItuZone is not (>= 1 and <= 75))
+            yield return Missing("ItuZone", "ITU zone", "required", "itu-zones");
+        if (IsUsDxcc(qso.Dxcc) && (Normalize(qso.State).Length != 2 || !IsUsState(Normalize(qso.State))))
+            yield return Missing("State", "US state", "required", "was");
+        if (qso.Dxcc == 1 && (Normalize(qso.State).Length != 2 || !IsCanadianProvince(Normalize(qso.State))))
+            yield return Missing("State", "Canadian province", "required", "canada-provinces");
+
+        if (IsUsDxcc(qso.Dxcc) && string.IsNullOrWhiteSpace(qso.County))
+            yield return Missing("County", "County", "reference", "counties");
+    }
+
+    private static AwardMissingFieldDto Missing(string field, string label, string severity, params string[] awardIds) =>
+        new(field, label, severity, awardIds);
 
     private static string[] ConfirmationSources(QsoEntry qso)
     {
