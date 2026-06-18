@@ -58,7 +58,8 @@ public class LotwSyncService
             throw new LotwApiException("LoTW login kunne ikke læses. Gem LoTW login igen på profilen.");
         }
 
-        var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, user.LotwLastSyncedAt, ct);
+        var previousLastSyncedAt = user.LotwLastSyncedAt;
+        var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, previousLastSyncedAt, ct);
         var confirmed = 0;
         var unmatched = 0;
         var checkedNotFound = 0;
@@ -94,17 +95,20 @@ public class LotwSyncService
             confirmed++;
         }
 
-        var notConfirmed = await _db.QsoEntries
-            .Where(q =>
-                q.UserId == userId &&
-                q.LotwConfirmedAt == null &&
-                q.DateUtc <= now)
-            .ToListAsync(ct);
-
-        foreach (var qso in notConfirmed)
+        if (ShouldMarkNotFound(previousLastSyncedAt))
         {
-            if (matchedQsoIds.Contains(qso.Id)) continue;
-            if (MarkNotFound(qso, now)) checkedNotFound++;
+            var notConfirmed = await _db.QsoEntries
+                .Where(q =>
+                    q.UserId == userId &&
+                    q.LotwConfirmedAt == null &&
+                    q.DateUtc <= now)
+                .ToListAsync(ct);
+
+            foreach (var qso in notConfirmed)
+            {
+                if (matchedQsoIds.Contains(qso.Id)) continue;
+                if (MarkNotFound(qso, now)) checkedNotFound++;
+            }
         }
 
         user.LotwLastSyncedAt = now;
@@ -142,6 +146,11 @@ public class LotwSyncService
         qso.LotwLastResult = "LoTW status opdateret: ikke fundet";
         qso.UpdatedAt = nowUtc;
         return true;
+    }
+
+    internal static bool ShouldMarkNotFound(DateTime? previousLastSyncedAt)
+    {
+        return previousLastSyncedAt == null;
     }
 
     internal static bool IsLotwMatch(QsoEntry qso, string userId, LotwQslRecord record, Band band, Mode mode)

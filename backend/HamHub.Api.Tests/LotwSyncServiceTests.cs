@@ -71,6 +71,13 @@ public class LotwSyncServiceTests
     }
 
     [Fact]
+    public void ShouldMarkNotFoundOnlyForFullReport()
+    {
+        Assert.True(LotwSyncService.ShouldMarkNotFound(previousLastSyncedAt: null));
+        Assert.False(LotwSyncService.ShouldMarkNotFound(new DateTime(2026, 6, 18, 3, 28, 16, DateTimeKind.Utc)));
+    }
+
+    [Fact]
     public void IsLotwMatchAllowsKnownLocalTimeOffset()
     {
         var qso = new QsoEntry
