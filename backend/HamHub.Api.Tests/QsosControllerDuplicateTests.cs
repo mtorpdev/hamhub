@@ -4,6 +4,7 @@ using AutoMapper;
 using HamHub.Api.Controllers;
 using HamHub.Api.Services;
 using HamHub.Application.Common.Mappings;
+using HamHub.Application.QsoEntries.DTOs;
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
@@ -41,6 +42,40 @@ public class QsosControllerDuplicateTests
         Assert.Equal("20m", group.Band);
         Assert.Equal(new[] { shifted.Id, first.Id }, group.Qsos.Select(q => q.Id));
         Assert.Contains("lokal tids-offset", group.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MergeDuplicatesKeepsSelectedQsoAndPreservesExternalLogFields()
+    {
+        await using var context = CreateContext();
+        var controller = CreateController(context, "user-1");
+
+        var keep = Qso("user-1", "OZ1ME", "K1ABC", new DateTime(2026, 6, 18, 10, 0, 0, DateTimeKind.Utc));
+        keep.Comment = "local note";
+        var duplicate = Qso("user-1", "OZ1ME", "K1ABC", new DateTime(2026, 6, 18, 12, 0, 20, DateTimeKind.Utc));
+        duplicate.QrzId = "qrz-123";
+        duplicate.QrzConfirmationStatus = "C";
+        duplicate.QrzConfirmedAt = new DateTime(2026, 6, 18, 12, 5, 0, DateTimeKind.Utc);
+        duplicate.EqslSentAt = new DateTime(2026, 6, 18, 12, 6, 0, DateTimeKind.Utc);
+        duplicate.EqslConfirmedAt = new DateTime(2026, 6, 18, 12, 7, 0, DateTimeKind.Utc);
+        duplicate.EqslLastResult = "eQSL confirmed";
+        duplicate.LotwConfirmedAt = new DateTime(2026, 6, 18, 12, 8, 0, DateTimeKind.Utc);
+        duplicate.LotwLastResult = "LoTW confirmed";
+        duplicate.AwardRefs = "SPECIAL-2026";
+        context.QsoEntries.AddRange(keep, duplicate);
+        await context.SaveChangesAsync();
+
+        var result = await controller.MergeDuplicate(new MergeDuplicateQsoDto(keep.Id, new[] { duplicate.Id }));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var merged = Assert.IsType<QsoDto>(ok.Value);
+        Assert.Equal(keep.Id, merged.Id);
+        Assert.Equal("local note", merged.Comment);
+        Assert.Equal("qrz-123", merged.QrzId);
+        Assert.Equal("C", merged.QrzConfirmationStatus);
+        Assert.Equal("SPECIAL-2026", merged.AwardRefs);
+        Assert.Single(context.QsoEntries);
+        Assert.Null(await context.QsoEntries.FindAsync(duplicate.Id));
     }
 
     private static ApplicationDbContext CreateContext()

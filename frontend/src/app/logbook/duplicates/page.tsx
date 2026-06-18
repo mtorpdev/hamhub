@@ -9,6 +9,8 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
+import { useToast } from '@/contexts/ToastContext'
+import { buildMergeDuplicatePayload } from './duplicateActions'
 import { buildDuplicateSummary } from './duplicateSummary'
 
 function qsoLabel(qso: QsoDuplicateGroup['qsos'][number]) {
@@ -17,27 +19,54 @@ function qsoLabel(qso: QsoDuplicateGroup['qsos'][number]) {
 
 export default function DuplicateQsosPage() {
   useRequireAuth()
+  const { toast } = useToast()
   const [groups, setGroups] = useState<QsoDuplicateGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mergingKey, setMergingKey] = useState<string | null>(null)
+
+  const loadDuplicates = async (cancelled?: () => boolean) => {
+    return api.qsos.getDuplicates()
+      .then(items => {
+        if (!cancelled?.()) setGroups(items)
+      })
+      .catch(err => {
+        if (!cancelled?.()) setError(err instanceof Error ? err.message : 'Kunne ikke hente dubletter')
+      })
+      .finally(() => {
+        if (!cancelled?.()) setLoading(false)
+      })
+  }
 
   useEffect(() => {
     let cancelled = false
-    api.qsos.getDuplicates()
-      .then(items => {
-        if (!cancelled) setGroups(items)
-      })
-      .catch(err => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente dubletter')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
+    loadDuplicates(() => cancelled)
     return () => { cancelled = true }
   }, [])
 
   const summary = useMemo(() => buildDuplicateSummary(groups), [groups])
+
+  const handleMerge = async (group: QsoDuplicateGroup, keepId: number) => {
+    const keep = group.qsos.find(qso => qso.id === keepId)
+    if (!keep) return
+    const confirmed = window.confirm(`Behold QSO #${keep.id} med ${keep.workedCallsign} og flet de øvrige ${group.qsos.length - 1} dubletter ind i den?`)
+    if (!confirmed) return
+
+    const key = `${group.key}:${keepId}`
+    setMergingKey(key)
+    try {
+      setError(null)
+      await api.qsos.mergeDuplicate(buildMergeDuplicatePayload(group.qsos.map(qso => qso.id), keepId))
+      toast('Dubletgruppen er flettet')
+      setLoading(true)
+      await loadDuplicates()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke flette dubletter', 'error')
+    } finally {
+      setMergingKey(null)
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -77,7 +106,7 @@ export default function DuplicateQsosPage() {
       </div>
 
       <div className="mb-4 rounded border border-yellow-800/60 bg-yellow-950/25 px-4 py-3 text-sm text-yellow-100">
-        Ingen automatiske ændringer foretages her. Åbn de enkelte QSOer og ret dem manuelt, indtil merge/slet værktøjet er klar.
+        Vælg kun “Behold denne” når du har gennemgået gruppen. HamHub fletter manglende felter og eksterne logstatusser ind i den valgte QSO og sletter resten af gruppen.
       </div>
 
       {loading && <p className="text-gray-400">Indlæser dubletter...</p>}
@@ -124,7 +153,16 @@ export default function DuplicateQsosPage() {
                           QRZ {qso.qrzId ? 'ja' : 'nej'} · LoTW {qso.lotwConfirmedAt ? 'bekræftet' : 'ikke bekræftet'} · eQSL {qso.eqslConfirmedAt ? 'bekræftet' : 'ikke bekræftet'}
                         </td>
                         <td className="px-4 py-3">
-                          <Link href={`/logbook/${qso.id}`} className="text-blue-400 hover:text-blue-300">Åbn QSO</Link>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link href={`/logbook/${qso.id}`} className="text-blue-400 hover:text-blue-300">Åbn</Link>
+                            <Button
+                              variant="secondary"
+                              onClick={() => handleMerge(group, qso.id)}
+                              disabled={mergingKey !== null}
+                            >
+                              {mergingKey === `${group.key}:${qso.id}` ? 'Fletter...' : 'Behold denne'}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}

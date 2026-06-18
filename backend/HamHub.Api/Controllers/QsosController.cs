@@ -105,6 +105,39 @@ public class QsosController : ControllerBase
         return Ok(groups);
     }
 
+    [HttpPost("duplicates/merge")]
+    public async Task<IActionResult> MergeDuplicate([FromBody] MergeDuplicateQsoDto dto, CancellationToken ct = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var duplicateIds = dto.DuplicateIds.Distinct().Where(id => id != dto.KeepId).ToArray();
+        if (duplicateIds.Length == 0) return BadRequest("Vælg mindst en dublet der skal flettes.");
+
+        var qsos = await _context.QsoEntries
+            .Where(q => q.UserId == userId && (q.Id == dto.KeepId || duplicateIds.Contains(q.Id)))
+            .ToListAsync(ct);
+
+        var keep = qsos.SingleOrDefault(q => q.Id == dto.KeepId);
+        if (keep == null) return NotFound();
+        if (qsos.Count != duplicateIds.Length + 1) return BadRequest("En eller flere QSOer blev ikke fundet.");
+
+        var duplicates = qsos.Where(q => q.Id != dto.KeepId).ToArray();
+        if (duplicates.Any(q => !AreDuplicateCandidates(keep, q, userId) && !AreDuplicateCandidates(q, keep, userId)))
+            return BadRequest("En eller flere QSOer matcher ikke den valgte QSO som dublet.");
+
+        foreach (var duplicate in duplicates)
+        {
+            MergeQsoFields(keep, duplicate);
+            MergeExternalLogFields(keep, duplicate);
+        }
+
+        keep.UpdatedAt = DateTime.UtcNow;
+        _context.QsoEntries.RemoveRange(duplicates);
+        await _context.SaveChangesAsync(ct);
+        _trigger.NotifyQsoChanged(userId);
+
+        return Ok(_mapper.Map<QsoDto>(keep));
+    }
+
     [HttpGet("{id}/external-status")]
     public async Task<IActionResult> GetExternalStatus(int id, CancellationToken ct)
     {
@@ -528,6 +561,20 @@ public class QsosController : ControllerBase
         target.Comment ??= incoming.Comment;
     }
 
+    private static void MergeExternalLogFields(QsoEntry target, QsoEntry incoming)
+    {
+        target.QrzId ??= incoming.QrzId;
+        target.QrzConfirmationStatus ??= incoming.QrzConfirmationStatus;
+        target.QrzConfirmedAt ??= incoming.QrzConfirmedAt;
+        target.QrzQslDate ??= incoming.QrzQslDate;
+        target.EqslSentAt ??= incoming.EqslSentAt;
+        target.EqslConfirmedAt ??= incoming.EqslConfirmedAt;
+        target.EqslLastResult ??= incoming.EqslLastResult;
+        target.LotwConfirmedAt ??= incoming.LotwConfirmedAt;
+        target.LotwQslDate ??= incoming.LotwQslDate;
+        target.LotwLastResult ??= incoming.LotwLastResult;
+    }
+
     [HttpPost("import/adif")]
     public async Task<IActionResult> ImportAdif(IFormFile file)
     {
@@ -729,3 +776,5 @@ public record QsoDuplicateGroupDto(
     string Mode,
     string Reason,
     QsoDto[] Qsos);
+
+public record MergeDuplicateQsoDto(int KeepId, int[] DuplicateIds);

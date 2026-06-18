@@ -63,6 +63,8 @@ export const api = {
   qsos: {
     getMine: (search?: string) => request<import('./types').Qso[]>(`/api/qsos${search ? `?search=${encodeURIComponent(search)}` : ''}`),
     getDuplicates: () => request<import('./types').QsoDuplicateGroup[]>('/api/qsos/duplicates'),
+    mergeDuplicate: (data: { keepId: number; duplicateIds: number[] }) =>
+      request<import('./types').Qso>('/api/qsos/duplicates/merge', { method: 'POST', body: JSON.stringify(data) }),
     getById: (id: number) => request<import('./types').Qso>(`/api/qsos/${id}`),
     getExternalStatus: (id: number) => request<import('./types').QsoExternalLogStatus[]>(`/api/qsos/${id}/external-status`),
     getConditions: (id: number) => request<import('./types').QsoConditions>(`/api/qsos/${id}/conditions`),
