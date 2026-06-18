@@ -132,9 +132,10 @@ export default function AwardsPage() {
 
         {error && <div className="border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-100">{error}</div>}
 
-        <section className="grid gap-3 md:grid-cols-4">
-          <WorkflowStat label="Worked" value={workflowStats.worked} tone="text-cyan-200" />
-          <WorkflowStat label="Confirmed" value={workflowStats.confirmed} tone="text-emerald-200" />
+        <section className="grid gap-3 md:grid-cols-5">
+          <WorkflowStat label="QSOer" value={summary?.qsoCount ?? 0} tone="text-white" />
+          <WorkflowStat label="Worked entities" value={workflowStats.worked} tone="text-cyan-200" />
+          <WorkflowStat label="Confirmed entities" value={workflowStats.confirmed} tone="text-emerald-200" />
           <WorkflowStat label="Needs QSL" value={workflowStats.needsQsl} tone="text-amber-200" />
           <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
         </section>

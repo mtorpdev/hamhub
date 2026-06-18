@@ -43,7 +43,7 @@ public record AwardProgressDto(
     AwardEntityProgressDto[] MissingEntities,
     AwardEntityProgressDto[] UnconfirmedEntities);
 
-public record AwardSummaryResponse(AwardProgressDto[] Awards);
+public record AwardSummaryResponse(int QsoCount, AwardProgressDto[] Awards);
 
 public record AwardDetailResponse(AwardProgressDto Award);
 

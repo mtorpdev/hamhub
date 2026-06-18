@@ -14,7 +14,7 @@ public class AwardEngine
             .Select(definition => CalculateAward(definition, filteredQsos))
             .ToArray();
 
-        return new AwardSummaryResponse(awards);
+        return new AwardSummaryResponse(filteredQsos.Length, awards);
     }
 
     public AwardDetailResponse? Detail(IEnumerable<QsoEntry> qsos, string id, AwardQuery query)
