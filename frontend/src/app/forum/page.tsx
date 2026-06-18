@@ -12,10 +12,11 @@ import { forumStatusClass, forumStatusLabel, normalizeForumTags } from './forumU
 
 const fallbackRooms: CommunityRoom[] = [
   { id: 0, name: 'Alle', slug: 'alle', description: 'Alle forumtråde.', sortOrder: 0, isSystem: true },
-  { id: 1, name: 'POTA / SOTA / Awards', slug: 'pota-sota-awards', description: 'Parker, toppe og diplomer.', sortOrder: 10, isSystem: true },
-  { id: 2, name: 'Digital modes', slug: 'ft8-ft4', description: 'WSJT-X, FT8, FT4 og data modes.', sortOrder: 20, isSystem: true },
-  { id: 3, name: 'Teknik', slug: 'teknik', description: 'Radioer, antenner og software.', sortOrder: 30, isSystem: true },
-  { id: 4, name: 'DX', slug: 'dx', description: 'DX, propagation og jagt.', sortOrder: 40, isSystem: true },
+  { id: 1, name: 'POTA / SOTA / Awards', slug: 'forum-pota-sota-awards', description: 'Parker, toppe og diplomer.', sortOrder: 10, isSystem: true },
+  { id: 2, name: 'Digital modes', slug: 'forum-digital-modes', description: 'WSJT-X, FT8, FT4 og data modes.', sortOrder: 20, isSystem: true },
+  { id: 3, name: 'Teknik', slug: 'forum-teknik', description: 'Radioer, antenner og software.', sortOrder: 30, isSystem: true },
+  { id: 4, name: 'DX', slug: 'forum-dx', description: 'DX, propagation og jagt.', sortOrder: 40, isSystem: true },
+  { id: 5, name: 'Features/Bugs', slug: 'forum-features-bugs', description: 'Forslag, fejlmeldinger og HamHub featurelisten.', sortOrder: 90, isSystem: true },
 ]
 
 export default function ForumPage() {
@@ -28,10 +29,10 @@ export default function ForumPage() {
   const [solved, setSolved] = useState<'all' | 'open' | 'solved'>('all')
   const [loading, setLoading] = useState(true)
   const [composerOpen, setComposerOpen] = useState(false)
-  const [draft, setDraft] = useState({ title: '', content: '', tags: '', roomSlug: 'teknik' })
+  const [draft, setDraft] = useState({ title: '', content: '', tags: '', roomSlug: 'forum-teknik' })
 
   useEffect(() => {
-    api.community.getRooms().then(items => {
+    api.community.getForumRooms().then(items => {
       const forumRooms = Array.from(
         new Map([...fallbackRooms, ...items].map(item => [item.slug, item])).values()
       ).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -42,7 +43,7 @@ export default function ForumPage() {
   useEffect(() => {
     let cancelled = false
     const solvedFilter = solved === 'all' ? undefined : solved === 'solved'
-    api.posts.getFeed(1, room, search, tag, solvedFilter)
+    api.posts.getFeed(1, room, search, tag, solvedFilter, 'forum')
       .then(result => {
         if (!cancelled) setThreads(result.items)
       })

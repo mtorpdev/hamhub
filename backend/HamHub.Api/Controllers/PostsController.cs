@@ -30,7 +30,8 @@ public class PostsController : ControllerBase
         [FromQuery] string? room = null,
         [FromQuery] string? search = null,
         [FromQuery] string? tag = null,
-        [FromQuery] bool? solved = null)
+        [FromQuery] bool? solved = null,
+        [FromQuery] string? scope = null)
     {
         var skip = (page - 1) * pageSize;
         var query = _context.Posts
@@ -40,6 +41,16 @@ public class PostsController : ControllerBase
             .Include(p => p.Likes)
             .Include(p => p.Comments)
             .AsQueryable();
+
+        var normalizedScope = scope?.Trim().ToLowerInvariant();
+        if (normalizedScope == "forum")
+        {
+            query = query.Where(p => p.CommunityRoom != null && p.CommunityRoom.Slug.StartsWith("forum-"));
+        }
+        else if (normalizedScope == "community")
+        {
+            query = query.Where(p => p.CommunityRoom == null || !p.CommunityRoom.Slug.StartsWith("forum-"));
+        }
 
         if (!string.IsNullOrWhiteSpace(room) && !room.Equals("alle", StringComparison.OrdinalIgnoreCase))
         {

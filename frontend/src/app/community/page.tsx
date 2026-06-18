@@ -474,7 +474,7 @@ export default function CommunityPage() {
   const loadFeed = async (p = 1, roomSlug = selectedRoom) => {
     setLoading(true)
     try {
-      const res = await api.posts.getFeed(p, roomSlug)
+      const res = await api.posts.getFeed(p, roomSlug, undefined, undefined, undefined, 'community')
       if (p === 1) setPosts(res.items)
       else setPosts(prev => [...prev, ...res.items])
       setTotal(res.total)
@@ -491,7 +491,7 @@ export default function CommunityPage() {
       try {
         const [roomData, feedData, contactData, onlineData, requestData, inboxData] = await Promise.all([
           api.community.getRooms().catch(() => fallbackRooms),
-          api.posts.getFeed(1, selectedRoom),
+          api.posts.getFeed(1, selectedRoom, undefined, undefined, undefined, 'community'),
           api.community.getContacts().catch(() => []),
           api.community.getOnlineUsers().catch(() => []),
           api.friends.getRequests().catch(() => ({ incoming: [], outgoing: [] })),

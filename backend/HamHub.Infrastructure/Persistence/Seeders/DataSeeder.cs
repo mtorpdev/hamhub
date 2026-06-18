@@ -15,6 +15,7 @@ public static class DataSeeder
         await SeedCategoriesAsync(context);
         await SeedCommunityRoomsAsync(context);
         await context.SaveChangesAsync();
+        await SeedForumFeatureListAsync(context, admin.Id);
         await SeedArticlesAsync(context, admin.Id);
         await SeedStationsAsync(context, users);
         await SeedQsosAsync(context, users);
@@ -122,11 +123,75 @@ public static class DataSeeder
             new CommunityRoom { Name = "QSO historier", Slug = "qso-historier", Description = "Del de gode kontakter og historier fra logbogen.", SortOrder = 60, IsSystem = true }
         };
 
-        foreach (var room in rooms)
+        var forumRooms = new[]
+        {
+            new CommunityRoom { Name = "POTA / SOTA / Awards", Slug = "forum-pota-sota-awards", Description = "Parker, toppe og diplomer.", SortOrder = 10, IsSystem = true },
+            new CommunityRoom { Name = "Digital modes", Slug = "forum-digital-modes", Description = "WSJT-X, FT8, FT4 og data modes.", SortOrder = 20, IsSystem = true },
+            new CommunityRoom { Name = "Teknik", Slug = "forum-teknik", Description = "Radioer, antenner og software.", SortOrder = 30, IsSystem = true },
+            new CommunityRoom { Name = "DX", Slug = "forum-dx", Description = "DX, propagation og jagt.", SortOrder = 40, IsSystem = true },
+            new CommunityRoom { Name = "Features/Bugs", Slug = "forum-features-bugs", Description = "Forslag, fejlmeldinger og HamHub featurelisten.", SortOrder = 90, IsSystem = true }
+        };
+
+        foreach (var room in rooms.Concat(forumRooms))
         {
             if (!await context.CommunityRooms.AnyAsync(r => r.Slug == room.Slug))
                 context.CommunityRooms.Add(room);
         }
+    }
+
+    private static async Task SeedForumFeatureListAsync(ApplicationDbContext context, string adminId)
+    {
+        var room = await context.CommunityRooms.FirstOrDefaultAsync(r => r.Slug == "forum-features-bugs");
+        if (room == null) return;
+
+        const string title = "Featureliste";
+        const string content = """
+        Her holder vi en samlet featureliste for HamHub. Den skal opdateres hver gang vi bygger eller ændrer noget væsentligt i appen.
+
+        Aktuelle hovedområder:
+        - Dashboard og navigation
+        - Logbook med QSO-oprettelse, redigering, ADIF import/export og dubletværktøj
+        - Automatisk QSO-popup fra WSJT-X log-event
+        - QRZ integration, synkronisering og reconciliation
+        - LoTW og eQSL statusvisning på QSOer og awards
+        - Awards-overblik med worked/confirmed status og QSO backfill
+        - Live Roster til WSJT-X decodes og call handling
+        - POTA-side med live spots, filtre, kort, personlig progress og official activation link
+        - Community med opslag, kommentarer, likes, chat, venner, beskeder og rapportering
+        - Forum med kategorier, tags, søgning, svar og løst/åben status
+        - Articles/vidensbase
+        - Spots og marketplace
+        - Stationsprofiler og callsign search
+        - Admin moderation, brugerstyring og rapporter
+
+        Planlagte/åbne forumspor:
+        - Feature requests
+        - Bug reports
+        - Forbedringer til awards, POTA og integrationer
+        """;
+
+        var post = await context.Posts
+            .FirstOrDefaultAsync(p => p.CommunityRoomId == room.Id && p.Title == title);
+
+        if (post == null)
+        {
+            context.Posts.Add(new Post
+            {
+                UserId = adminId,
+                CommunityRoomId = room.Id,
+                Title = title,
+                Tags = "features,bugs,roadmap",
+                Content = content,
+                IsSolved = false
+            });
+            await context.SaveChangesAsync();
+            return;
+        }
+
+        post.Tags = "features,bugs,roadmap";
+        post.Content = content;
+        post.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedArticlesAsync(ApplicationDbContext context, string adminId)

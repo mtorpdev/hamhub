@@ -217,6 +217,7 @@ export const api = {
   },
   community: {
     getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),
+    getForumRooms: () => request<import('./types').CommunityRoom[]>('/api/community/forum-rooms'),
     getContacts: () => request<import('./types').CommunityContact[]>('/api/community/contacts'),
     getOnlineUsers: () => request<import('./types').CommunityOnlineUser[]>('/api/community/online'),
   },
@@ -232,9 +233,9 @@ export const api = {
       ),
   },
   posts: {
-    getFeed: (page = 1, roomSlug?: string, search?: string, tag?: string, solved?: boolean) =>
+    getFeed: (page = 1, roomSlug?: string, search?: string, tag?: string, solved?: boolean, scope?: 'community' | 'forum') =>
       request<{ total: number; page: number; pageSize: number; items: import('./types').Post[] }>(
-        `/api/posts${queryString({ page, room: roomSlug, search, tag, solved: solved === undefined ? undefined : String(solved) })}`
+        `/api/posts${queryString({ page, room: roomSlug, search, tag, solved: solved === undefined ? undefined : String(solved), scope })}`
       ),
     getById: (id: number) => request<import('./types').Post>(`/api/posts/${id}`),
     create: (content: string, roomSlug?: string, title?: string, tags?: string) =>

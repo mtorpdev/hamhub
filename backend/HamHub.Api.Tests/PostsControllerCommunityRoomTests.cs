@@ -89,6 +89,33 @@ public class PostsControllerCommunityRoomTests
         Assert.True(await context.Posts.Where(post => post.Id == item.Id).Select(post => post.IsSolved).SingleAsync());
     }
 
+    [Fact]
+    public async Task GetFeed_WithScope_SeparatesForumThreadsFromCommunityPosts()
+    {
+        await using var context = CreateContext();
+        var user = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var communityRoom = new CommunityRoom { Name = "DX", Slug = "dx", SortOrder = 1, IsSystem = true };
+        var forumRoom = new CommunityRoom { Name = "Features/Bugs", Slug = "forum-features-bugs", SortOrder = 90, IsSystem = true };
+        context.Users.Add(user);
+        context.CommunityRooms.AddRange(communityRoom, forumRoom);
+        await context.SaveChangesAsync();
+        context.Posts.AddRange(
+            new Post { UserId = user.Id, CommunityRoomId = communityRoom.Id, Content = "Community DX post" },
+            new Post { UserId = user.Id, CommunityRoomId = forumRoom.Id, Title = "Feature idea", Content = "Forum app feedback" });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, user.Id);
+
+        var communityResult = await controller.GetFeed(page: 1, pageSize: 20, room: "alle", scope: "community");
+        var forumResult = await controller.GetFeed(page: 1, pageSize: 20, room: "alle", scope: "forum");
+
+        var communityPayload = Assert.IsAssignableFrom<PostsFeedResponse>(Assert.IsType<OkObjectResult>(communityResult).Value);
+        var forumPayload = Assert.IsAssignableFrom<PostsFeedResponse>(Assert.IsType<OkObjectResult>(forumResult).Value);
+        Assert.Single(communityPayload.Items);
+        Assert.Equal("Community DX post", communityPayload.Items[0].Content);
+        Assert.Single(forumPayload.Items);
+        Assert.Equal("forum-features-bugs", forumPayload.Items[0].CommunityRoomSlug);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

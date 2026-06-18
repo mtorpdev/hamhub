@@ -25,6 +25,20 @@ public class CommunityController : ControllerBase
     public async Task<IActionResult> GetRooms()
     {
         var rooms = await _context.CommunityRooms
+            .Where(r => !r.Slug.StartsWith("forum-"))
+            .OrderBy(r => r.SortOrder)
+            .ThenBy(r => r.Name)
+            .Select(r => new CommunityRoomDto(r.Id, r.Name, r.Slug, r.Description, r.SortOrder, r.IsSystem))
+            .ToListAsync();
+
+        return Ok(rooms);
+    }
+
+    [HttpGet("forum-rooms")]
+    public async Task<IActionResult> GetForumRooms()
+    {
+        var rooms = await _context.CommunityRooms
+            .Where(r => r.Slug.StartsWith("forum-"))
             .OrderBy(r => r.SortOrder)
             .ThenBy(r => r.Name)
             .Select(r => new CommunityRoomDto(r.Id, r.Name, r.Slug, r.Description, r.SortOrder, r.IsSystem))
