@@ -17,6 +17,7 @@ export type QsoEditForm = {
   continent: string
   state: string
   iota: string
+  potaRefs: string
   name: string
   qth: string
   txPower: string
@@ -40,6 +41,7 @@ export const EMPTY_QSO_FORM: QsoEditForm = {
   continent: '',
   state: '',
   iota: '',
+  potaRefs: '',
   name: '',
   qth: '',
   txPower: '',
@@ -64,6 +66,7 @@ export function qsoToEditForm(qso: Qso): QsoEditForm {
     continent: qso.continent ?? '',
     state: qso.state ?? '',
     iota: qso.iota ?? '',
+    potaRefs: qso.potaRefs ?? '',
     name: qso.name ?? '',
     qth: qso.qth ?? '',
     txPower: qso.txPower?.toString() ?? '',

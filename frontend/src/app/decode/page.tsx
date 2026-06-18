@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
-import { type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
+import { type PotaSpot, type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 import AwardProgressPanel from './components/AwardProgressPanel'
 import LoggedQsoPopup from './components/LoggedQsoPopup'
 import LiveMapPanel from './components/LiveMapPanel'
@@ -24,6 +24,7 @@ import {
 } from './decodeScoring'
 import { commandResultMessage, selectedCallsignForCommand } from './decodeUiState'
 import { syncLoggedQsoPopupSnapshot } from './loggedQsoPopup'
+import { applyPotaSuggestionToForm, findPotaSuggestionForQso } from './potaQsoSuggestion'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -60,6 +61,7 @@ export default function DecodePage() {
   const [rosterFilters, setRosterFilters] = useState<RosterFilters>(DEFAULT_ROSTER_FILTERS)
   const [rawOpen, setRawOpen] = useState(false)
   const [lotwActivity, setLotwActivity] = useState<Record<string, string>>({})
+  const [potaSpots, setPotaSpots] = useState<PotaSpot[]>([])
   const lastTxRef = useRef({ call: '', transmitting: false })
   const latestCommandResultIdRef = useRef('')
   const previousQsosRef = useRef<Qso[] | null>(null)
@@ -132,6 +134,27 @@ export default function DecodePage() {
     if (!isAuthenticated) return
 
     let cancelled = false
+    const refreshPotaSpots = async () => {
+      try {
+        const spots = await api.pota.getSpots()
+        if (!cancelled) setPotaSpots(spots)
+      } catch {
+        if (!cancelled) setPotaSpots([])
+      }
+    }
+
+    refreshPotaSpots()
+    const timer = window.setInterval(refreshPotaSpots, 60_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    let cancelled = false
     const refreshCommandResults = async () => {
       try {
         const results = await api.wsjtx.getCommandResults()
@@ -174,7 +197,12 @@ export default function DecodePage() {
   const popupLoggedQso = useMemo(() => {
     return loggedQsoPopupId ? qsos.find(qso => qso.id === loggedQsoPopupId) ?? null : null
   }, [loggedQsoPopupId, qsos])
-  const qsoForm = popupLoggedQso ? qsoDrafts[popupLoggedQso.id] ?? qsoToEditForm(popupLoggedQso) : EMPTY_QSO_FORM
+  const potaSuggestion = useMemo(() => {
+    return popupLoggedQso ? findPotaSuggestionForQso(popupLoggedQso, potaSpots) : null
+  }, [popupLoggedQso, potaSpots])
+  const qsoForm = popupLoggedQso
+    ? qsoDrafts[popupLoggedQso.id] ?? applyPotaSuggestionToForm(qsoToEditForm(popupLoggedQso), potaSuggestion)
+    : EMPTY_QSO_FORM
   const qsoSaveStatus = popupLoggedQso
     ? qsoSaveStatuses[popupLoggedQso.id] ?? 'QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.'
     : null
@@ -299,7 +327,7 @@ export default function DecodePage() {
     setQsoDrafts(current => ({
       ...current,
       [popupLoggedQso.id]: {
-        ...(current[popupLoggedQso.id] ?? qsoToEditForm(popupLoggedQso)),
+        ...(current[popupLoggedQso.id] ?? qsoForm),
         [key]: value,
       },
     }))
@@ -395,6 +423,7 @@ export default function DecodePage() {
           qsoForm={qsoForm}
           qsoSaving={qsoSaving}
           qsoSaveStatus={qsoSaveStatus}
+          potaSuggestion={potaSuggestion}
           onQsoFieldChange={setQsoField}
           onSaveLoggedQso={handleSaveLoggedQso}
           onClose={closeLoggedQsoPopup}
