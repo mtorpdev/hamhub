@@ -1,5 +1,6 @@
 using HamHub.Api.Services;
 using HamHub.Domain.Entities;
+using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Services;
 using Xunit;
 
@@ -75,6 +76,82 @@ public class QrzSyncServiceTests
         Assert.Equal("LOCAL-POTA", qso.PotaRefs);
         Assert.Equal("LOCAL-SOTA", qso.SotaRefs);
         Assert.Equal("LOCAL-AWARD", qso.AwardRefs);
+    }
+
+    [Fact]
+    public void ToQrzAdifUsesLocalQsoValuesForTargetedUpload()
+    {
+        var qso = new QsoEntry
+        {
+            WorkedCallsign = "K1ABC",
+            DateUtc = new DateTime(2026, 6, 18, 8, 15, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8,
+            RstSent = "-10",
+            RstReceived = "-12",
+            Locator = "FN31",
+            Country = "United States",
+            Dxcc = 291,
+            Continent = "NA",
+            State = "CT",
+            County = "HARTFORD",
+            Comment = "Targeted upload"
+        };
+
+        var adif = QrzSyncService.ToQrzAdif(qso);
+
+        Assert.Equal("K1ABC", adif.Call);
+        Assert.Equal(qso.DateUtc, adif.TimeOn);
+        Assert.Equal("20M", adif.Band);
+        Assert.Equal("FT8", adif.Mode);
+        Assert.Equal("FN31", adif.Gridsquare);
+        Assert.Equal(291, adif.Dxcc);
+        Assert.Null(adif.LogId);
+    }
+
+    [Fact]
+    public void CreateImportedQsoUsesQrzFieldsForTargetedImport()
+    {
+        var qrz = QrzQso(
+            country: "Denmark",
+            dxcc: 221,
+            continent: "EU",
+            state: "82",
+            county: "DK-AR",
+            iota: "EU-029",
+            potaRefs: "DK-0001",
+            sotaRefs: "OZ/OZ-001",
+            awardRefs: "SPECIAL-2026");
+
+        var qso = QrzSyncService.CreateImportedQso("user-1", "OZ4MT", qrz);
+
+        Assert.Equal("user-1", qso.UserId);
+        Assert.Equal("OZ4MT", qso.OwnCallsign);
+        Assert.Equal("OZ1AAA", qso.WorkedCallsign);
+        Assert.Equal(qrz.TimeOn, qso.DateUtc);
+        Assert.Equal(Band.M20, qso.Band);
+        Assert.Equal(Mode.FT8, qso.Mode);
+        Assert.Equal("123", qso.QrzId);
+        Assert.Equal("DK-AR", qso.County);
+    }
+
+    [Fact]
+    public void ApplyQrzTimeUpdatesLocalTimestampAndLinksQrzRecord()
+    {
+        var qso = new QsoEntry
+        {
+            WorkedCallsign = "OZ1AAA",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8
+        };
+        var qrz = QrzQso(dxcc: 221);
+
+        QrzSyncService.ApplyQrzTime(qso, qrz);
+
+        Assert.Equal(qrz.TimeOn, qso.DateUtc);
+        Assert.Equal("123", qso.QrzId);
+        Assert.Equal(221, qso.Dxcc);
     }
 
     private static AdifQso QrzQso(

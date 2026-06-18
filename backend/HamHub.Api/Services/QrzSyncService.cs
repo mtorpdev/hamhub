@@ -136,39 +136,7 @@ public class QrzSyncService : BackgroundService
                 if (match == null)
                 {
                     // New record from QRZ — import it
-                    db.QsoEntries.Add(new QsoEntry
-                    {
-                        UserId = userId,
-                        WorkedCallsign = qrzQso.Call,
-                        OwnCallsign = user.Callsign ?? string.Empty,
-                        DateUtc = qrzQso.TimeOn,
-                        Band = band,
-                        Mode = mode,
-                        RstSent = qrzQso.RstSent,
-                        RstReceived = qrzQso.RstReceived,
-                        Submode = qrzQso.Submode,
-                        Locator = qrzQso.Gridsquare,
-                        MyGridsquare = qrzQso.MyGridsquare,
-                        Country = qrzQso.Country,
-                        Dxcc = qrzQso.Dxcc,
-                        Continent = qrzQso.Continent,
-                        State = qrzQso.State,
-                        County = qrzQso.County,
-                        Iota = qrzQso.Iota,
-                        PotaRefs = qrzQso.PotaRefs,
-                        SotaRefs = qrzQso.SotaRefs,
-                        AwardRefs = qrzQso.AwardRefs,
-                        Name = qrzQso.Name,
-                        Qth = qrzQso.Qth,
-                        TxPower = qrzQso.TxPower,
-                        Comment = qrzQso.Comment,
-                        QrzId = qrzQso.LogId,
-                        QrzConfirmationStatus = qrzQso.QrzStatus,
-                        QrzQslDate = qrzQso.QrzQslDate,
-                        QrzConfirmedAt = IsQrzConfirmed(qrzQso.QrzStatus) ? qrzQso.QrzQslDate ?? DateTime.UtcNow : null,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
+                    db.QsoEntries.Add(CreateImportedQso(userId, user.Callsign ?? string.Empty, qrzQso));
                 }
                 else if (match.QrzId == null)
                 {
@@ -179,34 +147,7 @@ public class QrzSyncService : BackgroundService
                         // Reserved for a future explicit "replace QRZ record" flow.
                         try
                         {
-                            var adifQso = new AdifQso(
-                                Call: match.WorkedCallsign,
-                                TimeOn: match.DateUtc,
-                                Band: BandAdif.GetValueOrDefault(match.Band, "20M"),
-                                Mode: ModeAdif.GetValueOrDefault(match.Mode, "SSB"),
-                                RstSent: match.RstSent,
-                                RstReceived: match.RstReceived,
-                                Submode: match.Submode,
-                                Gridsquare: match.Locator,
-                                MyGridsquare: match.MyGridsquare,
-                                Country: match.Country,
-                                Dxcc: match.Dxcc,
-                                Continent: match.Continent,
-                                State: match.State,
-                                County: match.County,
-                                Iota: match.Iota,
-                                PotaRefs: match.PotaRefs,
-                                SotaRefs: match.SotaRefs,
-                                AwardRefs: match.AwardRefs,
-                                Name: match.Name,
-                                Qth: match.Qth,
-                                TxPower: match.TxPower,
-                                Comment: match.Comment,
-                                LogId: null,
-                                QrzStatus: null,
-                                QrzQslDate: null
-                            );
-                            match.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
+                            match.QrzId = await qrzClient.UploadQsoAsync(ToQrzAdif(match), apiKey, ct);
                         }
                         catch (QrzApiException ex)
                         {
@@ -244,34 +185,7 @@ public class QrzSyncService : BackgroundService
             {
                 try
                 {
-                    var adifQso = new AdifQso(
-                        Call: qso.WorkedCallsign,
-                        TimeOn: qso.DateUtc,
-                        Band: BandAdif.GetValueOrDefault(qso.Band, "20M"),
-                        Mode: ModeAdif.GetValueOrDefault(qso.Mode, "SSB"),
-                        RstSent: qso.RstSent,
-                        RstReceived: qso.RstReceived,
-                        Submode: qso.Submode,
-                        Gridsquare: qso.Locator,
-                        MyGridsquare: qso.MyGridsquare,
-                        Country: qso.Country,
-                        Dxcc: qso.Dxcc,
-                        Continent: qso.Continent,
-                        State: qso.State,
-                        County: qso.County,
-                        Iota: qso.Iota,
-                        PotaRefs: qso.PotaRefs,
-                        SotaRefs: qso.SotaRefs,
-                        AwardRefs: qso.AwardRefs,
-                        Name: qso.Name,
-                        Qth: qso.Qth,
-                        TxPower: qso.TxPower,
-                        Comment: qso.Comment,
-                        LogId: null,
-                        QrzStatus: null,
-                        QrzQslDate: null
-                    );
-                    qso.QrzId = await qrzClient.UploadQsoAsync(adifQso, apiKey, ct);
+                    qso.QrzId = await qrzClient.UploadQsoAsync(ToQrzAdif(qso), apiKey, ct);
                     qso.UpdatedAt = DateTime.UtcNow;
                 }
                 catch (QrzApiException ex)
@@ -294,7 +208,92 @@ public class QrzSyncService : BackgroundService
         }
     }
 
-    private static void ApplyQrzConfirmation(QsoEntry qso, AdifQso qrzQso)
+    internal static bool TryNormalizeQrz(AdifQso qrzQso, out Band band, out Mode mode)
+    {
+        var ok = BandMap.TryGetValue(qrzQso.Band, out band) & ModeMap.TryGetValue(qrzQso.Mode, out mode);
+        return ok;
+    }
+
+    internal static AdifQso ToQrzAdif(QsoEntry qso) => new(
+        Call: qso.WorkedCallsign,
+        TimeOn: qso.DateUtc,
+        Band: BandAdif.GetValueOrDefault(qso.Band, "20M"),
+        Mode: ModeAdif.GetValueOrDefault(qso.Mode, "SSB"),
+        RstSent: qso.RstSent,
+        RstReceived: qso.RstReceived,
+        Submode: qso.Submode,
+        Gridsquare: qso.Locator,
+        MyGridsquare: qso.MyGridsquare,
+        Country: qso.Country,
+        Dxcc: qso.Dxcc,
+        Continent: qso.Continent,
+        State: qso.State,
+        County: qso.County,
+        Iota: qso.Iota,
+        PotaRefs: qso.PotaRefs,
+        SotaRefs: qso.SotaRefs,
+        AwardRefs: qso.AwardRefs,
+        Name: qso.Name,
+        Qth: qso.Qth,
+        TxPower: qso.TxPower,
+        Comment: qso.Comment,
+        LogId: null,
+        QrzStatus: null,
+        QrzQslDate: null);
+
+    internal static QsoEntry CreateImportedQso(string userId, string ownCallsign, AdifQso qrzQso)
+    {
+        if (!TryNormalizeQrz(qrzQso, out var band, out var mode))
+            throw new InvalidOperationException("QRZ QSO har et band eller mode som HamHub ikke understøtter.");
+
+        return new QsoEntry
+        {
+            UserId = userId,
+            WorkedCallsign = qrzQso.Call,
+            OwnCallsign = ownCallsign,
+            DateUtc = qrzQso.TimeOn,
+            Band = band,
+            Mode = mode,
+            RstSent = qrzQso.RstSent,
+            RstReceived = qrzQso.RstReceived,
+            Submode = qrzQso.Submode,
+            Locator = qrzQso.Gridsquare,
+            MyGridsquare = qrzQso.MyGridsquare,
+            Country = qrzQso.Country,
+            Dxcc = qrzQso.Dxcc,
+            Continent = qrzQso.Continent,
+            State = qrzQso.State,
+            County = qrzQso.County,
+            Iota = qrzQso.Iota,
+            PotaRefs = qrzQso.PotaRefs,
+            SotaRefs = qrzQso.SotaRefs,
+            AwardRefs = qrzQso.AwardRefs,
+            Name = qrzQso.Name,
+            Qth = qrzQso.Qth,
+            TxPower = qrzQso.TxPower,
+            Comment = qrzQso.Comment,
+            QrzId = qrzQso.LogId,
+            QrzConfirmationStatus = qrzQso.QrzStatus,
+            QrzQslDate = qrzQso.QrzQslDate,
+            QrzConfirmedAt = IsQrzConfirmed(qrzQso.QrzStatus) ? qrzQso.QrzQslDate ?? DateTime.UtcNow : null,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    internal static void ApplyQrzTime(QsoEntry qso, AdifQso qrzQso)
+    {
+        qso.DateUtc = qrzQso.TimeOn;
+        qso.QrzId = qrzQso.LogId ?? qso.QrzId;
+        qso.RstSent = qrzQso.RstSent ?? qso.RstSent;
+        qso.RstReceived = qrzQso.RstReceived ?? qso.RstReceived;
+        qso.Locator = qrzQso.Gridsquare ?? qso.Locator;
+        ApplyFetchedQrzFields(qso, qrzQso);
+        ApplyQrzConfirmation(qso, qrzQso);
+        qso.UpdatedAt = DateTime.UtcNow;
+    }
+
+    internal static void ApplyQrzConfirmation(QsoEntry qso, AdifQso qrzQso)
     {
         qso.QrzConfirmationStatus = qrzQso.QrzStatus;
         qso.QrzQslDate = qrzQso.QrzQslDate;

@@ -1,6 +1,7 @@
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Services;
+using System.Text.Json.Serialization;
 
 namespace HamHub.Api.Services;
 
@@ -175,26 +176,26 @@ public static class QrzReconciliationService
 
     private static QrzReconciliationAction BuildRecommendedAction(QrzReconciliationStatus status) => status switch
     {
-        QrzReconciliationStatus.HamHubOnly => QrzReconciliationAction.RunSync,
-        QrzReconciliationStatus.QrzOnly => QrzReconciliationAction.RunSync,
+        QrzReconciliationStatus.HamHubOnly => QrzReconciliationAction.UploadLocal,
+        QrzReconciliationStatus.QrzOnly => QrzReconciliationAction.ImportFromQrz,
         QrzReconciliationStatus.TimeDrift => QrzReconciliationAction.ReviewTime,
         _ => QrzReconciliationAction.None
     };
 
     private static string BuildActionLabel(QrzReconciliationStatus status) => status switch
     {
-        QrzReconciliationStatus.HamHubOnly => "Start sync",
-        QrzReconciliationStatus.QrzOnly => "Start sync",
+        QrzReconciliationStatus.HamHubOnly => "Send til QRZ",
+        QrzReconciliationStatus.QrzOnly => "Importér",
         QrzReconciliationStatus.TimeDrift => "Ret tid",
         _ => "Ingen handling"
     };
 
     private static string BuildActionDescription(QrzReconciliationStatus status) => status switch
     {
-        QrzReconciliationStatus.HamHubOnly => "KÃ¸rer QRZ sync, sÃ¥ HamHub QSOen kan blive uploadet, hvis den stadig mangler i QRZ.",
-        QrzReconciliationStatus.QrzOnly => "KÃ¸rer QRZ sync, sÃ¥ QRZ QSOen kan blive importeret, hvis den stadig ikke matcher HamHub.",
-        QrzReconciliationStatus.TimeDrift => "GennemgÃ¥ UTC-tiden fÃ¸r QSOen rettes, da tidsstempel er afgÃ¸rende for WSJT-X og QRZ matching.",
-        _ => "Ingen handling nÃ¸dvendig."
+        QrzReconciliationStatus.HamHubOnly => "Uploader denne konkrete HamHub QSO til QRZ, hvis den stadig mangler QRZ id.",
+        QrzReconciliationStatus.QrzOnly => "Importerer denne konkrete QRZ QSO til HamHub, hvis den stadig ikke matcher en lokal QSO.",
+        QrzReconciliationStatus.TimeDrift => "Saetter denne lokale QSO til QRZ UTC-tiden og linker QRZ LOGID efter manuel kontrol.",
+        _ => "Ingen handling noedvendig."
     };
 
     private static string QrzKey(AdifQso qrz) =>
@@ -221,6 +222,7 @@ public static class QrzReconciliationService
     };
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum QrzReconciliationStatus
 {
     InSync,
@@ -229,10 +231,13 @@ public enum QrzReconciliationStatus
     QrzOnly
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum QrzReconciliationAction
 {
     None,
     RunSync,
+    UploadLocal,
+    ImportFromQrz,
     ReviewTime
 }
 

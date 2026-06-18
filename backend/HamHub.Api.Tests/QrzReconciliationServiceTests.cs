@@ -46,12 +46,12 @@ public class QrzReconciliationServiceTests
         Assert.Equal("Ret tid", drift.ActionLabel);
 
         var hamHubOnly = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.HamHubOnly);
-        Assert.Equal(QrzReconciliationAction.RunSync, hamHubOnly.RecommendedAction);
-        Assert.Equal("Start sync", hamHubOnly.ActionLabel);
+        Assert.Equal(QrzReconciliationAction.UploadLocal, hamHubOnly.RecommendedAction);
+        Assert.Equal("Send til QRZ", hamHubOnly.ActionLabel);
 
         var qrzOnly = Assert.Single(result.Items, item => item.Status == QrzReconciliationStatus.QrzOnly);
-        Assert.Equal(QrzReconciliationAction.RunSync, qrzOnly.RecommendedAction);
-        Assert.Equal("Start sync", qrzOnly.ActionLabel);
+        Assert.Equal(QrzReconciliationAction.ImportFromQrz, qrzOnly.RecommendedAction);
+        Assert.Equal("Importér", qrzOnly.ActionLabel);
     }
 
     [Fact]
