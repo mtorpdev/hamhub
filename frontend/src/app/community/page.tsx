@@ -455,7 +455,7 @@ export default function CommunityPage() {
   const [groupComposerOpen, setGroupComposerOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState({ name: '', description: '', visibility: 1, allowJoinRequests: true })
   const [groupActionLoading, setGroupActionLoading] = useState(false)
-  const [groupView, setGroupView] = useState<GroupOverviewView>('mine')
+  const [groupView, setGroupView] = useState<GroupOverviewView>('official')
   const [groupSearch, setGroupSearch] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -832,10 +832,12 @@ export default function CommunityPage() {
                 <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
               </div>
               <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine grupper og find grupper</div>
-                <div className="mb-2 grid grid-cols-3 gap-1">
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Offentlige grupper og dine grupper</div>
+                <div className="mb-2 grid grid-cols-2 gap-1">
                   {[
-                    ['mine', `Mine ${overviewCounts.mine}`],
+                    ['official', `Offentlige ${overviewCounts.official}`],
+                    ['mine', `Medlem ${overviewCounts.mine}`],
+                    ['owned', `Mine egne ${overviewCounts.owned}`],
                     ['discover', `Find ${overviewCounts.discover}`],
                     ['invitations', `Invites ${overviewCounts.invitations}`],
                   ].map(([view, label]) => (
@@ -885,7 +887,9 @@ export default function CommunityPage() {
                 <h1 className="text-3xl font-bold text-white mb-3">Grupper</h1>
                 <div className="mb-3 flex gap-2 overflow-x-auto">
                   {[
-                    ['mine', `Mine ${overviewCounts.mine}`],
+                    ['official', `Offentlige ${overviewCounts.official}`],
+                    ['mine', `Medlem ${overviewCounts.mine}`],
+                    ['owned', `Mine egne ${overviewCounts.owned}`],
                     ['discover', `Find ${overviewCounts.discover}`],
                     ['invitations', `Invites ${overviewCounts.invitations}`],
                   ].map(([view, label]) => (

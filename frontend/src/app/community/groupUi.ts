@@ -1,6 +1,6 @@
 import { type CommunityGroupInvitation, type CommunityRoom } from '@/lib/types'
 
-export type GroupOverviewView = 'mine' | 'discover' | 'invitations' | 'all'
+export type GroupOverviewView = 'official' | 'mine' | 'owned' | 'discover' | 'invitations' | 'all'
 
 export const visibilityOptions = [
   { value: 1, label: 'Offentlig', description: 'Alle kan finde og deltage i gruppen.' },
@@ -34,8 +34,10 @@ export function filterCommunityGroups(groups: CommunityRoom[], view: GroupOvervi
     const status = membershipStatus(group.membershipStatus)
     const matchesView = view === 'all'
       || view === 'invitations'
-      || (view === 'mine' && status !== 'None' && status !== 'Pending')
-      || (view === 'discover' && (status === 'None' || status === 'Pending'))
+      || (view === 'official' && group.isSystem)
+      || (view === 'mine' && !group.isSystem && status !== 'None' && status !== 'Pending')
+      || (view === 'owned' && !group.isSystem && status === 'Owner')
+      || (view === 'discover' && !group.isSystem && (status === 'None' || status === 'Pending'))
     const matchesSearch = !term
       || group.name.toLowerCase().includes(term)
       || (group.description ?? '').toLowerCase().includes(term)
@@ -45,7 +47,9 @@ export function filterCommunityGroups(groups: CommunityRoom[], view: GroupOvervi
 
 export function groupOverviewCounts(groups: CommunityRoom[], invitations: CommunityGroupInvitation[]) {
   return {
+    official: filterCommunityGroups(groups, 'official', '').length,
     mine: filterCommunityGroups(groups, 'mine', '').length,
+    owned: filterCommunityGroups(groups, 'owned', '').length,
     discover: filterCommunityGroups(groups, 'discover', '').length,
     invitations: invitations.length,
   }

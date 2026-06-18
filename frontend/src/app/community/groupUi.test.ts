@@ -15,7 +15,9 @@ const invitations: CommunityGroupInvitation[] = [
 ]
 
 test('filters groups into mine and discover views', () => {
-  assert.deepEqual(filterCommunityGroups(groups, 'mine', '').map(group => group.slug), ['alle', 'oz-club', 'dx'])
+  assert.deepEqual(filterCommunityGroups(groups, 'official', '').map(group => group.slug), ['alle', 'dx'])
+  assert.deepEqual(filterCommunityGroups(groups, 'mine', '').map(group => group.slug), ['oz-club'])
+  assert.deepEqual(filterCommunityGroups(groups, 'owned', '').map(group => group.slug), ['oz-club'])
   assert.deepEqual(filterCommunityGroups(groups, 'discover', '').map(group => group.slug), ['pota-hunters'])
 })
 
@@ -26,7 +28,9 @@ test('searches groups by name and description', () => {
 
 test('summarizes group overview badges', () => {
   assert.deepEqual(groupOverviewCounts(groups, invitations), {
-    mine: 3,
+    official: 2,
+    mine: 1,
+    owned: 1,
     discover: 1,
     invitations: 1,
   })
