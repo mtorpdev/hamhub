@@ -10,6 +10,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
 import { pageShellClass } from '@/lib/layout'
+import { primaryStationImage, stationTypeLabel, stationVisibilityLabel } from './stationUi'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
@@ -71,27 +72,49 @@ export default function StationsPage() {
           {view === 'list' && (
             <div className="flex flex-col gap-4">
               {stations.map(s => (
-                <Card key={s.id}>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>{s.name} {s.callsign && <span className="text-blue-400 font-mono ml-2">{s.callsign}</span>}</CardTitle>
-                    <div className="flex gap-3">
-                      <Link href={`/stations/${s.id}`} className="text-blue-400 hover:text-blue-300 text-sm">Rediger</Link>
-                      <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:text-red-400 text-sm">Slet</button>
+                <Card key={s.id} className="overflow-hidden">
+                  <div className="grid gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
+                    <div className="bg-gray-950">
+                      {primaryStationImage(s) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={primaryStationImage(s)!} alt="" className="h-full min-h-44 w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full min-h-44 items-center justify-center border-b border-gray-700 text-sm text-gray-500 md:border-b-0 md:border-r">
+                          Intet billede
+                        </div>
+                      )}
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-sm text-gray-400 flex flex-col gap-1">
-                      {s.radioEquipment && <p>Udstyr: {s.radioEquipment}</p>}
-                      {s.antennaDescription && <p>Antenne: {s.antennaDescription}</p>}
-                      {s.powerOutput && <p>Effekt: {s.powerOutput} W</p>}
-                      {s.location && <p>Placering: {s.location}</p>}
-                      {s.gridLocator && <p>Grid: <span className="font-mono">{s.gridLocator}</span></p>}
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {s.supportedBands.map(b => <Badge key={b} variant="info">{BandLabels[b]}</Badge>)}
-                        {s.supportedModes.map(m => <Badge key={m}>{ModeLabels[m]}</Badge>)}
-                      </div>
+                    <div>
+                      <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div>
+                          <CardTitle>{s.name} {s.callsign && <span className="text-blue-400 font-mono ml-2">{s.callsign}</span>}</CardTitle>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-400">
+                            <span className="rounded border border-gray-700 px-2 py-1">{stationTypeLabel(s.stationType)}</span>
+                            <span className="rounded border border-gray-700 px-2 py-1">{stationVisibilityLabel(s.visibility)}</span>
+                            {s.images.length > 0 && <span className="rounded border border-gray-700 px-2 py-1">{s.images.length} billeder</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-3">
+                          <Link href={`/stations/${s.id}`} className="text-blue-400 hover:text-blue-300 text-sm">Rediger</Link>
+                          <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:text-red-400 text-sm">Slet</button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm text-gray-400 flex flex-col gap-1">
+                          {s.description && <p className="mb-2 text-gray-300">{s.description}</p>}
+                          {s.radioEquipment && <p>Udstyr: {s.radioEquipment}</p>}
+                          {s.antennaDescription && <p>Antenne: {s.antennaDescription}</p>}
+                          {s.powerOutput && <p>Effekt: {s.powerOutput} W</p>}
+                          {s.location && <p>Placering: {s.location}</p>}
+                          {s.gridLocator && <p>Grid: <span className="font-mono">{s.gridLocator}</span></p>}
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {s.supportedBands.map(b => <Badge key={b} variant="info">{BandLabels[b]}</Badge>)}
+                            {s.supportedModes.map(m => <Badge key={m}>{ModeLabels[m]}</Badge>)}
+                          </div>
+                        </div>
+                      </CardContent>
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
               ))}
               {stations.length === 0 && <p className="text-gray-400">Ingen stationer endnu. <Link href="/stations/new" className="text-blue-400">Opret din første station →</Link></p>}

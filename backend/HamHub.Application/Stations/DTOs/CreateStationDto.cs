@@ -12,5 +12,8 @@ public record CreateStationDto(
     string? Location,
     string? GridLocator,
     List<Mode>? SupportedModes,
-    List<Band>? SupportedBands
+    List<Band>? SupportedBands,
+    StationType StationType = StationType.HomeShack,
+    string? Description = null,
+    ProfileVisibility Visibility = ProfileVisibility.Private
 );

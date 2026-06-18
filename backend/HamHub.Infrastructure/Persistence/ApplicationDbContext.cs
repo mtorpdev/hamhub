@@ -9,6 +9,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
     public DbSet<StationProfile> StationProfiles => Set<StationProfile>();
+    public DbSet<StationImage> StationImages => Set<StationImage>();
     public DbSet<QsoEntry> QsoEntries => Set<QsoEntry>();
     public DbSet<DxSpot> DxSpots => Set<DxSpot>();
     public DbSet<Article> Articles => Set<Article>();

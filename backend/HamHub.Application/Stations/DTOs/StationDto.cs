@@ -12,7 +12,13 @@ public record StationDto(
     int? PowerOutput,
     string? Location,
     string? GridLocator,
+    StationType StationType,
+    string? Description,
+    ProfileVisibility Visibility,
     List<Mode> SupportedModes,
     List<Band> SupportedBands,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    IReadOnlyList<StationImageDto> Images
 );
+
+public record StationImageDto(int Id, string Url);

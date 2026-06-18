@@ -15,6 +15,10 @@ export enum ProfileVisibility {
   Public = 1, MembersOnly = 2, Private = 3
 }
 
+export enum StationType {
+  HomeShack = 1, Portable = 2, Mobile = 3, Remote = 4, ClubStation = 5, ContestStation = 6
+}
+
 export const BandLabels: Record<Band, string> = {
   [Band.M160]: '160m', [Band.M80]: '80m', [Band.M60]: '60m', [Band.M40]: '40m',
   [Band.M30]: '30m', [Band.M20]: '20m', [Band.M17]: '17m', [Band.M15]: '15m',
@@ -59,9 +63,18 @@ export interface Station {
   powerOutput: number | null
   location: string | null
   gridLocator: string | null
+  stationType: StationType
+  description: string | null
+  visibility: ProfileVisibility
   supportedModes: Mode[]
   supportedBands: Band[]
+  images: StationImage[]
   createdAt: string
+}
+
+export interface StationImage {
+  id: number
+  url: string
 }
 
 export interface Qso {

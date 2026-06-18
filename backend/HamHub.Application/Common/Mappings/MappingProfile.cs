@@ -15,7 +15,11 @@ public class MappingProfile : Profile
     {
         CreateMap<ApplicationUser, UserDto>();
 
-        CreateMap<StationProfile, StationDto>();
+        CreateMap<StationProfile, StationDto>()
+            .ForMember(d => d.Images, o => o.MapFrom(s =>
+                s.Images.OrderBy(i => i.Order)));
+        CreateMap<StationImage, StationImageDto>()
+            .ForCtorParam("Url", o => o.MapFrom(s => $"/uploads/stations/{s.FileName}"));
         CreateMap<CreateStationDto, StationProfile>()
             .ForMember(d => d.SupportedModes, o => o.MapFrom(s => s.SupportedModes ?? new()))
             .ForMember(d => d.SupportedBands, o => o.MapFrom(s => s.SupportedBands ?? new()));

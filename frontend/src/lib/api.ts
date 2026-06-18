@@ -59,6 +59,20 @@ export const api = {
     update: (id: number, data: Partial<import('./types').Station>) =>
       request<import('./types').Station>(`/api/stations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/api/stations/${id}`, { method: 'DELETE' }),
+    uploadImage: async (id: number, file: File) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`${API_URL}/api/stations/${id}/images`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      })
+      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+      return res.json() as Promise<import('./types').StationImage>
+    },
+    deleteImage: (stationId: number, imageId: number) =>
+      request<void>(`/api/stations/${stationId}/images/${imageId}`, { method: 'DELETE' }),
   },
   qsos: {
     getMine: (search?: string) => request<import('./types').Qso[]>(`/api/qsos${search ? `?search=${encodeURIComponent(search)}` : ''}`),

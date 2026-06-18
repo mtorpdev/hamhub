@@ -14,6 +14,9 @@ public class StationProfileConfiguration : IEntityTypeConfiguration<StationProfi
         builder.Property(s => s.Name).HasMaxLength(200).IsRequired();
         builder.Property(s => s.Callsign).HasMaxLength(20);
         builder.Property(s => s.GridLocator).HasMaxLength(10);
+        builder.Property(s => s.Description).HasMaxLength(2000);
+        builder.Property(s => s.StationType).HasDefaultValue(StationType.HomeShack);
+        builder.Property(s => s.Visibility).HasDefaultValue(ProfileVisibility.Private);
 
         var modesComparer = new ValueComparer<List<Mode>>(
             (a, b) => a != null && b != null && a.SequenceEqual(b),
@@ -45,5 +48,10 @@ public class StationProfileConfiguration : IEntityTypeConfiguration<StationProfi
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(s => s.UserId);
+
+        builder.HasMany(s => s.Images)
+            .WithOne(i => i.StationProfile)
+            .HasForeignKey(i => i.StationProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
