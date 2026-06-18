@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using HamHub.Api.Services;
 using HamHub.Api.Services.Awards;
 using HamHub.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -14,11 +15,16 @@ public class AwardsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly AwardEngine _awardEngine;
+    private readonly QsoAwardEnrichmentService _awardEnrichment;
 
-    public AwardsController(ApplicationDbContext context, AwardEngine awardEngine)
+    public AwardsController(
+        ApplicationDbContext context,
+        AwardEngine awardEngine,
+        QsoAwardEnrichmentService awardEnrichment)
     {
         _context = context;
         _awardEngine = awardEngine;
+        _awardEnrichment = awardEnrichment;
     }
 
     [HttpGet("catalog")]
@@ -42,9 +48,21 @@ public class AwardsController : ControllerBase
         return detail is null ? NotFound() : Ok(detail);
     }
 
+    [HttpPost("backfill")]
+    public async Task<IActionResult> Backfill([FromBody] AwardBackfillRequest request, CancellationToken ct = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var result = await _awardEnrichment.BackfillMissingAsync(userId, request.DryRun, ct);
+        return Ok(result);
+    }
+
     private IQueryable<Domain.Entities.QsoEntry> UserQsos()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return _context.QsoEntries.AsNoTracking().Where(qso => qso.UserId == userId);
     }
 }
+
+public record AwardBackfillRequest(bool DryRun = false);

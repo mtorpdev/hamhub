@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HamHub.Api.Services;
 
-public record QsoAwardBackfillResult(int Scanned, int Updated);
+public record QsoAwardBackfillResult(int Scanned, int Updated, bool DryRun = false);
 
 public class QsoAwardEnrichmentService
 {
@@ -31,9 +31,16 @@ public class QsoAwardEnrichmentService
         return changed;
     }
 
-    public async Task<QsoAwardBackfillResult> BackfillMissingAsync(CancellationToken ct = default)
+    public async Task<QsoAwardBackfillResult> BackfillMissingAsync(CancellationToken ct = default) =>
+        await BackfillMissingAsync(userId: null, dryRun: false, ct);
+
+    public async Task<QsoAwardBackfillResult> BackfillMissingAsync(string? userId, bool dryRun = false, CancellationToken ct = default)
     {
-        var qsos = await _context.QsoEntries
+        var query = _context.QsoEntries.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(userId))
+            query = query.Where(qso => qso.UserId == userId);
+
+        var qsos = await query
             .Where(qso => qso.Country == null ||
                           qso.Dxcc == null ||
                           qso.Continent == null ||
@@ -45,14 +52,21 @@ public class QsoAwardEnrichmentService
         foreach (var qso in qsos)
         {
             if (!Enrich(qso)) continue;
-            qso.UpdatedAt = DateTime.UtcNow;
+            if (!dryRun) qso.UpdatedAt = DateTime.UtcNow;
             updated++;
         }
 
-        if (updated > 0)
+        if (dryRun)
+        {
+            foreach (var entry in _context.ChangeTracker.Entries<QsoEntry>())
+                entry.State = EntityState.Unchanged;
+        }
+        else if (updated > 0)
+        {
             await _context.SaveChangesAsync(ct);
+        }
 
-        return new QsoAwardBackfillResult(qsos.Count, updated);
+        return new QsoAwardBackfillResult(qsos.Count, updated, dryRun);
     }
 
     private static bool FillIfMissing<T>(Func<T?> current, Action<T> set, T? candidate)
