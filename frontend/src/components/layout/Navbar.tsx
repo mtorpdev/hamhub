@@ -9,6 +9,7 @@ import { type NotificationCenter, type NotificationSummary } from '@/lib/types'
 import { viewportShellClass } from '@/lib/layout'
 import { NotificationList } from '@/components/notifications/NotificationList'
 import { useNotificationActions } from '@/hooks/useNotificationActions'
+import { HamHubLogo } from '@/components/brand/HamHubLogo'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const emptySummary: NotificationSummary = {
@@ -194,8 +195,7 @@ export function Navbar() {
       <div className={viewportShellClass}>
         <div className="flex items-center justify-between h-16">
           <Link href={homeHref} className="flex items-center gap-2">
-            <span className="text-2xl">📡</span>
-            <span className="text-white text-xl font-bold tracking-tight">HamHub</span>
+            <HamHubLogo />
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
