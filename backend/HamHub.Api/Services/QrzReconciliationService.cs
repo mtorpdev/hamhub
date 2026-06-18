@@ -159,7 +159,10 @@ public static class QrzReconciliationService
             HamHubDateUtc: local?.DateUtc,
             QrzDateUtc: qrz?.TimeOn,
             TimeDeltaSeconds: deltaSeconds,
-            Message: BuildMessage(status, deltaSeconds));
+            Message: BuildMessage(status, deltaSeconds),
+            RecommendedAction: BuildRecommendedAction(status),
+            ActionLabel: BuildActionLabel(status),
+            ActionDescription: BuildActionDescription(status));
 
     private static string BuildMessage(QrzReconciliationStatus status, int? deltaSeconds) => status switch
     {
@@ -168,6 +171,30 @@ public static class QrzReconciliationService
         QrzReconciliationStatus.HamHubOnly => "Findes kun i HamHub.",
         QrzReconciliationStatus.QrzOnly => "Findes kun i QRZ.",
         _ => status.ToString()
+    };
+
+    private static QrzReconciliationAction BuildRecommendedAction(QrzReconciliationStatus status) => status switch
+    {
+        QrzReconciliationStatus.HamHubOnly => QrzReconciliationAction.RunSync,
+        QrzReconciliationStatus.QrzOnly => QrzReconciliationAction.RunSync,
+        QrzReconciliationStatus.TimeDrift => QrzReconciliationAction.ReviewTime,
+        _ => QrzReconciliationAction.None
+    };
+
+    private static string BuildActionLabel(QrzReconciliationStatus status) => status switch
+    {
+        QrzReconciliationStatus.HamHubOnly => "Start sync",
+        QrzReconciliationStatus.QrzOnly => "Start sync",
+        QrzReconciliationStatus.TimeDrift => "Ret tid",
+        _ => "Ingen handling"
+    };
+
+    private static string BuildActionDescription(QrzReconciliationStatus status) => status switch
+    {
+        QrzReconciliationStatus.HamHubOnly => "KÃ¸rer QRZ sync, sÃ¥ HamHub QSOen kan blive uploadet, hvis den stadig mangler i QRZ.",
+        QrzReconciliationStatus.QrzOnly => "KÃ¸rer QRZ sync, sÃ¥ QRZ QSOen kan blive importeret, hvis den stadig ikke matcher HamHub.",
+        QrzReconciliationStatus.TimeDrift => "GennemgÃ¥ UTC-tiden fÃ¸r QSOen rettes, da tidsstempel er afgÃ¸rende for WSJT-X og QRZ matching.",
+        _ => "Ingen handling nÃ¸dvendig."
     };
 
     private static string QrzKey(AdifQso qrz) =>
@@ -202,6 +229,13 @@ public enum QrzReconciliationStatus
     QrzOnly
 }
 
+public enum QrzReconciliationAction
+{
+    None,
+    RunSync,
+    ReviewTime
+}
+
 public record QrzReconciliationResponse(
     int HamHubCount,
     int QrzCount,
@@ -223,7 +257,10 @@ public record QrzReconciliationItemDto(
     DateTime? HamHubDateUtc,
     DateTime? QrzDateUtc,
     int? TimeDeltaSeconds,
-    string Message);
+    string Message,
+    QrzReconciliationAction RecommendedAction,
+    string ActionLabel,
+    string ActionDescription);
 
 public record QrzDuplicateGroupDto(
     string WorkedCallsign,

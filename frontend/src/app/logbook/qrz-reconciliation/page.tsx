@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '@/lib/api'
-import type { QrzReconciliationResponse, QrzReconciliationStatus } from '@/lib/types'
+import type { QrzReconciliationItem, QrzReconciliationResponse, QrzReconciliationStatus } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { Badge } from '@/components/ui/Badge'
@@ -39,22 +39,58 @@ export default function QrzReconciliationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<QrzReconciliationStatus | 'all'>('all')
+  const [syncing, setSyncing] = useState(false)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    api.qrz.reconciliation()
+  const loadReconciliation = useCallback((cancelledRef?: { cancelled: boolean }, showLoading = true) => {
+    if (showLoading) {
+      setLoading(true)
+      setError(null)
+    }
+    return api.qrz.reconciliation()
       .then(data => {
-        if (!cancelled) setResult(data)
+        if (!cancelledRef?.cancelled) setResult(data)
       })
       .catch(err => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente QRZ afstemning')
+        if (!cancelledRef?.cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente QRZ afstemning')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelledRef?.cancelled) setLoading(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    const cancelledRef = { cancelled: false }
+    api.qrz.reconciliation()
+      .then(data => {
+        if (!cancelledRef.cancelled) setResult(data)
+      })
+      .catch(err => {
+        if (!cancelledRef.cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente QRZ afstemning')
+      })
+      .finally(() => {
+        if (!cancelledRef.cancelled) setLoading(false)
       })
 
-    return () => { cancelled = true }
+    return () => { cancelledRef.cancelled = true }
   }, [])
+
+  const runSync = async () => {
+    setSyncing(true)
+    setActionMessage(null)
+    setError(null)
+    try {
+      await api.qrz.sync()
+      setActionMessage('QRZ sync er startet. Listen opdateres om lidt.')
+      setTimeout(() => {
+        void loadReconciliation()
+      }, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kunne ikke starte QRZ sync')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const summary = useMemo(() => result ? buildQrzReconciliationSummary(result) : [], [result])
   const items = useMemo(() => {
@@ -68,7 +104,7 @@ export default function QrzReconciliationPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">QRZ Afstemning</h1>
           <p className="mt-2 max-w-2xl text-sm text-gray-400">
-            Read-only sammenligning mellem HamHub og QRZ Logbook. Ingen poster ændres eller slettes her.
+            Sammenligning mellem HamHub og QRZ Logbook med sikre handlinger. Sync kan upload/importere manglende QSOer, men sletter ikke poster i QRZ.
           </p>
         </div>
         <Link href="/logbook">
@@ -78,6 +114,7 @@ export default function QrzReconciliationPage() {
 
       {loading && <p className="text-gray-400">Henter QRZ logbook og matcher QSOer...</p>}
       {error && <p className="rounded border border-red-900/70 bg-red-950/30 p-4 text-sm text-red-200">{error}</p>}
+      {actionMessage && <p className="mb-4 rounded border border-blue-900/70 bg-blue-950/30 p-4 text-sm text-blue-100">{actionMessage}</p>}
 
       {result && (
         <>
@@ -118,7 +155,7 @@ export default function QrzReconciliationPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-800/50">
                     <tr>
-                      {['Status', 'Kontakt', 'Band', 'Mode', 'HamHub UTC', 'QRZ UTC', 'Delta', 'Reference'].map(header => (
+                      {['Status', 'Kontakt', 'Band', 'Mode', 'HamHub UTC', 'QRZ UTC', 'Delta', 'Reference', 'Handling'].map(header => (
                         <th key={header} className="px-4 py-3 text-left font-medium text-gray-400">{header}</th>
                       ))}
                     </tr>
@@ -135,6 +172,9 @@ export default function QrzReconciliationPage() {
                         <td className="px-4 py-3 text-gray-400">{item.timeDeltaSeconds === null ? '-' : `${item.timeDeltaSeconds}s`}</td>
                         <td className="px-4 py-3 text-xs text-gray-400">
                           {item.hamHubQsoId ? <Link href={`/logbook/${item.hamHubQsoId}`} className="text-blue-400 hover:text-blue-300">QSO #{item.hamHubQsoId}</Link> : item.qrzLogId ? `QRZ ${item.qrzLogId}` : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <ReconciliationAction item={item} syncing={syncing} onRunSync={runSync} />
                         </td>
                       </tr>
                     ))}
@@ -166,4 +206,35 @@ export default function QrzReconciliationPage() {
       )}
     </div>
   )
+}
+
+function ReconciliationAction({ item, syncing, onRunSync }: { item: QrzReconciliationItem; syncing: boolean; onRunSync: () => void }) {
+  if (item.recommendedAction === 'RunSync') {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onClick={onRunSync}
+        disabled={syncing}
+        title={item.actionDescription}
+      >
+        {syncing ? 'Starter...' : item.actionLabel}
+      </Button>
+    )
+  }
+
+  if (item.recommendedAction === 'ReviewTime' && item.hamHubQsoId) {
+    return (
+      <Link
+        href={`/logbook/${item.hamHubQsoId}`}
+        className="inline-flex rounded-md bg-yellow-900/50 px-3 py-1.5 text-sm font-medium text-yellow-100 hover:bg-yellow-900"
+        title={item.actionDescription}
+      >
+        {item.actionLabel}
+      </Link>
+    )
+  }
+
+  return <span className="text-xs text-gray-500" title={item.actionDescription}>{item.actionLabel}</span>
 }
