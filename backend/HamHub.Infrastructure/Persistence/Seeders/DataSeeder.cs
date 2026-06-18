@@ -168,7 +168,7 @@ public static class DataSeeder
         - Awards-overblik med worked/confirmed status og QSO backfill
         - Live Roster til WSJT-X decodes og call handling
         - POTA-side med live spots, filtre, kort, personlig progress og official activation link
-        - Grupper med opslag, kommentarer, likes, gruppechat, offentlige/private grupper, ansøgninger og invitationer
+        - Grupper med opslag, kommentarer, likes, gruppechat, offentlige/private grupper, detaljesider, medlemsliste, roller, ansøgninger, invitationer og arkivering
         - Venner, private beskeder, online-status og rapportering
         - Forum med kategorier, tags, søgning, svar og løst/åben status
         - Articles/vidensbase

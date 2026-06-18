@@ -52,6 +52,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasMaxLength(500);
 
         builder.Entity<CommunityRoom>()
+            .HasIndex(r => new { r.IsArchived, r.Visibility });
+
+        builder.Entity<CommunityRoom>()
             .HasOne(r => r.Owner)
             .WithMany()
             .HasForeignKey(r => r.OwnerId)

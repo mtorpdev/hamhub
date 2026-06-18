@@ -45,8 +45,9 @@ public class PostsController : ControllerBase
 
         query = query.Where(p =>
             p.CommunityRoom == null ||
-            p.CommunityRoom.Visibility != CommunityGroupVisibility.InviteOnly ||
-            (UserId != null && p.CommunityRoom.Memberships.Any(m => m.UserId == UserId)));
+            (!p.CommunityRoom.IsArchived &&
+             (p.CommunityRoom.Visibility != CommunityGroupVisibility.InviteOnly ||
+              (UserId != null && p.CommunityRoom.Memberships.Any(m => m.UserId == UserId)))));
 
         var normalizedScope = scope?.Trim().ToLowerInvariant();
         if (normalizedScope == "forum")
@@ -119,7 +120,7 @@ public class PostsController : ControllerBase
             var normalizedRoom = req.RoomSlug.Trim().ToLowerInvariant();
             room = await _context.CommunityRooms
                 .Include(r => r.Memberships)
-                .FirstOrDefaultAsync(r => r.Slug == normalizedRoom);
+                .FirstOrDefaultAsync(r => r.Slug == normalizedRoom && !r.IsArchived);
             if (room == null) return BadRequest("Community-rum ikke fundet");
             if (!CanPostInRoom(room)) return Forbid();
         }

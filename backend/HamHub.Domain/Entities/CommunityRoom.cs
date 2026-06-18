@@ -8,6 +8,7 @@ public class CommunityRoom
     public string? Description { get; set; }
     public int SortOrder { get; set; }
     public bool IsSystem { get; set; } = true;
+    public bool IsArchived { get; set; }
     public string? OwnerId { get; set; }
     public CommunityGroupVisibility Visibility { get; set; } = CommunityGroupVisibility.Public;
     public bool AllowJoinRequests { get; set; } = true;

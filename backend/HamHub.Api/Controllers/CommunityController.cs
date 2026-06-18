@@ -52,6 +52,17 @@ public class CommunityController : ControllerBase
         return Ok(groups.Select(r => MapGroupDto(r, userId)).ToList());
     }
 
+    [HttpGet("groups/{slug}")]
+    [Authorize]
+    public async Task<IActionResult> GetGroupBySlug(string slug)
+    {
+        var normalized = slug.Trim().ToLowerInvariant();
+        var group = await VisibleCommunityGroups(UserId)
+            .FirstOrDefaultAsync(r => r.Slug == normalized && !r.Slug.StartsWith("forum-"));
+        if (group == null) return NotFound();
+        return Ok(MapGroupDetailDto(group, UserId));
+    }
+
     [HttpGet("forum-rooms")]
     public async Task<IActionResult> GetForumRooms()
     {
@@ -105,6 +116,97 @@ public class CommunityController : ControllerBase
 
         group.Memberships = await _context.CommunityGroupMemberships.Where(m => m.CommunityRoomId == group.Id).ToListAsync();
         return Ok(MapGroupDto(group, UserId));
+    }
+
+    [HttpPut("groups/{groupId:int}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateGroup(int groupId, [FromBody] UpdateCommunityGroupRequest request)
+    {
+        if (!await CanManageGroup(groupId, UserId!)) return Forbid();
+        var group = await _context.CommunityRooms
+            .Include(g => g.Memberships)
+            .Include(g => g.JoinRequests.Where(j => j.Status == CommunityGroupRequestStatus.Pending))
+            .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived && !g.Slug.StartsWith("forum-"));
+        if (group == null) return NotFound();
+        if (group.IsSystem) return BadRequest("Systemgrupper kan ikke redigeres her");
+
+        var name = (request.Name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(name)) return BadRequest("Gruppenavn er påkrævet");
+        if (name.Length > 120) return BadRequest("Gruppenavn må maks være 120 tegn");
+
+        group.Name = name;
+        group.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        group.Visibility = request.Visibility;
+        group.AllowJoinRequests = request.Visibility != CommunityGroupVisibility.InviteOnly && request.AllowJoinRequests;
+        await _context.SaveChangesAsync();
+        return Ok(MapGroupDto(group, UserId));
+    }
+
+    [HttpDelete("groups/{groupId:int}")]
+    [Authorize]
+    public async Task<IActionResult> ArchiveGroup(int groupId)
+    {
+        var group = await _context.CommunityRooms.FirstOrDefaultAsync(g => g.Id == groupId && !g.Slug.StartsWith("forum-"));
+        if (group == null) return NotFound();
+        if (group.OwnerId != UserId) return Forbid();
+        if (group.IsSystem) return BadRequest("Systemgrupper kan ikke arkiveres");
+
+        group.IsArchived = true;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet("groups/{groupId:int}/members")]
+    [Authorize]
+    public async Task<IActionResult> GetMembers(int groupId)
+    {
+        if (!await CanAccessGroup(groupId, UserId!)) return Forbid();
+        var members = await _context.CommunityGroupMemberships
+            .Include(m => m.User)
+            .Where(m => m.CommunityRoomId == groupId)
+            .OrderBy(m => m.Role)
+            .ThenBy(m => m.User.Callsign ?? m.User.Email)
+            .Select(m => new CommunityGroupMemberDto(
+                m.UserId,
+                m.User.Callsign,
+                m.User.Email,
+                (m.User.FirstName + " " + m.User.LastName).Trim(),
+                m.Role,
+                m.CreatedAt))
+            .ToListAsync();
+        return Ok(members);
+    }
+
+    [HttpPut("groups/{groupId:int}/members/{memberId}/role")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMemberRole(int groupId, string memberId, [FromBody] UpdateCommunityGroupMemberRoleRequest request)
+    {
+        var group = await _context.CommunityRooms.FirstOrDefaultAsync(g => g.Id == groupId);
+        if (group == null) return NotFound();
+        if (group.OwnerId != UserId) return Forbid();
+        if (request.Role == CommunityGroupRole.Owner) return BadRequest("Owner kan ikke sættes her");
+
+        var membership = await _context.CommunityGroupMemberships.FirstOrDefaultAsync(m => m.CommunityRoomId == groupId && m.UserId == memberId);
+        if (membership == null) return NotFound();
+        if (membership.Role == CommunityGroupRole.Owner) return BadRequest("Owner kan ikke ændres");
+
+        membership.Role = request.Role;
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("groups/{groupId:int}/members/{memberId}")]
+    [Authorize]
+    public async Task<IActionResult> RemoveMember(int groupId, string memberId)
+    {
+        if (!await CanManageGroup(groupId, UserId!)) return Forbid();
+        var membership = await _context.CommunityGroupMemberships.FirstOrDefaultAsync(m => m.CommunityRoomId == groupId && m.UserId == memberId);
+        if (membership == null) return NotFound();
+        if (membership.Role == CommunityGroupRole.Owner) return BadRequest("Owner kan ikke fjernes");
+
+        _context.CommunityGroupMemberships.Remove(membership);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("groups/{groupId:int}/join-requests")]
@@ -177,6 +279,21 @@ public class CommunityController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("groups/{groupId:int}/join-requests/{requestId:int}/reject")]
+    [Authorize]
+    public async Task<IActionResult> RejectJoinRequest(int groupId, int requestId)
+    {
+        if (!await CanManageGroup(groupId, UserId!)) return Forbid();
+        var request = await _context.CommunityGroupJoinRequests.FirstOrDefaultAsync(r => r.Id == requestId && r.CommunityRoomId == groupId);
+        if (request == null) return NotFound();
+        if (request.Status != CommunityGroupRequestStatus.Pending) return BadRequest("Anmodningen er allerede behandlet");
+
+        request.Status = CommunityGroupRequestStatus.Rejected;
+        request.ResolvedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
     [HttpPost("groups/{groupId:int}/invite")]
     [Authorize]
     public async Task<IActionResult> InviteToGroup(int groupId, [FromBody] InviteToCommunityGroupRequest request)
@@ -239,6 +356,20 @@ public class CommunityController : ControllerBase
                 Role = CommunityGroupRole.Member
             });
         }
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpPost("group-invitations/{invitationId:int}/decline")]
+    [Authorize]
+    public async Task<IActionResult> DeclineGroupInvitation(int invitationId)
+    {
+        var invitation = await _context.CommunityGroupInvitations.FirstOrDefaultAsync(i => i.Id == invitationId && i.InviteeId == UserId);
+        if (invitation == null) return NotFound();
+        if (invitation.Status != CommunityGroupRequestStatus.Pending) return BadRequest("Invitationen er allerede behandlet");
+
+        invitation.Status = CommunityGroupRequestStatus.Rejected;
+        invitation.ResolvedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return Ok();
     }
@@ -328,9 +459,20 @@ public class CommunityController : ControllerBase
         return _context.CommunityRooms
             .Include(r => r.Memberships)
             .Include(r => r.JoinRequests.Where(j => j.Status == CommunityGroupRequestStatus.Pending))
+            .Where(r => !r.IsArchived)
             .Where(r =>
                 r.Visibility != CommunityGroupVisibility.InviteOnly ||
                 (userId != null && r.Memberships.Any(m => m.UserId == userId)));
+    }
+
+    private async Task<bool> CanAccessGroup(int groupId, string userId)
+    {
+        var group = await _context.CommunityRooms
+            .Include(g => g.Memberships)
+            .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
+        if (group == null) return false;
+        if (group.Visibility == CommunityGroupVisibility.Public || group.IsSystem) return true;
+        return group.Memberships.Any(m => m.UserId == userId);
     }
 
     private async Task<bool> CanManageGroup(int groupId, string userId)
@@ -368,6 +510,24 @@ public class CommunityController : ControllerBase
             status);
     }
 
+    private static CommunityGroupDetailDto MapGroupDetailDto(CommunityRoom room, string? userId)
+    {
+        var summary = MapGroupDto(room, userId);
+        return new CommunityGroupDetailDto(
+            summary.Id,
+            summary.Name,
+            summary.Slug,
+            summary.Description,
+            summary.SortOrder,
+            summary.IsSystem,
+            summary.Visibility,
+            summary.AllowJoinRequests,
+            summary.OwnerId,
+            summary.MemberCount,
+            summary.MembershipStatus,
+            room.CreatedAt);
+    }
+
     private static string Slugify(string name)
     {
         var chars = name.Trim().ToLowerInvariant()
@@ -391,8 +551,30 @@ public record CommunityGroupDto(
     string? OwnerId,
     int MemberCount,
     CommunityGroupMembershipStatus MembershipStatus);
+public record CommunityGroupDetailDto(
+    int Id,
+    string Name,
+    string Slug,
+    string? Description,
+    int SortOrder,
+    bool IsSystem,
+    CommunityGroupVisibility Visibility,
+    bool AllowJoinRequests,
+    string? OwnerId,
+    int MemberCount,
+    CommunityGroupMembershipStatus MembershipStatus,
+    DateTime CreatedAt);
 public record CreateCommunityGroupRequest(string Name, string? Description, CommunityGroupVisibility Visibility, bool AllowJoinRequests);
+public record UpdateCommunityGroupRequest(string Name, string? Description, CommunityGroupVisibility Visibility, bool AllowJoinRequests);
+public record UpdateCommunityGroupMemberRoleRequest(CommunityGroupRole Role);
 public record InviteToCommunityGroupRequest(string UserId);
+public record CommunityGroupMemberDto(
+    string UserId,
+    string? Callsign,
+    string? Email,
+    string? Name,
+    CommunityGroupRole Role,
+    DateTime CreatedAt);
 public record CommunityGroupJoinRequestDto(
     int Id,
     int CommunityRoomId,

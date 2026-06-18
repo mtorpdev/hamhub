@@ -218,21 +218,37 @@ export const api = {
   community: {
     getRooms: () => request<import('./types').CommunityRoom[]>('/api/community/rooms'),
     getGroups: () => request<import('./types').CommunityRoom[]>('/api/community/groups'),
+    getGroupBySlug: (slug: string) =>
+      request<import('./types').CommunityRoom>(`/api/community/groups/${encodeURIComponent(slug)}`),
     getForumRooms: () => request<import('./types').CommunityRoom[]>('/api/community/forum-rooms'),
     createGroup: (data: { name: string; description?: string | null; visibility: number; allowJoinRequests: boolean }) =>
       request<import('./types').CommunityRoom>('/api/community/groups', { method: 'POST', body: JSON.stringify(data) }),
+    updateGroup: (groupId: number, data: { name: string; description?: string | null; visibility: number; allowJoinRequests: boolean }) =>
+      request<import('./types').CommunityRoom>(`/api/community/groups/${groupId}`, { method: 'PUT', body: JSON.stringify(data) }),
+    archiveGroup: (groupId: number) =>
+      request<void>(`/api/community/groups/${groupId}`, { method: 'DELETE' }),
+    getGroupMembers: (groupId: number) =>
+      request<import('./types').CommunityGroupMember[]>(`/api/community/groups/${groupId}/members`),
+    updateGroupMemberRole: (groupId: number, memberId: string, role: number) =>
+      request<void>(`/api/community/groups/${groupId}/members/${encodeURIComponent(memberId)}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+    removeGroupMember: (groupId: number, memberId: string) =>
+      request<void>(`/api/community/groups/${groupId}/members/${encodeURIComponent(memberId)}`, { method: 'DELETE' }),
     requestToJoinGroup: (groupId: number) =>
       request<void>(`/api/community/groups/${groupId}/join-requests`, { method: 'POST' }),
     getGroupJoinRequests: (groupId: number) =>
       request<import('./types').CommunityGroupJoinRequest[]>(`/api/community/groups/${groupId}/join-requests`),
     approveGroupJoinRequest: (groupId: number, requestId: number) =>
       request<void>(`/api/community/groups/${groupId}/join-requests/${requestId}/approve`, { method: 'POST' }),
+    rejectGroupJoinRequest: (groupId: number, requestId: number) =>
+      request<void>(`/api/community/groups/${groupId}/join-requests/${requestId}/reject`, { method: 'POST' }),
     inviteToGroup: (groupId: number, userId: string) =>
       request<void>(`/api/community/groups/${groupId}/invite`, { method: 'POST', body: JSON.stringify({ userId }) }),
     getGroupInvitations: () =>
       request<import('./types').CommunityGroupInvitation[]>('/api/community/group-invitations'),
     acceptGroupInvitation: (invitationId: number) =>
       request<void>(`/api/community/group-invitations/${invitationId}/accept`, { method: 'POST' }),
+    declineGroupInvitation: (invitationId: number) =>
+      request<void>(`/api/community/group-invitations/${invitationId}/decline`, { method: 'POST' }),
     getContacts: () => request<import('./types').CommunityContact[]>('/api/community/contacts'),
     getOnlineUsers: () => request<import('./types').CommunityOnlineUser[]>('/api/community/online'),
   },

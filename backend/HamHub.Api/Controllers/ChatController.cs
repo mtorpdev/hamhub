@@ -36,7 +36,7 @@ public class ChatController : ControllerBase
     {
         var room = await FindRoomAsync(roomSlug);
         if (roomSlug != "alle" && room == null) return NotFound("Chatrum ikke fundet");
-        if (room != null && !CanAccessRoom(room)) return Forbid();
+        if (room != null && (room.IsArchived || !CanAccessRoom(room))) return Forbid();
 
         var clampedLimit = Math.Clamp(limit, 1, 200);
         var query = _context.ChatMessages
@@ -66,7 +66,7 @@ public class ChatController : ControllerBase
 
         var room = await FindRoomAsync(roomSlug);
         if (roomSlug != "alle" && room == null) return NotFound("Chatrum ikke fundet");
-        if (room != null && !CanAccessRoom(room)) return Forbid();
+        if (room != null && (room.IsArchived || !CanAccessRoom(room))) return Forbid();
 
         var message = new ChatMessage
         {
@@ -107,7 +107,7 @@ public class ChatController : ControllerBase
         if (normalized == "alle") return null;
         return await _context.CommunityRooms
             .Include(r => r.Memberships)
-            .FirstOrDefaultAsync(r => r.Slug == normalized);
+            .FirstOrDefaultAsync(r => r.Slug == normalized && !r.IsArchived);
     }
 
     private bool CanAccessRoom(CommunityRoom room)

@@ -742,6 +742,15 @@ export interface CommunityGroupJoinRequest {
   createdAt: string
 }
 
+export interface CommunityGroupMember {
+  userId: string
+  callsign: string | null
+  email: string | null
+  name: string | null
+  role: 'Owner' | 'Admin' | 'Member' | number
+  createdAt: string
+}
+
 export interface CommunityGroupInvitation {
   id: number
   communityRoomId: number

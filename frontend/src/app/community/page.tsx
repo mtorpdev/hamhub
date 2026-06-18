@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -10,6 +11,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 import { UserProfileCard, type ProfileCardUser } from '@/components/community/UserProfileCard'
+import { groupVisibilityLabel, membershipStatus, visibilityOptions } from './groupUi'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -20,26 +22,6 @@ const fallbackRooms: CommunityRoom[] = [
   { id: 3, name: 'Teknik', slug: 'teknik', description: 'Radioer, antenner og software.', sortOrder: 30, isSystem: true },
   { id: 4, name: 'Køb/salg', slug: 'koeb-salg', description: 'Udstyr og gode fund.', sortOrder: 40, isSystem: true },
 ]
-
-const visibilityOptions = [
-  { value: 1, label: 'Offentlig', description: 'Alle kan finde og deltage i gruppen.' },
-  { value: 2, label: 'Ansøg om adgang', description: 'Alle kan finde gruppen, men admin skal godkende.' },
-  { value: 3, label: 'Kun inviterede', description: 'Gruppen er kun synlig for medlemmer.' },
-]
-
-function membershipStatus(value: CommunityRoom['membershipStatus']) {
-  if (value === 'Owner' || value === 1) return 'Owner'
-  if (value === 'Admin' || value === 2) return 'Admin'
-  if (value === 'Member' || value === 3) return 'Member'
-  if (value === 'Pending' || value === 4) return 'Pending'
-  return 'None'
-}
-
-function groupVisibilityLabel(value: CommunityRoom['visibility']) {
-  if (value === 'InviteOnly' || value === 3) return 'Kun inviterede'
-  if (value === 'RequestToJoin' || value === 2) return 'Ansøg om adgang'
-  return 'Offentlig'
-}
 
 function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId?: string; onDelete: () => void }) {
   const { toast } = useToast()
@@ -638,6 +620,20 @@ export default function CommunityPage() {
     }
   }
 
+  const handleRejectJoinRequest = async (requestId: number) => {
+    if (!selectedRoomInfo) return
+    setGroupActionLoading(true)
+    try {
+      await api.community.rejectGroupJoinRequest(selectedRoomInfo.id, requestId)
+      await loadJoinRequests(selectedRoomInfo)
+      toast('Ansøgning afvist')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke afvise ansøgning', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
   const handleInviteContact = async (contactId: string) => {
     if (!selectedRoomInfo) return
     setGroupActionLoading(true)
@@ -659,6 +655,19 @@ export default function CommunityPage() {
       toast('Invitation accepteret')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Kunne ikke acceptere invitation', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
+  const handleDeclineInvitation = async (invitationId: number) => {
+    setGroupActionLoading(true)
+    try {
+      await api.community.declineGroupInvitation(invitationId)
+      await loadGroupInvitations()
+      toast('Invitation afvist')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke afvise invitation', 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -819,7 +828,7 @@ export default function CommunityPage() {
                 <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
               </div>
               <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine sider og fora</div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine grupper og find grupper</div>
                 <div className="flex flex-col gap-1">
                   {rooms.map(room => (
                     <button
@@ -875,6 +884,7 @@ export default function CommunityPage() {
                         <span className="rounded border border-gray-700 px-2 py-1">{groupVisibilityLabel(selectedRoomInfo.visibility)}</span>
                         <span className="rounded border border-gray-700 px-2 py-1">{selectedRoomInfo.memberCount ?? 0} medlemmer</span>
                         <span className="rounded border border-gray-700 px-2 py-1">{selectedMembership === 'None' ? 'Ikke medlem' : selectedMembership === 'Pending' ? 'Ansøgning sendt' : 'Medlem'}</span>
+                        <Link href={`/community/groups/${selectedRoomInfo.slug}`} className="rounded border border-blue-700 px-2 py-1 text-blue-200 hover:bg-blue-950/30">Åbn gruppe</Link>
                       </div>
                     )}
                   </div>
@@ -933,6 +943,9 @@ export default function CommunityPage() {
                             <span className="text-sm text-gray-200">{request.callsign || request.email || 'Ukendt bruger'}</span>
                             <Button type="button" size="sm" onClick={() => handleApproveJoinRequest(request.id)} disabled={groupActionLoading}>
                               Godkend
+                            </Button>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => handleRejectJoinRequest(request.id)} disabled={groupActionLoading}>
+                              Afvis
                             </Button>
                           </div>
                         ))}
@@ -1001,6 +1014,9 @@ export default function CommunityPage() {
                     <div className="text-xs text-gray-500">Inviteret af {invitation.inviterCallsign || 'en admin'}</div>
                     <Button type="button" size="sm" className="mt-2" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>
                       Accepter
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" className="ml-2 mt-2" onClick={() => handleDeclineInvitation(invitation.id)} disabled={groupActionLoading}>
+                      Afvis
                     </Button>
                   </div>
                 ))}

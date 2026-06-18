@@ -238,6 +238,7 @@ static async Task EnsureCommunitySchemaAsync(ApplicationDbContext context)
             "Description" text,
             "SortOrder" integer NOT NULL DEFAULT 0,
             "IsSystem" boolean NOT NULL DEFAULT true,
+            "IsArchived" boolean NOT NULL DEFAULT false,
             "OwnerId" text,
             "Visibility" integer NOT NULL DEFAULT 1,
             "AllowJoinRequests" boolean NOT NULL DEFAULT true,
@@ -248,7 +249,8 @@ static async Task EnsureCommunitySchemaAsync(ApplicationDbContext context)
         ALTER TABLE "CommunityRooms"
         ADD COLUMN IF NOT EXISTS "OwnerId" text,
         ADD COLUMN IF NOT EXISTS "Visibility" integer NOT NULL DEFAULT 1,
-        ADD COLUMN IF NOT EXISTS "AllowJoinRequests" boolean NOT NULL DEFAULT true;
+        ADD COLUMN IF NOT EXISTS "AllowJoinRequests" boolean NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS "IsArchived" boolean NOT NULL DEFAULT false;
 
         ALTER TABLE "Posts"
         ADD COLUMN IF NOT EXISTS "CommunityRoomId" integer;
@@ -261,6 +263,7 @@ static async Task EnsureCommunitySchemaAsync(ApplicationDbContext context)
 
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_CommunityRooms_Slug" ON "CommunityRooms" ("Slug");
         CREATE INDEX IF NOT EXISTS "IX_CommunityRooms_OwnerId" ON "CommunityRooms" ("OwnerId");
+        CREATE INDEX IF NOT EXISTS "IX_CommunityRooms_IsArchived_Visibility" ON "CommunityRooms" ("IsArchived", "Visibility");
         CREATE INDEX IF NOT EXISTS "IX_Posts_CommunityRoomId" ON "Posts" ("CommunityRoomId");
         CREATE INDEX IF NOT EXISTS "IX_Posts_IsSolved_CreatedAt" ON "Posts" ("IsSolved", "CreatedAt");
 
