@@ -251,6 +251,27 @@ export interface DxSpot {
   spottedAt: string
 }
 
+export interface PotaSpot {
+  spotId: number
+  activator: string
+  frequency: string
+  frequencyKhz: number | null
+  band: string | null
+  mode: string
+  reference: string
+  parkName: string | null
+  locationDesc: string | null
+  grid4: string | null
+  grid6: string | null
+  latitude: number | null
+  longitude: number | null
+  spotter: string | null
+  comments: string | null
+  source: string | null
+  spotTimeUtc: string
+  expiresInSeconds: number | null
+}
+
 export interface Article {
   id: number
   title: string
