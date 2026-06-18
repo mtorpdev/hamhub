@@ -70,6 +70,28 @@ public class QrzReconciliationServiceTests
         Assert.Equal(new[] { "qrz-2", "qrz-1" }, group.QrzLogIds);
     }
 
+    [Fact]
+    public void TryFindDuplicateDeleteCandidateOnlyAllowsLogIdsInDuplicateGroups()
+    {
+        var qrz = new[]
+        {
+            Qrz("K1ABC", new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc), "qrz-1"),
+            Qrz("K1ABC", new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc), "qrz-2"),
+            Qrz("DL1AAA", new DateTime(2026, 6, 17, 14, 0, 0, DateTimeKind.Utc), "qrz-3"),
+        };
+
+        var allowed = QrzReconciliationService.TryFindDuplicateDeleteCandidate(qrz, "qrz-2", out var candidate);
+        var denied = QrzReconciliationService.TryFindDuplicateDeleteCandidate(qrz, "qrz-3", out var deniedCandidate);
+
+        Assert.True(allowed);
+        Assert.NotNull(candidate);
+        Assert.Equal("K1ABC", candidate.WorkedCallsign);
+        Assert.Equal("qrz-2", candidate.QrzLogId);
+        Assert.Equal(new[] { "qrz-2", "qrz-1" }, candidate.GroupQrzLogIds);
+        Assert.False(denied);
+        Assert.Null(deniedCandidate);
+    }
+
     private static QsoEntry Qso(int id, string call, DateTime dateUtc, string? qrzId = null) => new()
     {
         Id = id,

@@ -189,6 +189,10 @@ public class QrzClient
         });
         var response = await _http.PostAsync("https://logbook.qrz.com/api", content, ct);
         response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var parts = ParseKvp(body);
+        if (parts.TryGetValue("RESULT", out var result) && result != "OK")
+            throw new QrzApiException(parts.GetValueOrDefault("REASON", "QRZ delete failed"));
     }
 
     // ── ADIF helpers ──────────────────────────────────────────────────────────

@@ -190,6 +190,38 @@ public class QrzController : ControllerBase
         }
     }
 
+    [HttpPost("reconciliation/duplicates/delete")]
+    [Authorize]
+    public async Task<IActionResult> DeleteQrzDuplicate([FromBody] QrzDuplicateDeleteRequest request, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _context.Users.FindAsync([userId], ct);
+        if (user == null) return NotFound();
+
+        var apiKeyResult = TryReadLogbookApiKey(user);
+        if (apiKeyResult.Error != null) return BadRequest(apiKeyResult.Error);
+        var apiKey = apiKeyResult.ApiKey!;
+
+        try
+        {
+            var qrzQsos = await _qrzClient.FetchLogAsync(apiKey, ct);
+            if (!QrzReconciliationService.TryFindDuplicateDeleteCandidate(qrzQsos, request.QrzLogId, out var candidate))
+                return BadRequest("QRZ LOGID er ikke en del af en aktuel dubletgruppe og bliver ikke slettet.");
+
+            await _qrzClient.DeleteQsoAsync(candidate!.QrzLogId, apiKey, ct);
+            user.QrzLastSyncedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(ct);
+            return Ok(new QrzDuplicateDeleteResponse(
+                Status: "deleted",
+                Message: $"QRZ LOGID {candidate.QrzLogId} er slettet fra QRZ.",
+                DeletedQrzLogId: candidate.QrzLogId));
+        }
+        catch (QrzApiException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     private async Task<IActionResult> UploadLocalQso(ApplicationUser user, string apiKey, int? hamHubQsoId, CancellationToken ct)
     {
         if (hamHubQsoId == null) return BadRequest("HamHub QSO id mangler.");
@@ -327,3 +359,7 @@ public record QrzReconciliationApplyRequest(
     string? QrzLogId);
 
 public record QrzReconciliationApplyResponse(string Status, string Message);
+
+public record QrzDuplicateDeleteRequest(string? QrzLogId);
+
+public record QrzDuplicateDeleteResponse(string Status, string Message, string DeletedQrzLogId);

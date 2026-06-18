@@ -79,6 +79,23 @@ public class QrzClientTests
         Assert.Equal(new DateTime(2026, 6, 17, 12, 0, 20, DateTimeKind.Utc), qso.TimeOn);
     }
 
+    [Fact]
+    public async Task DeleteQsoThrowsWhenQrzReturnsFailure()
+    {
+        var client = new QrzClient(
+            new HttpClient(new CapturingHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("RESULT=FAIL&REASON=Not found")
+            })),
+            new MemoryCache(new MemoryCacheOptions()),
+            NullLogger<QrzClient>.Instance);
+
+        var ex = await Assert.ThrowsAsync<QrzApiException>(() =>
+            client.DeleteQsoAsync("123456789", "logbook-key", CancellationToken.None));
+
+        Assert.Equal("Not found", ex.Message);
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _handle;
