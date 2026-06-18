@@ -512,7 +512,18 @@ export interface QrzStatus {
 }
 
 export type QrzReconciliationStatus = 'InSync' | 'TimeDrift' | 'HamHubOnly' | 'QrzOnly' | string
-export type QrzReconciliationAction = 'None' | 'RunSync' | 'ReviewTime' | string
+export type QrzReconciliationAction = 'None' | 'RunSync' | 'UploadLocal' | 'ImportFromQrz' | 'ReviewTime' | string
+
+export interface QrzReconciliationApplyRequest {
+  action: QrzReconciliationAction
+  hamHubQsoId?: number | null
+  qrzLogId?: string | null
+}
+
+export interface QrzReconciliationApplyResponse {
+  status: string
+  message: string
+}
 
 export interface QrzReconciliationItem {
   status: QrzReconciliationStatus

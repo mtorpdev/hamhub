@@ -40,7 +40,7 @@ export default function QrzReconciliationPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<QrzReconciliationStatus | 'all'>('all')
-  const [syncing, setSyncing] = useState(false)
+  const [applyingKey, setApplyingKey] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   const loadReconciliation = useCallback((cancelledRef?: { cancelled: boolean }, showLoading = true) => {
@@ -76,20 +76,23 @@ export default function QrzReconciliationPage() {
     return () => { cancelledRef.cancelled = true }
   }, [])
 
-  const runSync = async () => {
-    setSyncing(true)
+  const applyAction = async (item: QrzReconciliationItem) => {
+    const key = `${item.recommendedAction}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? item.workedCallsign}`
+    setApplyingKey(key)
     setActionMessage(null)
     setError(null)
     try {
-      await api.qrz.sync()
-      setActionMessage('QRZ sync er startet. Listen opdateres om lidt.')
-      setTimeout(() => {
-        void loadReconciliation()
-      }, 1500)
+      const response = await api.qrz.applyReconciliation({
+        action: item.recommendedAction,
+        hamHubQsoId: item.hamHubQsoId,
+        qrzLogId: item.qrzLogId,
+      })
+      setActionMessage(response.message)
+      await loadReconciliation()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunne ikke starte QRZ sync')
+      setError(err instanceof Error ? err.message : 'Kunne ikke udføre QRZ handling')
     } finally {
-      setSyncing(false)
+      setApplyingKey(null)
     }
   }
 
@@ -105,7 +108,7 @@ export default function QrzReconciliationPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">QRZ Afstemning</h1>
           <p className="mt-2 max-w-2xl text-sm text-gray-400">
-            Sammenligning mellem HamHub og QRZ Logbook med sikre handlinger. Sync kan upload/importere manglende QSOer, men sletter ikke poster i QRZ.
+            Sammenligning mellem HamHub og QRZ Logbook med sikre handlinger. Rækkehandlinger kan uploade, importere eller rette tid for den konkrete QSO, men sletter ikke poster i QRZ.
           </p>
         </div>
         <Link href="/logbook">
@@ -175,7 +178,7 @@ export default function QrzReconciliationPage() {
                           {item.hamHubQsoId ? <Link href={`/logbook/${item.hamHubQsoId}`} className="text-blue-400 hover:text-blue-300">QSO #{item.hamHubQsoId}</Link> : item.qrzLogId ? `QRZ ${item.qrzLogId}` : '-'}
                         </td>
                         <td className="px-4 py-3">
-                          <ReconciliationAction item={item} syncing={syncing} onRunSync={runSync} />
+                          <ReconciliationAction item={item} applyingKey={applyingKey} onApply={applyAction} />
                         </td>
                       </tr>
                     ))}
@@ -209,31 +212,22 @@ export default function QrzReconciliationPage() {
   )
 }
 
-function ReconciliationAction({ item, syncing, onRunSync }: { item: QrzReconciliationItem; syncing: boolean; onRunSync: () => void }) {
-  if (item.recommendedAction === 'RunSync') {
+function ReconciliationAction({ item, applyingKey, onApply }: { item: QrzReconciliationItem; applyingKey: string | null; onApply: (item: QrzReconciliationItem) => void }) {
+  const key = `${item.recommendedAction}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? item.workedCallsign}`
+  const applying = applyingKey === key
+
+  if (item.recommendedAction === 'UploadLocal' || item.recommendedAction === 'ImportFromQrz' || item.recommendedAction === 'ReviewTime' || item.recommendedAction === 'RunSync') {
     return (
       <Button
         type="button"
         size="sm"
         variant="secondary"
-        onClick={onRunSync}
-        disabled={syncing}
+        onClick={() => onApply(item)}
+        disabled={applying}
         title={item.actionDescription}
       >
-        {syncing ? 'Starter...' : item.actionLabel}
+        {applying ? 'Arbejder...' : item.actionLabel}
       </Button>
-    )
-  }
-
-  if (item.recommendedAction === 'ReviewTime' && item.hamHubQsoId) {
-    return (
-      <Link
-        href={`/logbook/${item.hamHubQsoId}`}
-        className="inline-flex rounded-md bg-yellow-900/50 px-3 py-1.5 text-sm font-medium text-yellow-100 hover:bg-yellow-900"
-        title={item.actionDescription}
-      >
-        {item.actionLabel}
-      </Link>
     )
   }
 
