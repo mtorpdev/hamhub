@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Security.Cryptography;
 
@@ -117,6 +118,47 @@ public class QrzController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         _trigger.NotifyQsoChanged(userId);
         return Accepted();
+    }
+
+    [HttpGet("reconciliation")]
+    [Authorize]
+    public async Task<IActionResult> Reconciliation(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await _context.Users.FindAsync([userId], ct);
+        if (user == null) return NotFound();
+        if (string.IsNullOrWhiteSpace(user.QrzApiKey)) return BadRequest("QRZ Logbook API nøgle er ikke sat op.");
+
+        string apiKey;
+        try
+        {
+            apiKey = _logbookProtector.Unprotect(user.QrzApiKey);
+        }
+        catch (CryptographicException)
+        {
+            return BadRequest("QRZ Logbook API nøgle kan ikke læses. Gem QRZ nøglen igen på profilen.");
+        }
+
+        IReadOnlyList<AdifQso> qrzQsos;
+        try
+        {
+            qrzQsos = await _qrzClient.FetchLogAsync(apiKey, ct);
+        }
+        catch (QrzApiException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        var localQsos = await _context.QsoEntries
+            .Where(qso => qso.UserId == userId)
+            .OrderByDescending(qso => qso.DateUtc)
+            .ToListAsync(ct);
+
+        return Ok(QrzReconciliationService.Build(
+            userId,
+            user.Callsign ?? string.Empty,
+            localQsos,
+            qrzQsos));
     }
 
     private static bool? CanRead(string? protectedValue, IDataProtector protector)

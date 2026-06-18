@@ -482,6 +482,41 @@ export interface QrzStatus {
   statusMessage: string | null
 }
 
+export type QrzReconciliationStatus = 'InSync' | 'TimeDrift' | 'HamHubOnly' | 'QrzOnly' | string
+
+export interface QrzReconciliationItem {
+  status: QrzReconciliationStatus
+  workedCallsign: string
+  band: string
+  mode: string
+  hamHubQsoId: number | null
+  qrzLogId: string | null
+  hamHubDateUtc: string | null
+  qrzDateUtc: string | null
+  timeDeltaSeconds: number | null
+  message: string
+}
+
+export interface QrzDuplicateGroup {
+  workedCallsign: string
+  band: string
+  mode: string
+  qrzLogIds: string[]
+  datesUtc: string[]
+}
+
+export interface QrzReconciliationResponse {
+  hamHubCount: number
+  qrzCount: number
+  inSyncCount: number
+  timeDriftCount: number
+  hamHubOnlyCount: number
+  qrzOnlyCount: number
+  qrzDuplicateGroupCount: number
+  items: QrzReconciliationItem[]
+  qrzDuplicateGroups: QrzDuplicateGroup[]
+}
+
 export interface EqslStatus {
   connected: boolean
   username: string | null

@@ -205,6 +205,7 @@ export default function LogbookPage() {
           <Button variant="secondary" onClick={handleQrzSync} disabled={qrzSyncing}>
             {qrzSyncing ? 'Synkroniserer...' : 'QRZ Sync'}
           </Button>
+          <Link href="/logbook/qrz-reconciliation"><Button variant="secondary">QRZ Afstemning</Button></Link>
           <Button variant="secondary" onClick={handleLotwSync} disabled={lotwSyncing}>
             {lotwSyncing ? 'Synkroniserer...' : 'LoTW Sync'}
           </Button>

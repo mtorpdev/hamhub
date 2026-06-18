@@ -261,6 +261,8 @@ export const api = {
       request<import('./types').QrzStatus>('/api/qrz/status'),
     sync: () =>
       request<void>('/api/qrz/sync', { method: 'POST' }),
+    reconciliation: () =>
+      request<import('./types').QrzReconciliationResponse>('/api/qrz/reconciliation'),
     saveKey: (apiKey: string) =>
       request<{ callsign: string | null }>('/api/users/me/qrz-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
     saveCredentials: (username: string, password: string) =>
