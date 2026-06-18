@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import type { User } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -14,7 +15,7 @@ export default function AdminUsersPage() {
   }, [])
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Brugere ({users.length})</h1>
       <Card>
         <CardContent className="p-0">

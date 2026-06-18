@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { viewportShellClass } from '@/lib/layout'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, isLoading } = useAuth()
@@ -27,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen">
       <div className="bg-gray-900 border-b border-yellow-900/40">
-        <div className="max-w-6xl mx-auto px-4 flex gap-1 py-2">
+        <div className={`${viewportShellClass} flex gap-1 py-2`}>
           {links.map(l => (
             <Link
               key={l.href}

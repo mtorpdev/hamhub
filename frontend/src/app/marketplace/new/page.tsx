@@ -9,6 +9,7 @@ import { ListingCategoryLabels, ListingConditionLabels, ListingCategory, Listing
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { ImageDropzone } from '@/components/marketplace/ImageDropzone'
+import { pageShellClass } from '@/lib/layout'
 
 export default function NewListingPage() {
   useRequireAuth()
@@ -53,7 +54,7 @@ export default function NewListingPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Opret annonce</h1>
       <Card>
         <CardContent className="py-6">

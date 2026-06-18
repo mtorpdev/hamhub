@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useToast } from '@/contexts/ToastContext'
 import type { ArticleCategory } from '@/lib/types'
+import { pageShellClass } from '@/lib/layout'
 
 export default function EditArticlePage() {
   const { id } = useParams<{ id: string }>()
@@ -66,10 +67,10 @@ export default function EditArticlePage() {
     }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Rediger artikel</h1>
       <Card>
         <CardContent className="p-6">

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type Qso, type DxSpot, type QsoMufFof2 } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { pageShellClass } from '@/lib/layout'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -25,7 +26,7 @@ export default function DashboardPage() {
   if (isLoading) return null
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-2">
         Velkommen, {user?.callsign || user?.email}
       </h1>

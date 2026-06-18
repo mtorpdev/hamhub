@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { type ContentReport, ReportStatus } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { pageShellClass } from '@/lib/layout'
 
 const statusLabel: Record<ReportStatus, string> = {
   [ReportStatus.Open]: 'Åben',
@@ -44,7 +45,7 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className={pageShellClass}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold text-white">Rapporter</h1>
         <select

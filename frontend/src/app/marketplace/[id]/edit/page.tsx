@@ -9,6 +9,7 @@ import { ListingCategoryLabels, ListingConditionLabels, type Listing } from '@/l
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { ImageDropzone } from '@/components/marketplace/ImageDropzone'
+import { pageShellClass } from '@/lib/layout'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -61,10 +62,10 @@ export default function EditListingPage() {
     } catch { toast('Kunne ikke slette billede', 'error') }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Rediger annonce</h1>
       <Card>
         <CardContent className="py-6">

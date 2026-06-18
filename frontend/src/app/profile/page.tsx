@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type LotwStatus, type QrzStatus } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { pageShellClass } from '@/lib/layout'
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -279,7 +280,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
 
       <div className="mb-6 flex flex-wrap gap-2 border-b border-gray-800">

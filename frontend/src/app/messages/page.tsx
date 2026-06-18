@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 type Tab = 'inbox' | 'sent' | 'friends' | 'requests' | 'conversations'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -217,7 +218,7 @@ export default function MessagesPage() {
   const unread = messages.filter(m => !m.isRead && tab === 'inbox').length
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className={pageShellClass}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-white">Beskeder</h1>

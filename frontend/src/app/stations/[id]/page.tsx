@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Band, BandLabels, Mode, ModeLabels, type Station } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { pageShellClass } from '@/lib/layout'
 
 export default function EditStationPage() {
   useRequireAuth()
@@ -59,10 +60,10 @@ export default function EditStationPage() {
     }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Rediger Station</h1>
       <Card>
         <CardContent className="py-6">

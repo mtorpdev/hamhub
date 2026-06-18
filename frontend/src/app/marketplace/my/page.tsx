@@ -9,6 +9,7 @@ import { type Listing } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -47,7 +48,7 @@ export default function MyListingsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">Mine annoncer</h1>
         <Link href="/marketplace/new"><Button>+ Ny annonce</Button></Link>

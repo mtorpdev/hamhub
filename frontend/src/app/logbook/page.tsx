@@ -13,6 +13,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { buildQsoAwardLabels, type QsoAwardLabelTone } from './awardLabels'
 import { lotwTitle, lotwTone, type QslBadgeTone } from './qslBadges'
+import { pageShellClass } from '@/lib/layout'
 
 const PAGE_SIZE = 25
 
@@ -197,7 +198,7 @@ export default function LogbookPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">QSO Logbog</h1>
         <div className="flex gap-2">

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { HomeSpotsSection } from '@/components/features/home/HomeSpotsSection'
 import { HomeArticlesSection } from '@/components/features/home/HomeArticlesSection'
 import { HomeStatsSection } from '@/components/features/home/HomeStatsSection'
+import { viewportShellClass } from '@/lib/layout'
 
 export default function Home() {
   return (
@@ -31,7 +32,7 @@ export default function Home() {
       {/* Stats */}
       <HomeStatsSection />
 
-      <div className="max-w-7xl mx-auto w-full px-4 py-12 grid md:grid-cols-2 gap-8">
+      <div className={`${viewportShellClass} grid gap-8 py-12 md:grid-cols-2`}>
         {/* Latest DX Spots */}
         <HomeSpotsSection />
         {/* Latest Articles */}

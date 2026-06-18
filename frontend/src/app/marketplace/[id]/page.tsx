@@ -10,6 +10,7 @@ import { type Listing } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -52,13 +53,13 @@ export default function ListingPage() {
     } catch { toast('Fejl', 'error') }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
   if (!listing) return null
 
   const isOwner = user?.id === listing.userId
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <Link href="/marketplace" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til marked</Link>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

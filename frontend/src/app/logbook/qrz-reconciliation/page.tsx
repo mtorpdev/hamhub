@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { buildQrzReconciliationSummary, type QrzReconciliationSummaryCard } from './qrzReconciliationSummary'
+import { pageShellClass } from '@/lib/layout'
 
 function statusLabel(status: QrzReconciliationStatus) {
   if (status === 'InSync') return 'I sync'
@@ -99,7 +100,7 @@ export default function QrzReconciliationPage() {
   }, [filter, result])
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className={pageShellClass}>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">QRZ Afstemning</h1>

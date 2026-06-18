@@ -9,6 +9,7 @@ import { BandLabels, ModeLabels, type Station } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
+import { pageShellClass } from '@/lib/layout'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
@@ -43,7 +44,7 @@ export default function StationsPage() {
     .filter(Boolean) as { lat: number; lng: number; label: string; popup: string }[]
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-white">Mine Stationer</h1>
         <div className="flex gap-2">

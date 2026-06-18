@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type User, type Station } from '@/lib/types'
 import { type QrzCallsignInfo } from '@/lib/types'
+import { pageShellClass } from '@/lib/layout'
 
 export default function CallsignSearchPage() {
   const [callsign, setCallsign] = useState('')
@@ -62,7 +63,7 @@ export default function CallsignSearchPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Callsign Lookup</h1>
       <form onSubmit={handleSearch} className="flex gap-3 mb-8">
         <Input className="flex-1" placeholder="F.eks. OZ5ABC" value={callsign} onChange={e => setCallsign(e.target.value.toUpperCase())} />

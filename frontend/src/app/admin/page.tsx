@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { DashboardStats } from '@/lib/types'
+import { pageShellClass } from '@/lib/layout'
 
 export default function AdminPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -21,7 +22,7 @@ export default function AdminPage() {
   ] : []
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-8">Admin Dashboard</h1>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         {cards.map(({ label, value, href, icon }) => (

@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type User, type Station } from '@/lib/types'
+import { pageShellClass } from '@/lib/layout'
 
 export default function UserProfilePage() {
   const { callsign } = useParams<{ callsign: string }>()
@@ -26,16 +27,16 @@ export default function UserProfilePage() {
       .finally(() => setLoading(false))
   }, [callsign])
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
   if (notFound || !user) return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <p className="text-gray-400 mb-4">Ingen bruger fundet med kaldesignalet <span className="font-mono text-white">{callsign?.toUpperCase()}</span>.</p>
       <Link href="/callsign-search" className="text-blue-400 hover:text-blue-300">← Søg igen</Link>
     </div>
   )
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <Link href="/callsign-search" className="text-blue-400 hover:text-blue-300 text-sm mb-6 block">← Callsign Lookup</Link>
 
       <Card className="mb-6">

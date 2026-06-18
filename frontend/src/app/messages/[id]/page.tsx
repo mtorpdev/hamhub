@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 export default function MessagePage() {
   useRequireAuth()
@@ -50,13 +51,13 @@ export default function MessagePage() {
     }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
   if (!message) return null
 
   const otherParty = message.senderId === user?.id ? message.recipientCallsign : message.senderCallsign
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <Link href="/messages" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til beskeder</Link>
 
       <Card className="mb-4">

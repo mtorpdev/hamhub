@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { awardEntityHref } from './awardLinks'
 import { awardEntitySectionLabel, awardStatusClass, awardStatusLabel, buildAwardGroups, buildAwardWorkflowStats, nextThresholdText, progressPercent } from './awardSummary'
+import { pageShellClass } from '@/lib/layout'
 
 const STATUS_OPTIONS: Array<{ value: AwardStatus | ''; label: string }> = [
   { value: '', label: 'Alle statusser' },
@@ -99,7 +100,7 @@ export default function AwardsPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      <div className={`${pageShellClass} space-y-6 py-6`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-white">Awards</h1>

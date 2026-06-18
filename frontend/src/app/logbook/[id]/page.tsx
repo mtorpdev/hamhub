@@ -11,6 +11,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
 import { externalPrimaryAction } from '../qsoExternalActions'
+import { pageShellClass } from '@/lib/layout'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
@@ -135,7 +136,7 @@ export default function EditQsoPage() {
     }
   }
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-10 text-gray-400">Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
 
   const mapMarkers = [
     form.myGridsquare
@@ -313,7 +314,7 @@ export default function EditQsoPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold text-white">Rediger QSO</h1>
         <div className="flex flex-wrap gap-2">

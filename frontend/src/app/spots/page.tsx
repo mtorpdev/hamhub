@@ -9,6 +9,7 @@ import { BandLabels, ModeLabels, type DxSpot, type ClusterSpot } from '@/lib/typ
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { pageShellClass } from '@/lib/layout'
 
 const PAGE_SIZE = 25
 
@@ -97,7 +98,7 @@ export default function SpotsPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">DX Spots</h1>
         <div className="flex items-center gap-3">

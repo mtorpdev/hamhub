@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { useToast } from '@/contexts/ToastContext'
 import { buildMergeDuplicatePayload } from './duplicateActions'
 import { buildDuplicateSummary } from './duplicateSummary'
+import { pageShellClass } from '@/lib/layout'
 
 function qsoLabel(qso: QsoDuplicateGroup['qsos'][number]) {
   return `${qso.ownCallsign} -> ${qso.workedCallsign}`
@@ -69,7 +70,7 @@ export default function DuplicateQsosPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className={pageShellClass}>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">QSO Dubletter</h1>

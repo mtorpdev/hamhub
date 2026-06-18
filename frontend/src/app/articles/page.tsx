@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import type { Article } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
+import { pageShellClass } from '@/lib/layout'
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<Article[]>([])
@@ -15,7 +16,7 @@ export default function ArticlesPage() {
   }, [])
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10">
+    <div className={pageShellClass}>
       <h1 className="text-3xl font-bold text-white mb-2">Nyheder</h1>
       <p className="text-gray-400 mb-8">Seneste amatørradio-nyheder fra HamHub og udvalgte kilder.</p>
       {loading ? <p className="text-gray-400">Indlæser...</p> : (
