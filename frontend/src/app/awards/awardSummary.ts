@@ -29,3 +29,38 @@ export function awardEntitySectionLabel(status: 'confirmed' | 'worked' | 'missin
   if (status === 'worked') return 'Worked, needs QSL'
   return 'Missing entities'
 }
+
+export function buildAwardGroups(awards: AwardProgress[]) {
+  const bySponsor = new Map<string, AwardProgress[]>()
+  for (const award of awards) {
+    const group = bySponsor.get(award.sponsor) ?? []
+    group.push(award)
+    bySponsor.set(award.sponsor, group)
+  }
+
+  return Array.from(bySponsor.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([sponsor, groupAwards]) => ({
+      sponsor,
+      awards: groupAwards.sort((left, right) =>
+        statusRank(left.status) - statusRank(right.status) ||
+        right.workedCount - left.workedCount ||
+        left.name.localeCompare(right.name)),
+    }))
+}
+
+export function buildAwardWorkflowStats(awards: Pick<AwardProgress, 'workedCount' | 'confirmedCount' | 'missingCount' | 'unconfirmedEntities'>[]) {
+  return awards.reduce((stats, award) => ({
+    worked: stats.worked + award.workedCount,
+    confirmed: stats.confirmed + award.confirmedCount,
+    needsQsl: stats.needsQsl + award.unconfirmedEntities.length,
+    missing: stats.missing + award.missingCount,
+  }), { worked: 0, confirmed: 0, needsQsl: 0, missing: 0 })
+}
+
+function statusRank(status: AwardStatus) {
+  if (status === 'active') return 0
+  if (status === 'missing-data') return 1
+  if (status === 'coming-next') return 2
+  return 3
+}

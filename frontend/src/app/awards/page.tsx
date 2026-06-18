@@ -7,7 +7,7 @@ import { Band, BandLabels, Mode, ModeLabels, type AwardDetailResponse, type Awar
 import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { awardEntityHref } from './awardLinks'
-import { awardEntitySectionLabel, awardStatusClass, awardStatusLabel, nextThresholdText, progressPercent } from './awardSummary'
+import { awardEntitySectionLabel, awardStatusClass, awardStatusLabel, buildAwardGroups, buildAwardWorkflowStats, nextThresholdText, progressPercent } from './awardSummary'
 
 const STATUS_OPTIONS: Array<{ value: AwardStatus | ''; label: string }> = [
   { value: '', label: 'Alle statusser' },
@@ -69,6 +69,8 @@ export default function AwardsPage() {
 
   const awards = useMemo(() => summary?.awards ?? [], [summary])
   const activeAwards = awards.filter(award => award.status === 'active')
+  const awardGroups = useMemo(() => buildAwardGroups(awards), [awards])
+  const workflowStats = useMemo(() => buildAwardWorkflowStats(activeAwards), [activeAwards])
   const warnings = awards.filter(award => award.warnings.length > 0)
   const sponsors = useMemo(() => Array.from(new Set(awards.map(award => award.sponsor))).sort(), [awards])
 
@@ -130,6 +132,13 @@ export default function AwardsPage() {
 
         {error && <div className="border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-100">{error}</div>}
 
+        <section className="grid gap-3 md:grid-cols-4">
+          <WorkflowStat label="Worked" value={workflowStats.worked} tone="text-cyan-200" />
+          <WorkflowStat label="Confirmed" value={workflowStats.confirmed} tone="text-emerald-200" />
+          <WorkflowStat label="Needs QSL" value={workflowStats.needsQsl} tone="text-amber-200" />
+          <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
+        </section>
+
         <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           {loading && activeAwards.length === 0 ? (
             <div className="border border-gray-800 bg-gray-900 px-4 py-8 text-sm text-gray-400">Henter awards...</div>
@@ -152,33 +161,38 @@ export default function AwardsPage() {
           </section>
         )}
 
-        <section className="overflow-hidden border border-gray-800 bg-gray-900">
-          <div className="grid grid-cols-[1fr_96px_96px_96px_110px] border-b border-gray-800 px-4 py-2 text-xs font-semibold uppercase text-gray-500">
-            <span>Award</span>
-            <span>Status</span>
-            <span>Worked</span>
-            <span>Confirmed</span>
-            <span>Missing</span>
-          </div>
-          {awards.map(award => (
-            <button
-              key={award.id}
-              type="button"
-              onClick={() => selectAward(award.id)}
-              className={`grid w-full grid-cols-[1fr_96px_96px_96px_110px] items-center gap-2 border-b border-gray-800 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-gray-800 focus:bg-gray-800 focus:outline-none ${selectedAwardId === award.id ? 'bg-gray-800' : ''}`}
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white">{award.name}</span>
-                  <span className="text-xs text-gray-500">{award.sponsor}</span>
-                </div>
-                <p className="mt-1 truncate text-xs text-gray-400">{award.description}</p>
+        <section className="space-y-3">
+          {awardGroups.map(group => (
+            <div key={group.sponsor} className="overflow-hidden border border-gray-800 bg-gray-900">
+              <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">{group.sponsor}</h2>
+                <span className="font-mono text-xs text-gray-500">{group.awards.length}</span>
               </div>
-              <StatusPill status={award.status} />
-              <span className="font-mono text-gray-100">{award.workedCount}</span>
-              <span className="font-mono text-emerald-200">{award.confirmedCount}</span>
-              <span className="font-mono text-gray-300">{award.missingCount}</span>
-            </button>
+              <div className="grid grid-cols-[1fr_96px_96px_96px_110px] border-b border-gray-800 px-4 py-2 text-xs font-semibold uppercase text-gray-500">
+                <span>Award</span>
+                <span>Status</span>
+                <span>Worked</span>
+                <span>Confirmed</span>
+                <span>Needs QSL</span>
+              </div>
+              {group.awards.map(award => (
+                <button
+                  key={award.id}
+                  type="button"
+                  onClick={() => selectAward(award.id)}
+                  className={`grid w-full grid-cols-[1fr_96px_96px_96px_110px] items-center gap-2 border-b border-gray-800 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-gray-800 focus:bg-gray-800 focus:outline-none ${selectedAwardId === award.id ? 'bg-gray-800' : ''}`}
+                >
+                  <div className="min-w-0">
+                    <span className="font-semibold text-white">{award.name}</span>
+                    <p className="mt-1 truncate text-xs text-gray-400">{award.description}</p>
+                  </div>
+                  <StatusPill status={award.status} />
+                  <span className="font-mono text-gray-100">{award.workedCount}</span>
+                  <span className="font-mono text-emerald-200">{award.confirmedCount}</span>
+                  <span className="font-mono text-amber-200">{award.unconfirmedEntities.length}</span>
+                </button>
+              ))}
+            </div>
           ))}
           {!loading && awards.length === 0 && <div className="px-4 py-10 text-center text-sm text-gray-500">Ingen awards matcher filtrene.</div>}
         </section>
@@ -245,21 +259,28 @@ function AwardDetailPanel({ award, onClose }: { award: AwardProgress; onClose: (
         </button>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
-        <EntityList title={awardEntitySectionLabel('confirmed')} entities={confirmed} emptyText="Ingen confirmed entities endnu." />
-        <EntityList title={awardEntitySectionLabel('worked')} entities={award.unconfirmedEntities} emptyText="Ingen worked entities der mangler QSL." />
-        <EntityList title={awardEntitySectionLabel('missing')} entities={award.missingEntities} emptyText="Ingen missing entities." limit={80} />
+        <EntityList title={awardEntitySectionLabel('worked')} entities={award.unconfirmedEntities} emptyText="Ingen worked entities der mangler QSL." tone="needs" />
+        <EntityList title={awardEntitySectionLabel('missing')} entities={award.missingEntities} emptyText="Ingen missing entities." limit={80} tone="missing" />
+        <EntityList title={awardEntitySectionLabel('confirmed')} entities={confirmed} emptyText="Ingen confirmed entities endnu." tone="confirmed" />
       </div>
     </div>
   )
 }
 
-function EntityList({ title, entities, emptyText, limit = 40 }: { title: string; entities: AwardEntityProgress[]; emptyText: string; limit?: number }) {
+function EntityList({ title, entities, emptyText, limit = 40, tone = 'default' }: { title: string; entities: AwardEntityProgress[]; emptyText: string; limit?: number; tone?: 'default' | 'needs' | 'missing' | 'confirmed' }) {
   const visible = entities.slice(0, limit)
+  const headerClass = tone === 'needs'
+    ? 'text-amber-300'
+    : tone === 'confirmed'
+    ? 'text-emerald-300'
+    : tone === 'missing'
+    ? 'text-gray-300'
+    : 'text-gray-400'
 
   return (
     <div className="border border-gray-800 bg-gray-950">
       <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase text-gray-400">{title}</h3>
+        <h3 className={`text-xs font-semibold uppercase ${headerClass}`}>{title}</h3>
         <span className="font-mono text-xs text-gray-500">{entities.length}</span>
       </div>
       {visible.length > 0 ? (
@@ -306,6 +327,15 @@ function StatusPill({ status }: { status: AwardStatus }) {
     <span className={`inline-flex h-7 items-center justify-center border px-2 text-xs font-semibold ${awardStatusClass(status)}`}>
       {awardStatusLabel(status)}
     </span>
+  )
+}
+
+function WorkflowStat({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="border border-gray-800 bg-gray-900 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
+      <p className={`mt-1 font-mono text-2xl font-bold ${tone}`}>{value}</p>
+    </div>
   )
 }
 
