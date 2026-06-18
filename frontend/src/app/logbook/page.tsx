@@ -208,6 +208,7 @@ export default function LogbookPage() {
           <Button variant="secondary" onClick={handleLotwSync} disabled={lotwSyncing}>
             {lotwSyncing ? 'Synkroniserer...' : 'LoTW Sync'}
           </Button>
+          <Link href="/logbook/duplicates"><Button variant="secondary">Dubletter</Button></Link>
           {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>Eksporter ADIF</Button>}
           <label className="cursor-pointer">
             <Button variant="secondary" type="button" onClick={() => document.getElementById('adif-import')?.click()}>Importer ADIF</Button>

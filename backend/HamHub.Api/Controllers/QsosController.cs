@@ -75,6 +75,36 @@ public class QsosController : ControllerBase
         return Ok(_mapper.Map<QsoDto>(qso));
     }
 
+    [HttpGet("duplicates")]
+    public async Task<IActionResult> GetDuplicates(CancellationToken ct = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var qsos = await _context.QsoEntries
+            .Where(q => q.UserId == userId)
+            .OrderBy(q => q.WorkedCallsign)
+            .ThenBy(q => q.Mode)
+            .ThenBy(q => q.DateUtc)
+            .ToListAsync(ct);
+
+        var groups = FindDuplicateGroups(qsos, userId)
+            .Select(group =>
+            {
+                var ordered = group.OrderByDescending(q => q.DateUtc).ToArray();
+                var first = ordered[0];
+                return new QsoDuplicateGroupDto(
+                    Key: string.Join("-", ordered.Select(q => q.Id)),
+                    WorkedCallsign: first.WorkedCallsign,
+                    Band: BandToDisplay(first.Band),
+                    Mode: first.Mode.ToString(),
+                    Reason: "Samme call, band/mode og tidspunkt inden for 60 sekunder eller kendt lokal tids-offset.",
+                    Qsos: ordered.Select(q => _mapper.Map<QsoDto>(q)).ToArray());
+            })
+            .OrderByDescending(group => group.Qsos.Max(q => q.DateUtc))
+            .ToArray();
+
+        return Ok(groups);
+    }
+
     [HttpGet("{id}/external-status")]
     public async Task<IActionResult> GetExternalStatus(int id, CancellationToken ct)
     {
@@ -387,11 +417,86 @@ public class QsosController : ControllerBase
             TimeSpan.FromSeconds(60)));
     }
 
+    private static IReadOnlyList<IReadOnlyList<QsoEntry>> FindDuplicateGroups(IReadOnlyList<QsoEntry> qsos, string userId)
+    {
+        var parents = qsos.ToDictionary(q => q.Id, q => q.Id);
+
+        int Find(int id)
+        {
+            while (parents[id] != id)
+            {
+                parents[id] = parents[parents[id]];
+                id = parents[id];
+            }
+
+            return id;
+        }
+
+        void Union(int left, int right)
+        {
+            var leftRoot = Find(left);
+            var rightRoot = Find(right);
+            if (leftRoot != rightRoot) parents[rightRoot] = leftRoot;
+        }
+
+        foreach (var bucket in qsos.GroupBy(q => $"{q.WorkedCallsign.Trim().ToUpperInvariant()}|{q.Mode}"))
+        {
+            var ordered = bucket.OrderBy(q => q.DateUtc).ToArray();
+            for (var i = 0; i < ordered.Length; i++)
+            {
+                for (var j = i + 1; j < ordered.Length; j++)
+                {
+                    var delta = ordered[j].DateUtc - ordered[i].DateUtc;
+                    if (delta > TimeSpan.FromHours(2).Add(TimeSpan.FromSeconds(60))) break;
+                    if (AreDuplicateCandidates(ordered[i], ordered[j], userId)) Union(ordered[i].Id, ordered[j].Id);
+                }
+            }
+        }
+
+        return qsos
+            .GroupBy(q => Find(q.Id))
+            .Select(group => (IReadOnlyList<QsoEntry>)group.OrderByDescending(q => q.DateUtc).ToArray())
+            .Where(group => group.Count > 1)
+            .OrderByDescending(group => group.Max(q => q.DateUtc))
+            .ToArray();
+    }
+
+    private static bool AreDuplicateCandidates(QsoEntry existing, QsoEntry incoming, string userId) =>
+        existing.Id != incoming.Id &&
+        QsoIdentity.IsDuplicateCandidate(
+            existing,
+            userId,
+            incoming.OwnCallsign,
+            incoming.WorkedCallsign,
+            incoming.DateUtc,
+            incoming.Band,
+            incoming.Mode,
+            TimeSpan.FromSeconds(60),
+            allowLocalTimeOffset: true);
+
     private static Band NormalizeBand(Band band, double? frequency)
     {
         if (Enum.IsDefined(band) && (int)band != 0) return band;
         return QsoIdentity.InferBandFromFrequency(frequency) ?? band;
     }
+
+    private static string BandToDisplay(Band band) => band switch
+    {
+        Band.M160 => "160m",
+        Band.M80 => "80m",
+        Band.M60 => "60m",
+        Band.M40 => "40m",
+        Band.M30 => "30m",
+        Band.M20 => "20m",
+        Band.M17 => "17m",
+        Band.M15 => "15m",
+        Band.M12 => "12m",
+        Band.M10 => "10m",
+        Band.M6 => "6m",
+        Band.M2 => "2m",
+        Band.CM70 => "70cm",
+        _ => band.ToString()
+    };
 
     private static void MergeQsoFields(QsoEntry target, QsoEntry incoming)
     {
@@ -616,3 +721,11 @@ public class QsosController : ControllerBase
         return NoContent();
     }
 }
+
+public record QsoDuplicateGroupDto(
+    string Key,
+    string WorkedCallsign,
+    string Band,
+    string Mode,
+    string Reason,
+    QsoDto[] Qsos);

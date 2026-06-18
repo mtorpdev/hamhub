@@ -124,6 +124,15 @@ export interface QsoExternalLogStatus {
   lastResult: string | null
 }
 
+export interface QsoDuplicateGroup {
+  key: string
+  workedCallsign: string
+  band: string
+  mode: string
+  reason: string
+  qsos: Qso[]
+}
+
 export interface QsoWeather {
   timeUtc: string
   temperatureC: number | null
