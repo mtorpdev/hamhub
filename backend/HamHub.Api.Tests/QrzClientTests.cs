@@ -53,6 +53,32 @@ public class QrzClientTests
         Assert.Equal("SPECIAL-2026", qso.AwardRefs);
     }
 
+    [Fact]
+    public async Task FetchLogParsesTimeOnAsUtcWithSeconds()
+    {
+        var adif = string.Concat(
+            "<CALL:5>K1ABC",
+            "<QSO_DATE:8>20260617",
+            "<TIME_ON:6>120020",
+            "<BAND:3>20M",
+            "<MODE:3>FT8",
+            "<APP_QRZLOG_LOGID:9>987654321",
+            "<EOR>");
+        var body = $"RESULT=OK&COUNT=1&ADIF={System.Net.WebUtility.HtmlEncode(adif)}";
+        var client = new QrzClient(
+            new HttpClient(new CapturingHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(body)
+            })),
+            new MemoryCache(new MemoryCacheOptions()),
+            NullLogger<QrzClient>.Instance);
+
+        var qsos = await client.FetchLogAsync("logbook-key", CancellationToken.None);
+
+        var qso = Assert.Single(qsos);
+        Assert.Equal(new DateTime(2026, 6, 17, 12, 0, 20, DateTimeKind.Utc), qso.TimeOn);
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _handle;

@@ -206,12 +206,15 @@ public class QrzClient
             var band = GetField(rec, "BAND");
             var mode = GetField(rec, "MODE");
             if (call == null || dateStr == null || band == null || mode == null) continue;
-            if (!DateTime.TryParseExact(dateStr + timeStr.PadRight(6, '0')[..4],
-                "yyyyMMddHHmm", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
+            if (!DateTime.TryParseExact(dateStr + timeStr.PadRight(6, '0')[..6],
+                "yyyyMMddHHmmss",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                out var dt))
                 continue;
             result.Add(new AdifQso(
                 Call: call.ToUpperInvariant(),
-                TimeOn: DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+                TimeOn: dt,
                 Band: band.ToUpperInvariant(),
                 Mode: mode.ToUpperInvariant(),
                 RstSent: GetField(rec, "RST_SENT"),
