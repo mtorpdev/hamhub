@@ -134,8 +134,8 @@ export default function AwardsPage() {
 
         <section className="grid gap-3 md:grid-cols-5">
           <WorkflowStat label="QSOer" value={summary?.qsoCount ?? 0} tone="text-white" />
-          <WorkflowStat label="Worked entities" value={workflowStats.worked} tone="text-cyan-200" />
-          <WorkflowStat label="Confirmed entities" value={workflowStats.confirmed} tone="text-emerald-200" />
+          <WorkflowStat label="QSL bekræftet" value={summary?.confirmedQsoCount ?? 0} tone="text-emerald-200" />
+          <WorkflowStat label="Award slots" value={workflowStats.worked} tone="text-cyan-200" />
           <WorkflowStat label="Needs QSL" value={workflowStats.needsQsl} tone="text-amber-200" />
           <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
         </section>

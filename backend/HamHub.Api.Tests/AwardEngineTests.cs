@@ -46,6 +46,7 @@ public class AwardEngineTests
         var dxcc = Assert.Single(response.Awards, award => award.Id == "dxcc");
 
         Assert.Equal(2, response.QsoCount);
+        Assert.Equal(1, response.ConfirmedQsoCount);
         Assert.Equal("active", dxcc.Status);
         Assert.Equal(2, dxcc.WorkedCount);
         Assert.Equal(1, dxcc.ConfirmedCount);

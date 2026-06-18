@@ -429,6 +429,7 @@ export interface AwardProgress extends AwardCatalogItem {
 
 export interface AwardSummaryResponse {
   qsoCount: number
+  confirmedQsoCount: number
   awards: AwardProgress[]
 }
 
