@@ -121,6 +121,11 @@ builder.Services.AddScoped<HamHub.Api.Services.QsoAwardEnrichmentService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.Kc2gMufFof2Service>();
+builder.Services.AddHttpClient<HamHub.Api.Services.PotaClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("HamHub/1.0 (+https://hamhub.dk)");
+});
 builder.Services.AddHttpClient<HamHub.Api.Services.ArticleFeedImportService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(20);
