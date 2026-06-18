@@ -84,7 +84,7 @@ export const api = {
         body: fd,
       })
       if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
-      return res.json() as Promise<{ imported: number; skipped: number }>
+      return res.json() as Promise<{ imported: number; skipped: number; merged: number }>
     },
     exportAdif: async () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null

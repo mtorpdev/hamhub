@@ -162,7 +162,7 @@ export default function LogbookPage() {
     if (!file) return
     try {
       const result = await api.qsos.importAdif(file)
-      toast(`Importeret: ${result.imported} QSOer${result.skipped ? `, ${result.skipped} sprunget over` : ''}`)
+      toast(`Importeret: ${result.imported} QSOer${result.merged ? `, ${result.merged} flettet` : ''}${result.skipped ? `, ${result.skipped} sprunget over` : ''}`)
       load()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Import mislykkedes', 'error')

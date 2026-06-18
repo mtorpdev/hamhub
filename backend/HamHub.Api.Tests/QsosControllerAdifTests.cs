@@ -104,6 +104,44 @@ public class QsosControllerAdifTests
         Assert.Contains(Field("AWARD_SUBMITTED", "SPECIAL-2026"), adif);
     }
 
+    [Fact]
+    public async Task ImportAdifMergesKnownLocalTimeOffsetDuplicateInsteadOfInserting()
+    {
+        await using var context = CreateContext();
+        context.QsoEntries.Add(new QsoEntry
+        {
+            UserId = "user-1",
+            OwnCallsign = "OZ4MT",
+            WorkedCallsign = "K1ABC",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8,
+            RstSent = "-10"
+        });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, "user-1");
+        var adif = string.Concat(
+            Field("CALL", "K1ABC"),
+            Field("QSO_DATE", "20260617"),
+            Field("TIME_ON", "120020"),
+            Field("BAND", "20M"),
+            Field("MODE", "FT8"),
+            Field("STATION_CALLSIGN", "OZ4MT"),
+            Field("RST_RCVD", "-08"),
+            Field("AWARD_SUBMITTED", "SPECIAL-2026"),
+            "<EOR>");
+
+        var result = await controller.ImportAdif(FormFile(adif));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Contains("imported = 0", ok.Value!.ToString());
+        var qso = Assert.Single(context.QsoEntries);
+        Assert.Equal(new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc), qso.DateUtc);
+        Assert.Equal("-10", qso.RstSent);
+        Assert.Equal("-08", qso.RstReceived);
+        Assert.Equal("SPECIAL-2026", qso.AwardRefs);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

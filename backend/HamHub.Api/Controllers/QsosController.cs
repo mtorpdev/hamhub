@@ -427,8 +427,8 @@ public class QsosController : ControllerBase
 
     private async Task<QsoEntry?> FindDuplicateQsoAsync(string userId, QsoEntry qso, CancellationToken ct = default)
     {
-        var lower = qso.DateUtc.AddSeconds(-60);
-        var upper = qso.DateUtc.AddSeconds(60);
+        var lower = qso.DateUtc.AddHours(-2).AddSeconds(-60);
+        var upper = qso.DateUtc.AddHours(2).AddSeconds(60);
         var candidates = await _context.QsoEntries
             .Where(existing =>
                 existing.UserId == userId &&
@@ -447,7 +447,8 @@ public class QsosController : ControllerBase
             qso.DateUtc,
             qso.Band,
             qso.Mode,
-            TimeSpan.FromSeconds(60)));
+            TimeSpan.FromSeconds(60),
+            allowLocalTimeOffset: true));
     }
 
     private static IReadOnlyList<IReadOnlyList<QsoEntry>> FindDuplicateGroups(IReadOnlyList<QsoEntry> qsos, string userId)
@@ -618,7 +619,7 @@ public class QsosController : ControllerBase
         }
 
         var records = content.Split("<EOR>", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        int imported = 0, skipped = 0;
+        int imported = 0, skipped = 0, merged = 0;
 
         foreach (var rec in records)
         {
@@ -632,8 +633,11 @@ public class QsosController : ControllerBase
             if (!bandMap.TryGetValue(bandStr, out var band)) { skipped++; continue; }
             if (!modeMap.TryGetValue(modeStr, out var mode)) { skipped++; continue; }
 
-            if (!DateTime.TryParseExact(dateStr + timeStr.PadRight(6, '0')[..4],
-                "yyyyMMddHHmm", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
+            if (!DateTime.TryParseExact(dateStr + timeStr.PadRight(6, '0')[..6],
+                "yyyyMMddHHmmss",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                out var dt))
             { skipped++; continue; }
 
             var ownCall = GetField(rec, "STATION_CALLSIGN") ?? GetField(rec, "MY_CALLSIGN") ?? "";
@@ -644,7 +648,7 @@ public class QsosController : ControllerBase
                 WorkedCallsign = call.ToUpper(),
                 Band = band,
                 Mode = mode,
-                DateUtc = DateTime.SpecifyKind(dt, DateTimeKind.Utc),
+                DateUtc = dt,
                 Frequency = double.TryParse(GetField(rec, "FREQ"), System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture, out var freq) ? freq : null,
                 RstSent = GetField(rec, "RST_SENT"),
@@ -671,12 +675,23 @@ public class QsosController : ControllerBase
                 MyGridsquare = GetField(rec, "MY_GRIDSQUARE"),
                 Comment = GetField(rec, "COMMENT") ?? GetField(rec, "NOTES"),
             };
-            _context.QsoEntries.Add(qso);
-            imported++;
+
+            var duplicate = await FindDuplicateQsoAsync(userId, qso);
+            if (duplicate != null)
+            {
+                MergeQsoFields(duplicate, qso);
+                duplicate.UpdatedAt = DateTime.UtcNow;
+                merged++;
+            }
+            else
+            {
+                _context.QsoEntries.Add(qso);
+                imported++;
+            }
         }
 
         await _context.SaveChangesAsync();
-        return Ok(new { imported, skipped });
+        return Ok(new { imported, skipped, merged });
     }
 
     [HttpGet("export/adif")]

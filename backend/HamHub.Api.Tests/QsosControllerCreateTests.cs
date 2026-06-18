@@ -70,6 +70,39 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         Assert.Equal(2, qso.ItuZone);
     }
 
+    [Fact]
+    public async Task CreateMergesKnownLocalTimeOffsetDuplicateInsteadOfInserting()
+    {
+        await using var context = CreateContext();
+        using var cty = new TemporaryCtyDirectory("""
+Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
+    5P,5Q,OU,OV,OW,OX,OY,OZ;
+""");
+        context.QsoEntries.Add(new()
+        {
+            UserId = "user-1",
+            OwnCallsign = "OZ1ME",
+            WorkedCallsign = "K1ABC",
+            DateUtc = new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc),
+            Band = Band.M20,
+            Mode = Mode.FT8,
+            RstSent = "-10"
+        });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, "user-1", cty.Lookup);
+
+        var result = await controller.Create(Dto(
+            workedCallsign: "K1ABC",
+            dateUtc: new DateTime(2026, 6, 17, 12, 0, 20, DateTimeKind.Utc)));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Single(context.QsoEntries);
+        var qso = Assert.Single(context.QsoEntries);
+        Assert.Equal(new DateTime(2026, 6, 17, 10, 0, 0, DateTimeKind.Utc), qso.DateUtc);
+        Assert.Equal("-10", qso.RstSent);
+        Assert.Equal("-08", qso.RstReceived);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -107,12 +140,13 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
 
     private static CreateQsoDto Dto(
         string workedCallsign,
+        DateTime? dateUtc = null,
         string? country = null,
         int? dxcc = null,
         string? continent = null,
         int? cqZone = null,
         int? ituZone = null) => new(
-            DateUtc: new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
+            DateUtc: dateUtc ?? new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
             OwnCallsign: "OZ1ME",
             WorkedCallsign: workedCallsign,
             Band: Band.M20,
