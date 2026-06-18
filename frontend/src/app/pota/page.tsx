@@ -11,7 +11,7 @@ import { buildPotaProgress, enrichPotaMarkers, potaSpotStatus, potaStatusLabel, 
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
-type PotaTab = 'live' | 'map' | 'mine' | 'activator'
+type PotaTab = 'live' | 'map' | 'mine' | 'activation'
 
 export default function PotaPage() {
   const { isAuthenticated } = useAuth()
@@ -92,12 +92,6 @@ export default function PotaPage() {
   const bands = useMemo(() => potaBandOptions(spots), [spots])
   const modes = useMemo(() => potaModeOptions(spots), [spots])
   const activeParks = useMemo(() => new Set(spots.map(spot => spot.reference)).size, [spots])
-  const activatorSpots = useMemo(() => {
-    const activator = filters.activator?.trim()
-    if (!activator) return filteredSpots
-    return filterPotaSpots(spots, { ...filters, activator })
-  }, [filteredSpots, filters, spots])
-
   const setFilter = (key: keyof PotaFilters, value: string) => {
     setFilters(current => {
       const next = { ...current }
@@ -113,7 +107,7 @@ export default function PotaPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-white">POTA</h1>
-            <p className="mt-1 text-sm text-gray-400">Live Parks on the Air spots for hunters og activators.</p>
+            <p className="mt-1 text-sm text-gray-400">Live Parks on the Air spots og din POTA-progress.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
             <span className="inline-flex items-center gap-2">
@@ -164,7 +158,7 @@ export default function PotaPage() {
             ['live', 'Live'],
             ['map', 'Kort'],
             ['mine', 'Mine POTA'],
-            ['activator', 'Activator'],
+            ['activation', 'Aktivering'],
           ] as const).map(([id, label]) => (
             <button
               key={id}
@@ -203,34 +197,25 @@ export default function PotaPage() {
           <MinePotaPanel progress={potaProgress} authenticated={isAuthenticated} />
         )}
 
-        {tab === 'activator' && (
-          <section className="grid gap-4 lg:grid-cols-[340px_1fr]">
-            <Card className="border-gray-800 bg-gray-900">
-              <CardContent className="space-y-4 p-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-white">Activator fokus</h2>
-                  <p className="mt-1 text-xs text-gray-500">Brug denne fane når du følger eget eller et bestemt activator-call.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase text-gray-500">Activator call</label>
-                  <input
-                    value={filters.activator ?? ''}
-                    onChange={event => setFilter('activator', event.target.value.toUpperCase())}
-                    placeholder="OZ4MT/P"
-                    className="h-10 w-full border border-gray-800 bg-gray-950 px-3 text-sm text-white outline-none focus:border-cyan-700"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Stat label="Matcher" value={activatorSpots.length} tone="text-cyan-200" />
-                  <Stat label="Parker" value={new Set(activatorSpots.map(spot => spot.reference)).size} tone="text-emerald-200" />
-                </div>
-                <p className="text-xs text-gray-500">
-                  Første version læser POTA-spots. Næste trin kan gemme egne aktiveringer og koble dem til logbogen.
+        {tab === 'activation' && (
+          <Card className="border-gray-800 bg-gray-900">
+            <CardContent className="space-y-4 p-4">
+              <div>
+                <h2 className="text-sm font-semibold text-white">POTA aktivering</h2>
+                <p className="mt-1 max-w-2xl text-sm text-gray-400">
+                  HamHub kan vise og hjælpe med POTA-logdata, men direkte activation/log-upload til POTA er ikke slået til her endnu.
                 </p>
-              </CardContent>
-            </Card>
-            <PotaSpotTable spots={activatorSpots} loading={loading} compact progress={potaProgress} />
-          </section>
+              </div>
+              <a
+                href="https://pota.app/"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center border border-cyan-800 bg-cyan-950/40 px-4 text-sm font-semibold text-cyan-100 hover:border-cyan-600"
+              >
+                Åbn officiel POTA side
+              </a>
+            </CardContent>
+          </Card>
         )}
       </div>
     </main>
