@@ -197,6 +197,7 @@ export const api = {
   },
   notifications: {
     summary: () => request<import('./types').NotificationSummary>('/api/notifications/summary'),
+    center: () => request<import('./types').NotificationCenter>('/api/notifications/center'),
   },
   safety: {
     getBlockedUsers: () => request<import('./types').BlockedUser[]>('/api/safety/blocks'),

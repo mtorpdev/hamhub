@@ -2,11 +2,13 @@
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
-import { type NotificationSummary } from '@/lib/types'
+import { type NotificationCenter, type NotificationSummary } from '@/lib/types'
 import { viewportShellClass } from '@/lib/layout'
+import { NotificationList } from '@/components/notifications/NotificationList'
+import { useNotificationActions } from '@/hooks/useNotificationActions'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const emptySummary: NotificationSummary = {
@@ -16,6 +18,7 @@ const emptySummary: NotificationSummary = {
   groupJoinRequests: 0,
   total: 0,
 }
+const emptyCenter: NotificationCenter = { summary: emptySummary, items: [] }
 
 function Badge({ count }: { count: number }) {
   if (count <= 0) return null
@@ -26,13 +29,24 @@ function Badge({ count }: { count: number }) {
   )
 }
 
+function BellIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.8 17.5a3 3 0 0 1-5.6 0M18 9.8c0-3.1-2.1-5.6-5-6.2V3a1 1 0 1 0-2 0v.6c-2.9.6-5 3.1-5 6.2v2.7c0 .7-.3 1.4-.8 1.9L4 15.6v1.1h16v-1.1l-1.2-1.2c-.5-.5-.8-1.2-.8-1.9V9.8Z" />
+    </svg>
+  )
+}
+
 export function Navbar() {
   const { isAuthenticated, user, logout, isAdmin } = useAuth()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [summary, setSummary] = useState<NotificationSummary>(emptySummary)
-  const messageBadgeCount = summary.unreadMessages + summary.incomingFriendRequests
-  const groupBadgeCount = summary.groupInvitations + summary.groupJoinRequests
+  const [center, setCenter] = useState<NotificationCenter>(emptyCenter)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const desktopNotificationRef = useRef<HTMLDivElement | null>(null)
+  const mobileNotificationRef = useRef<HTMLDivElement | null>(null)
   const homeHref = isAuthenticated ? '/dashboard' : '/'
 
   const loadSummary = useCallback(async () => {
@@ -48,6 +62,27 @@ export function Navbar() {
     }
   }, [isAuthenticated])
 
+  const loadCenter = useCallback(async () => {
+    if (!isAuthenticated) {
+      setCenter(emptyCenter)
+      setSummary(emptySummary)
+      return
+    }
+
+    setNotificationsLoading(true)
+    try {
+      const data = await api.notifications.center()
+      setCenter(data)
+      setSummary(data.summary)
+    } catch {
+      setCenter(emptyCenter)
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }, [isAuthenticated])
+
+  const { busyItemId, runAction } = useNotificationActions(loadCenter)
+
   useEffect(() => {
     void Promise.resolve().then(loadSummary)
   }, [loadSummary])
@@ -57,6 +92,22 @@ export function Navbar() {
     const timer = window.setInterval(loadSummary, 30_000)
     return () => window.clearInterval(timer)
   }, [isAuthenticated, loadSummary])
+
+  useEffect(() => {
+    if (!notificationsOpen) return
+    void Promise.resolve().then(loadCenter)
+  }, [notificationsOpen, loadCenter])
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      const insideDesktop = desktopNotificationRef.current?.contains(target)
+      const insideMobile = mobileNotificationRef.current?.contains(target)
+      if (!insideDesktop && !insideMobile) setNotificationsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -85,8 +136,55 @@ export function Navbar() {
   const handleLogout = () => {
     logout()
     setSummary(emptySummary)
+    setCenter(emptyCenter)
+    setNotificationsOpen(false)
     router.push('/')
   }
+
+  const renderNotificationBell = (ref: RefObject<HTMLDivElement | null>) => isAuthenticated ? (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label="Notifikationer"
+        onClick={() => setNotificationsOpen(open => !open)}
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white"
+      >
+        <BellIcon />
+        <span className="sr-only">Notifikationer</span>
+        {summary.total > 0 && (
+          <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold text-white">
+            {summary.total > 99 ? '99+' : summary.total}
+          </span>
+        )}
+      </button>
+
+      {notificationsOpen && (
+        <div className="absolute right-0 top-11 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-md border border-gray-700 bg-gray-900 shadow-xl">
+          <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Notifikationer</p>
+              <p className="text-xs text-gray-500">{summary.total} nye</p>
+            </div>
+            <Link href="/notifications" onClick={() => setNotificationsOpen(false)} className="text-xs font-medium text-blue-300 hover:text-blue-200">
+              Se alle
+            </Link>
+          </div>
+          {notificationsLoading ? (
+            <div className="px-4 py-6 text-center text-sm text-gray-400">Henter...</div>
+          ) : (
+            <div className="max-h-[28rem] overflow-y-auto">
+              <NotificationList
+                compact
+                items={center.items.slice(0, 8)}
+                busyItemId={busyItemId}
+                onAction={runAction}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
@@ -106,12 +204,10 @@ export function Navbar() {
             {isAuthenticated && <>
               <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Roster</Link>
               <Link href="/awards" className="text-gray-300 hover:text-white text-sm">Awards</Link>
-              <Link href="/community" className="text-gray-300 hover:text-white text-sm">Grupper<Badge count={groupBadgeCount} /></Link>
+              <Link href="/community" className="text-gray-300 hover:text-white text-sm">Grupper</Link>
               <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">
-                Beskeder<Badge count={messageBadgeCount} />
-              </Link>
+              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">Beskeder</Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">Admin</Link>}
             </>}
           </div>
@@ -119,6 +215,7 @@ export function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
+                {renderNotificationBell(desktopNotificationRef)}
                 <Link href="/profile" className="text-sm text-gray-300 hover:text-white">
                   {user?.callsign || user?.email}
                 </Link>
@@ -134,11 +231,14 @@ export function Navbar() {
             )}
           </div>
 
-          <button className="md:hidden text-gray-400 hover:text-white" onClick={() => setMenuOpen(!menuOpen)}>
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            {renderNotificationBell(mobileNotificationRef)}
+            <button className="text-gray-400 hover:text-white" onClick={() => setMenuOpen(!menuOpen)}>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {menuOpen && (
@@ -151,12 +251,11 @@ export function Navbar() {
             {isAuthenticated ? <>
               <Link href="/decode" className="text-gray-300 text-sm py-1">Live Roster</Link>
               <Link href="/awards" className="text-gray-300 text-sm py-1">Awards</Link>
-              <Link href="/community" className="text-gray-300 text-sm py-1">Grupper<Badge count={groupBadgeCount} /></Link>
+              <Link href="/community" className="text-gray-300 text-sm py-1">Grupper</Link>
               <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
               <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 text-sm py-1">
-                Beskeder<Badge count={messageBadgeCount} />
-              </Link>
+              <Link href="/messages" className="text-gray-300 text-sm py-1">Beskeder</Link>
+              <Link href="/notifications" className="text-gray-300 text-sm py-1">Notifikationer<Badge count={summary.total} /></Link>
               {isAdmin && <Link href="/admin" className="text-yellow-400 text-sm py-1">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-300 text-sm py-1 text-left">Log ud</button>
             </> : <>

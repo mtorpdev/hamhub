@@ -24,7 +24,10 @@ export default function MessagesPage() {
   useRequireAuth()
   const { user } = useAuth()
   const { toast } = useToast()
-  const [tab, setTab] = useState<Tab>('inbox')
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'inbox'
+    return new URLSearchParams(window.location.search).get('tab') === 'requests' ? 'requests' : 'inbox'
+  })
   const [messages, setMessages] = useState<Message[]>([])
   const [friends, setFriends] = useState<Friendship[]>([])
   const [requests, setRequests] = useState<FriendRequests>({ incoming: [], outgoing: [] })

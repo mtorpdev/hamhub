@@ -686,6 +686,24 @@ export interface NotificationSummary {
   total: number
 }
 
+export interface NotificationItem {
+  id: string
+  type: 'message' | 'friend-request' | 'group-invitation' | 'group-join-request' | string
+  title: string
+  description: string
+  createdAt: string
+  href: string
+  relatedId: number | null
+  groupId: number | null
+  primaryAction: string | null
+  secondaryAction: string | null
+}
+
+export interface NotificationCenter {
+  summary: NotificationSummary
+  items: NotificationItem[]
+}
+
 export enum FriendshipStatus {
   Pending = 1,
   Accepted = 2,

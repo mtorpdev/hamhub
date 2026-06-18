@@ -51,6 +51,83 @@ public class NotificationsControllerTests
         Assert.Equal(4, summary.Total);
     }
 
+    [Fact]
+    public async Task GetCenter_ReturnsActionableNotificationsForCurrentUser()
+    {
+        await using var context = CreateContext();
+        var me = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var other = new ApplicationUser { Id = "user-2", UserName = "oz2def@hamhub.local", Email = "oz2def@hamhub.local", Callsign = "OZ2DEF" };
+        var third = new ApplicationUser { Id = "user-3", UserName = "oz3ghi@hamhub.local", Email = "oz3ghi@hamhub.local", Callsign = "OZ3GHI" };
+        var myGroup = new CommunityRoom { Id = 1, Name = "My club", Slug = "my-club", OwnerId = me.Id, IsSystem = false };
+        var otherGroup = new CommunityRoom { Id = 2, Name = "Other club", Slug = "other-club", OwnerId = other.Id, IsSystem = false };
+        context.Users.AddRange(me, other, third);
+        context.CommunityRooms.AddRange(myGroup, otherGroup);
+        context.Messages.AddRange(
+            new Message { Id = 1, SenderId = other.Id, RecipientId = me.Id, Subject = "Ping", Body = "Unread", CreatedAt = DateTime.UtcNow.AddMinutes(-3) },
+            new Message { Id = 2, SenderId = other.Id, RecipientId = me.Id, Subject = "Old", Body = "Read", IsRead = true, CreatedAt = DateTime.UtcNow.AddMinutes(-20) });
+        context.Friendships.Add(new Friendship
+        {
+            Id = 1,
+            RequesterId = other.Id,
+            AddresseeId = me.Id,
+            Status = FriendshipStatus.Pending,
+            CreatedAt = DateTime.UtcNow.AddMinutes(-2)
+        });
+        context.CommunityGroupMemberships.Add(new CommunityGroupMembership { CommunityRoomId = myGroup.Id, UserId = me.Id, Role = CommunityGroupRole.Owner });
+        context.CommunityGroupInvitations.Add(new CommunityGroupInvitation
+        {
+            Id = 1,
+            CommunityRoomId = otherGroup.Id,
+            InviterId = other.Id,
+            InviteeId = me.Id,
+            Status = CommunityGroupRequestStatus.Pending,
+            CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+        context.CommunityGroupJoinRequests.Add(new CommunityGroupJoinRequest
+        {
+            Id = 1,
+            CommunityRoomId = myGroup.Id,
+            UserId = third.Id,
+            Status = CommunityGroupRequestStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, me.Id);
+
+        var result = await controller.GetCenter();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var center = Assert.IsType<NotificationCenterDto>(ok.Value);
+        Assert.Equal(4, center.Summary.Total);
+        Assert.Collection(center.Items,
+            item =>
+            {
+                Assert.Equal("group-join-request", item.Type);
+                Assert.Equal("Join request til My club", item.Title);
+                Assert.Equal("/community/groups/my-club", item.Href);
+                Assert.Equal(1, item.GroupId);
+                Assert.Equal(1, item.RelatedId);
+            },
+            item =>
+            {
+                Assert.Equal("group-invitation", item.Type);
+                Assert.Equal("Invitation til Other club", item.Title);
+                Assert.Equal("/community/groups/other-club", item.Href);
+            },
+            item =>
+            {
+                Assert.Equal("friend-request", item.Type);
+                Assert.Equal("Venneanmodning fra OZ2DEF", item.Title);
+                Assert.Equal("/messages?tab=requests", item.Href);
+            },
+            item =>
+            {
+                Assert.Equal("message", item.Type);
+                Assert.Equal("Ny besked fra OZ2DEF", item.Title);
+                Assert.Equal("/messages/1", item.Href);
+            });
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
