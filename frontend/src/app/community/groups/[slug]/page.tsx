@@ -10,7 +10,16 @@ import { useToast } from '@/contexts/ToastContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { formatUtcDate } from '@/lib/utils'
-import { groupRoleLabel, groupVisibilityLabel, membershipStatus, visibilityOptions } from '../../groupUi'
+import {
+  buildGroupAccessSummary,
+  canManageCommunityGroup,
+  canOwnCommunityGroup,
+  filterInviteCandidates,
+  groupRoleLabel,
+  groupVisibilityLabel,
+  membershipStatus,
+  visibilityOptions,
+} from '../../groupUi'
 
 export default function CommunityGroupDetailPage() {
   const params = useParams()
@@ -25,16 +34,21 @@ export default function CommunityGroupDetailPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [postText, setPostText] = useState('')
   const [editDraft, setEditDraft] = useState({ name: '', description: '', visibility: 1, allowJoinRequests: true })
+  const [inviteSearch, setInviteSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const status = membershipStatus(group?.membershipStatus)
-  const canManage = status === 'Owner' || status === 'Admin'
-  const canOwn = status === 'Owner'
+  const canManage = canManageCommunityGroup(group)
+  const canOwn = canOwnCommunityGroup(group)
   const canPost = status === 'Owner' || status === 'Admin' || status === 'Member' || group?.visibility === 1 || group?.visibility === 'Public'
 
-  const memberIds = useMemo(() => new Set(members.map(member => member.userId)), [members])
-  const inviteCandidates = contacts.filter(contact => !memberIds.has(contact.id))
+  const accessSummary = group ? buildGroupAccessSummary(group) : null
+  const inviteCandidates = useMemo(
+    () => filterInviteCandidates(contacts, members, inviteSearch),
+    [contacts, members, inviteSearch]
+  )
 
   const loadGroup = async () => {
     if (!slug) return
@@ -124,38 +138,83 @@ export default function CommunityGroupDetailPage() {
 
   const approveRequest = async (requestId: number) => {
     if (!group) return
-    await api.community.approveGroupJoinRequest(group.id, requestId)
-    await loadGroup()
+    setActionLoading(`approve-${requestId}`)
+    try {
+      await api.community.approveGroupJoinRequest(group.id, requestId)
+      await loadGroup()
+      toast('Ansøgning godkendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke godkende ansøgning', 'error')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const rejectRequest = async (requestId: number) => {
     if (!group) return
-    await api.community.rejectGroupJoinRequest(group.id, requestId)
-    await loadGroup()
+    setActionLoading(`reject-${requestId}`)
+    try {
+      await api.community.rejectGroupJoinRequest(group.id, requestId)
+      await loadGroup()
+      toast('Ansøgning afvist')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke afvise ansøgning', 'error')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const updateRole = async (memberId: string, role: number) => {
     if (!group) return
-    await api.community.updateGroupMemberRole(group.id, memberId, role)
-    await loadGroup()
+    setActionLoading(`role-${memberId}`)
+    try {
+      await api.community.updateGroupMemberRole(group.id, memberId, role)
+      await loadGroup()
+      toast('Rolle opdateret')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke opdatere rolle', 'error')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const removeMember = async (memberId: string) => {
     if (!group || !window.confirm('Fjern medlem fra gruppen?')) return
-    await api.community.removeGroupMember(group.id, memberId)
-    await loadGroup()
+    setActionLoading(`remove-${memberId}`)
+    try {
+      await api.community.removeGroupMember(group.id, memberId)
+      await loadGroup()
+      toast('Medlem fjernet')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke fjerne medlem', 'error')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const inviteContact = async (contactId: string) => {
     if (!group) return
-    await api.community.inviteToGroup(group.id, contactId)
-    toast('Invitation sendt')
+    setActionLoading(`invite-${contactId}`)
+    try {
+      await api.community.inviteToGroup(group.id, contactId)
+      toast('Invitation sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende invitation', 'error')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const archiveGroup = async () => {
     if (!group || !window.confirm('Arkiver gruppen? Den forsvinder fra grupperne.')) return
-    await api.community.archiveGroup(group.id)
-    router.push('/community')
+    setActionLoading('archive')
+    try {
+      await api.community.archiveGroup(group.id)
+      router.push('/community')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke arkivere gruppen', 'error')
+      setActionLoading(null)
+    }
   }
 
   if (loading) return <main className="mx-auto max-w-[1280px] px-4 py-8 text-gray-400">Henter gruppe...</main>
@@ -171,7 +230,7 @@ export default function CommunityGroupDetailPage() {
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-400">
             <span className="rounded border border-gray-700 px-2 py-1">{groupVisibilityLabel(group.visibility)}</span>
             <span className="rounded border border-gray-700 px-2 py-1">{group.memberCount ?? members.length} medlemmer</span>
-            <span className="rounded border border-gray-700 px-2 py-1">{status === 'None' ? 'Ikke medlem' : status}</span>
+            <span className="rounded border border-gray-700 px-2 py-1">{accessSummary?.label}</span>
           </div>
         </div>
         {status === 'None' && group.allowJoinRequests && <Button onClick={requestToJoin} disabled={saving}>Ansøg om adgang</Button>}
@@ -210,63 +269,112 @@ export default function CommunityGroupDetailPage() {
         </section>
 
         <aside className="space-y-4">
+          {accessSummary && (
+            <Card>
+              <CardContent className="py-5">
+                <div className="text-xs uppercase tracking-wide text-gray-500">Din adgang</div>
+                <div className="mt-2 text-lg font-semibold text-white">{accessSummary.label}</div>
+                <p className="mt-1 text-sm text-gray-400">{accessSummary.description}</p>
+                {canManage && (
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="rounded border border-gray-800 bg-gray-900/50 px-2 py-2">
+                      <div className="text-lg font-semibold text-white">{members.length}</div>
+                      <div className="text-gray-500">Medlemmer</div>
+                    </div>
+                    <div className="rounded border border-gray-800 bg-gray-900/50 px-2 py-2">
+                      <div className="text-lg font-semibold text-white">{requests.length}</div>
+                      <div className="text-gray-500">Ansøgninger</div>
+                    </div>
+                    <div className="rounded border border-gray-800 bg-gray-900/50 px-2 py-2">
+                      <div className="text-lg font-semibold text-white">{inviteCandidates.length}</div>
+                      <div className="text-gray-500">Kan inviteres</div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardContent className="py-5">
-              <h2 className="mb-3 text-sm font-semibold text-white">Medlemmer</h2>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-white">Medlemmer</h2>
+                <span className="text-xs text-gray-500">{members.length}</span>
+              </div>
               <div className="space-y-2">
                 {members.map(member => (
                   <div key={member.userId} className="rounded border border-gray-800 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-mono text-sm text-gray-100">{member.callsign || member.email}</div>
-                        <div className="text-xs text-gray-500">{groupRoleLabel(member.role)}</div>
+                        <div className="text-xs text-gray-500">
+                          {groupRoleLabel(member.role)}
+                          {member.name ? ` - ${member.name}` : ''}
+                        </div>
                       </div>
                       {canOwn && member.userId !== user?.id && groupRoleLabel(member.role) !== 'Owner' && (
-                        <button type="button" onClick={() => removeMember(member.userId)} className="text-xs text-red-300 hover:text-red-200">Fjern</button>
+                        <button type="button" onClick={() => removeMember(member.userId)} disabled={actionLoading === `remove-${member.userId}`} className="text-xs text-red-300 hover:text-red-200 disabled:opacity-50">Fjern</button>
                       )}
                     </div>
                     {canOwn && groupRoleLabel(member.role) !== 'Owner' && (
-                      <select value={member.role === 'Admin' || member.role === 2 ? 2 : 3} onChange={event => updateRole(member.userId, Number(event.target.value))} className="mt-2 h-8 w-full rounded border border-gray-700 bg-gray-900 px-2 text-xs text-white">
+                      <select value={member.role === 'Admin' || member.role === 2 ? 2 : 3} disabled={actionLoading === `role-${member.userId}`} onChange={event => updateRole(member.userId, Number(event.target.value))} className="mt-2 h-8 w-full rounded border border-gray-700 bg-gray-900 px-2 text-xs text-white disabled:opacity-50">
                         <option value={3}>Medlem</option>
                         <option value={2}>Admin</option>
                       </select>
                     )}
                   </div>
                 ))}
+                {members.length === 0 && <div className="rounded border border-dashed border-gray-800 p-4 text-sm text-gray-500">Ingen medlemmer endnu.</div>}
               </div>
             </CardContent>
           </Card>
 
-          {canManage && requests.length > 0 && (
+          {canManage && (
             <Card>
               <CardContent className="py-5">
-                <h2 className="mb-3 text-sm font-semibold text-white">Ansøgninger</h2>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-white">Ansøgninger</h2>
+                  <span className="text-xs text-gray-500">{requests.length}</span>
+                </div>
                 <div className="space-y-2">
                   {requests.map(request => (
                     <div key={request.id} className="rounded border border-gray-800 p-3">
                       <div className="text-sm text-gray-100">{request.callsign || request.email}</div>
+                      <div className="text-xs text-gray-500">{formatUtcDate(request.createdAt)}</div>
                       <div className="mt-2 flex gap-2">
-                        <Button size="sm" onClick={() => approveRequest(request.id)}>Godkend</Button>
-                        <Button size="sm" variant="secondary" onClick={() => rejectRequest(request.id)}>Afvis</Button>
+                        <Button size="sm" onClick={() => approveRequest(request.id)} disabled={actionLoading === `approve-${request.id}`}>Godkend</Button>
+                        <Button size="sm" variant="secondary" onClick={() => rejectRequest(request.id)} disabled={actionLoading === `reject-${request.id}`}>Afvis</Button>
                       </div>
                     </div>
                   ))}
+                  {requests.length === 0 && <div className="rounded border border-dashed border-gray-800 p-4 text-sm text-gray-500">Ingen afventende ansøgninger.</div>}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {canManage && inviteCandidates.length > 0 && (
+          {canManage && (
             <Card>
               <CardContent className="py-5">
                 <h2 className="mb-3 text-sm font-semibold text-white">Inviter kontakt</h2>
-                <div className="flex flex-wrap gap-2">
+                <input
+                  value={inviteSearch}
+                  onChange={event => setInviteSearch(event.target.value)}
+                  placeholder="Søg på kaldesignal, navn eller email"
+                  className="mb-3 h-9 w-full rounded border border-gray-700 bg-gray-900 px-3 text-sm text-white placeholder:text-gray-600"
+                />
+                <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
                   {inviteCandidates.slice(0, 16).map(contact => (
-                    <Button key={contact.id} size="sm" variant="secondary" onClick={() => inviteContact(contact.id)}>
+                    <Button key={contact.id} size="sm" variant="secondary" onClick={() => inviteContact(contact.id)} disabled={actionLoading === `invite-${contact.id}`}>
                       {contact.callsign || contact.email}
                     </Button>
                   ))}
                 </div>
+                {inviteCandidates.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    {contacts.length === 0 ? 'Du har ingen kontakter at invitere endnu.' : 'Ingen kontakter matcher søgningen.'}
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
@@ -289,7 +397,7 @@ export default function CommunityGroupDetailPage() {
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" disabled={saving}>Gem</Button>
-                    <Button type="button" variant="danger" onClick={archiveGroup}>Arkiver</Button>
+                    <Button type="button" variant="danger" onClick={archiveGroup} disabled={actionLoading === 'archive'}>Arkiver</Button>
                   </div>
                 </form>
               </CardContent>
