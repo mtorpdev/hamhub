@@ -1,4 +1,6 @@
-import { type CommunityRoom } from '@/lib/types'
+import { type CommunityGroupInvitation, type CommunityRoom } from '@/lib/types'
+
+export type GroupOverviewView = 'mine' | 'discover' | 'invitations' | 'all'
 
 export const visibilityOptions = [
   { value: 1, label: 'Offentlig', description: 'Alle kan finde og deltage i gruppen.' },
@@ -24,4 +26,27 @@ export function groupRoleLabel(value: string | number) {
   if (value === 'Owner' || value === 1) return 'Owner'
   if (value === 'Admin' || value === 2) return 'Admin'
   return 'Medlem'
+}
+
+export function filterCommunityGroups(groups: CommunityRoom[], view: GroupOverviewView, search: string) {
+  const term = search.trim().toLowerCase()
+  return groups.filter(group => {
+    const status = membershipStatus(group.membershipStatus)
+    const matchesView = view === 'all'
+      || view === 'invitations'
+      || (view === 'mine' && status !== 'None' && status !== 'Pending')
+      || (view === 'discover' && (status === 'None' || status === 'Pending'))
+    const matchesSearch = !term
+      || group.name.toLowerCase().includes(term)
+      || (group.description ?? '').toLowerCase().includes(term)
+    return matchesView && matchesSearch
+  })
+}
+
+export function groupOverviewCounts(groups: CommunityRoom[], invitations: CommunityGroupInvitation[]) {
+  return {
+    mine: filterCommunityGroups(groups, 'mine', '').length,
+    discover: filterCommunityGroups(groups, 'discover', '').length,
+    invitations: invitations.length,
+  }
 }

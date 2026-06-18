@@ -11,7 +11,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 import { UserProfileCard, type ProfileCardUser } from '@/components/community/UserProfileCard'
-import { groupVisibilityLabel, membershipStatus, visibilityOptions } from './groupUi'
+import { filterCommunityGroups, groupOverviewCounts, groupVisibilityLabel, membershipStatus, type GroupOverviewView, visibilityOptions } from './groupUi'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
@@ -455,6 +455,8 @@ export default function CommunityPage() {
   const [groupComposerOpen, setGroupComposerOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState({ name: '', description: '', visibility: 1, allowJoinRequests: true })
   const [groupActionLoading, setGroupActionLoading] = useState(false)
+  const [groupView, setGroupView] = useState<GroupOverviewView>('mine')
+  const [groupSearch, setGroupSearch] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const selectedRoomInfo = useMemo(
@@ -464,6 +466,8 @@ export default function CommunityPage() {
   const selectedMembership = membershipStatus(selectedRoomInfo?.membershipStatus)
   const canPostInSelectedGroup = selectedRoom === 'alle' || selectedRoomInfo?.isSystem || selectedMembership === 'Owner' || selectedMembership === 'Admin' || selectedMembership === 'Member' || selectedRoomInfo?.visibility === 1 || selectedRoomInfo?.visibility === 'Public'
   const canManageSelectedGroup = selectedMembership === 'Owner' || selectedMembership === 'Admin'
+  const overviewCounts = useMemo(() => groupOverviewCounts(rooms, groupInvitations), [rooms, groupInvitations])
+  const filteredGroups = useMemo(() => filterCommunityGroups(rooms, groupView, groupSearch), [rooms, groupSearch, groupView])
 
   const loadOnlineUsers = useCallback(async () => {
     try {
@@ -829,8 +833,30 @@ export default function CommunityPage() {
               </div>
               <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
                 <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Mine grupper og find grupper</div>
+                <div className="mb-2 grid grid-cols-3 gap-1">
+                  {[
+                    ['mine', `Mine ${overviewCounts.mine}`],
+                    ['discover', `Find ${overviewCounts.discover}`],
+                    ['invitations', `Invites ${overviewCounts.invitations}`],
+                  ].map(([view, label]) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => setGroupView(view as GroupOverviewView)}
+                      className={`rounded border px-2 py-1 text-xs ${groupView === view ? 'border-blue-600 bg-blue-950/40 text-blue-100' : 'border-gray-800 text-gray-400 hover:bg-gray-800'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={groupSearch}
+                  onChange={event => setGroupSearch(event.target.value)}
+                  placeholder="Søg grupper"
+                  className="mb-2 h-9 w-full rounded border border-gray-800 bg-gray-950 px-2 text-sm text-white outline-none focus:border-blue-600"
+                />
                 <div className="flex flex-col gap-1">
-                  {rooms.map(room => (
+                  {filteredGroups.map(room => (
                     <button
                       key={room.slug}
                       type="button"
@@ -846,6 +872,7 @@ export default function CommunityPage() {
                       {room.description && <span className="block text-xs text-gray-500 truncate">{room.description}</span>}
                     </button>
                   ))}
+                  {filteredGroups.length === 0 && <p className="px-2 py-4 text-sm text-gray-500">Ingen grupper matcher.</p>}
                 </div>
                 <Button type="button" variant="secondary" className="mt-3 w-full" onClick={() => setGroupComposerOpen(true)}>
                   Opret gruppe
@@ -856,8 +883,30 @@ export default function CommunityPage() {
             <main className="min-w-0">
               <div className="lg:hidden mb-4">
                 <h1 className="text-3xl font-bold text-white mb-3">Grupper</h1>
+                <div className="mb-3 flex gap-2 overflow-x-auto">
+                  {[
+                    ['mine', `Mine ${overviewCounts.mine}`],
+                    ['discover', `Find ${overviewCounts.discover}`],
+                    ['invitations', `Invites ${overviewCounts.invitations}`],
+                  ].map(([view, label]) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => setGroupView(view as GroupOverviewView)}
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${groupView === view ? 'border-blue-500 bg-blue-500/15 text-white' : 'border-gray-700 text-gray-300'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={groupSearch}
+                  onChange={event => setGroupSearch(event.target.value)}
+                  placeholder="Søg grupper"
+                  className="mb-3 h-10 w-full rounded border border-gray-800 bg-gray-950 px-3 text-sm text-white outline-none focus:border-blue-600"
+                />
                 <div className="flex gap-2 overflow-x-auto pb-2">
-                  {rooms.map(room => (
+                  {filteredGroups.map(room => (
                     <button
                       key={room.slug}
                       type="button"
@@ -873,6 +922,32 @@ export default function CommunityPage() {
                   ))}
                 </div>
               </div>
+
+              {groupView === 'invitations' && (
+                <Card className="mb-5">
+                  <CardContent className="py-5">
+                    <h2 className="mb-3 text-sm font-semibold text-white">Gruppeinvitationer</h2>
+                    {groupInvitations.length === 0 ? (
+                      <p className="text-sm text-gray-500">Du har ingen åbne gruppeinvitationer.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {groupInvitations.map(invitation => (
+                          <div key={invitation.id} className="flex flex-col gap-2 rounded border border-gray-800 p-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-white">{invitation.groupName}</div>
+                              <div className="text-xs text-gray-500">Inviteret af {invitation.inviterCallsign || 'en admin'}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button type="button" size="sm" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>Accepter</Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => handleDeclineInvitation(invitation.id)} disabled={groupActionLoading}>Afvis</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className="mb-5">
                 <CardContent className="py-5">
