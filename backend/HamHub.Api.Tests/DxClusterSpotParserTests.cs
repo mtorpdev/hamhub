@@ -24,7 +24,7 @@ public class DxClusterSpotParserTests
     [Fact]
     public void TryParseIgnoresNonSpotLines()
     {
-        var parsed = DxClusterSpotParser.TryParse("OZ1ADM de OZ5BBS-7 15-Jun-2026 1210Z dxspider >", "OZ5BBS-7");
+        var parsed = DxClusterSpotParser.TryParse("OZ4MT de OZ5BBS-7 15-Jun-2026 1210Z dxspider >", "OZ5BBS-7");
 
         Assert.Null(parsed);
     }

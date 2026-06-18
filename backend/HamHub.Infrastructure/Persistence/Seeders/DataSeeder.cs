@@ -7,6 +7,9 @@ namespace HamHub.Infrastructure.Persistence.Seeders;
 
 public static class DataSeeder
 {
+    public const string PrimaryAdminEmail = "micael.torp@gmail.com";
+    public const string PrimaryAdminCallsign = "OZ4MT";
+
     public static async Task SeedAsync(ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
     {
         await SeedRolesAsync(roleManager);
@@ -33,26 +36,52 @@ public static class DataSeeder
 
     private static async Task<ApplicationUser> SeedAdminAsync(UserManager<ApplicationUser> userManager)
     {
-        const string adminEmail = "admin@hamhub.local";
-        var existing = await userManager.FindByEmailAsync(adminEmail);
-        if (existing != null) return existing;
+        var existing = await userManager.FindByEmailAsync(PrimaryAdminEmail);
+        if (existing != null)
+        {
+            existing.Callsign = PrimaryAdminCallsign;
+            existing.EmailConfirmed = true;
+            if (string.IsNullOrWhiteSpace(existing.UserName)) existing.UserName = PrimaryAdminEmail;
+            if (string.IsNullOrWhiteSpace(existing.FirstName)) existing.FirstName = "Micael";
+            if (string.IsNullOrWhiteSpace(existing.LastName)) existing.LastName = "Torp";
+            await userManager.UpdateAsync(existing);
+            await EnsureAdminRolesAsync(userManager, existing);
+            await DemoteLegacySeedAdminAsync(userManager, existing.Id);
+            return existing;
+        }
 
         var admin = new ApplicationUser
         {
-            UserName = adminEmail,
-            Email = adminEmail,
+            UserName = PrimaryAdminEmail,
+            Email = PrimaryAdminEmail,
             EmailConfirmed = true,
-            Callsign = "OZ1ADM",
-            FirstName = "Admin",
-            LastName = "HamHub",
+            Callsign = PrimaryAdminCallsign,
+            FirstName = "Micael",
+            LastName = "Torp",
             Country = "Denmark",
             GridLocator = "JO55WM",
             LicenseClass = LicenseClass.Full
         };
         await userManager.CreateAsync(admin, "Admin123!");
-        await userManager.AddToRoleAsync(admin, "Admin");
-        await userManager.AddToRoleAsync(admin, "User");
+        await EnsureAdminRolesAsync(userManager, admin);
+        await DemoteLegacySeedAdminAsync(userManager, admin.Id);
         return admin;
+    }
+
+    private static async Task EnsureAdminRolesAsync(UserManager<ApplicationUser> userManager, ApplicationUser admin)
+    {
+        if (!await userManager.IsInRoleAsync(admin, "Admin"))
+            await userManager.AddToRoleAsync(admin, "Admin");
+        if (!await userManager.IsInRoleAsync(admin, "User"))
+            await userManager.AddToRoleAsync(admin, "User");
+    }
+
+    private static async Task DemoteLegacySeedAdminAsync(UserManager<ApplicationUser> userManager, string primaryAdminId)
+    {
+        var legacy = await userManager.FindByEmailAsync("admin@hamhub.local");
+        if (legacy == null || legacy.Id == primaryAdminId) return;
+        if (await userManager.IsInRoleAsync(legacy, "Admin"))
+            await userManager.RemoveFromRoleAsync(legacy, "Admin");
     }
 
     private static async Task<List<ApplicationUser>> SeedUsersAsync(UserManager<ApplicationUser> userManager)

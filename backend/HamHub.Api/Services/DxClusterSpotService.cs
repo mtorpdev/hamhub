@@ -24,7 +24,7 @@ public sealed class DxClusterSpotService
         if (_cache.TryGetValue(CacheKey, out IReadOnlyList<DxClusterSpot>? cached) && cached is { Count: > 0 })
             return cached.Take(limit).ToList();
 
-        var loginCall = _configuration["DxCluster:LoginCall"] ?? "OZ1ADM";
+        var loginCall = _configuration["DxCluster:LoginCall"] ?? "OZ4MT";
         var sources = GetSources();
         using var fetchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         fetchCts.CancelAfter(TimeSpan.FromSeconds(6));
