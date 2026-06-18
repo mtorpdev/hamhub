@@ -701,7 +701,26 @@ export interface NotificationItem {
 
 export interface NotificationCenter {
   summary: NotificationSummary
+  history: NotificationHistory
   items: NotificationItem[]
+}
+
+export interface NotificationHistoryItem {
+  id: number
+  type: string
+  title: string
+  description: string
+  createdAt: string
+  readAt: string | null
+  href: string
+  relatedId: number | null
+  groupId: number | null
+  isRead: boolean
+}
+
+export interface NotificationHistory {
+  unreadCount: number
+  items: NotificationHistoryItem[]
 }
 
 export enum FriendshipStatus {

@@ -29,6 +29,12 @@ public class FriendsAndMessagesTests
         var stored = await context.Friendships.SingleAsync();
         Assert.Equal(me.Id, stored.RequesterId);
         Assert.Equal(other.Id, stored.AddresseeId);
+        var notification = await context.NotificationEvents.SingleAsync();
+        Assert.Equal(other.Id, notification.UserId);
+        Assert.Equal("friend-request", notification.Type);
+        Assert.Equal("Venneanmodning fra OZ1ABC", notification.Title);
+        Assert.Equal("/messages?tab=requests", notification.Href);
+        Assert.Equal(stored.Id, notification.RelatedId);
     }
 
     [Fact]
@@ -107,6 +113,12 @@ public class FriendsAndMessagesTests
         var message = await context.Messages.SingleAsync();
         Assert.Equal(me.Id, message.SenderId);
         Assert.Equal(other.Id, message.RecipientId);
+        var notification = await context.NotificationEvents.SingleAsync();
+        Assert.Equal(other.Id, notification.UserId);
+        Assert.Equal("message", notification.Type);
+        Assert.Equal("Ny besked fra OZ1ABC", notification.Title);
+        Assert.Equal("/messages/1", notification.Href);
+        Assert.Equal(message.Id, notification.RelatedId);
     }
 
     private static ApplicationDbContext CreateContext()

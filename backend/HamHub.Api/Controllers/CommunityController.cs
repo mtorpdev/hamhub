@@ -228,14 +228,28 @@ public class CommunityController : ControllerBase
             .FirstOrDefaultAsync(r => r.CommunityRoomId == groupId && r.UserId == UserId && r.Status == CommunityGroupRequestStatus.Pending);
         if (existing != null) return Ok();
 
-        _context.CommunityGroupJoinRequests.Add(new CommunityGroupJoinRequest
+        var joinRequest = new CommunityGroupJoinRequest
         {
             CommunityRoomId = groupId,
             UserId = UserId!,
             Status = CommunityGroupRequestStatus.Pending
-        });
+        };
+        _context.CommunityGroupJoinRequests.Add(joinRequest);
         await _context.SaveChangesAsync();
-        await BroadcastNotificationSummaryAsync(await GroupManagerIdsAsync(groupId));
+        var managerIds = await GroupManagerIdsAsync(groupId);
+        var requester = await _context.Users.FindAsync(UserId);
+        await AddNotificationEventsAsync(managerIds.Select(managerId => new NotificationEvent
+        {
+            UserId = managerId,
+            Type = "group-join-request",
+            Title = $"Join request til {group.Name}",
+            Description = $"{DisplayName(requester)} vil være medlem",
+            Href = $"/community/groups/{group.Slug}",
+            RelatedId = joinRequest.Id,
+            GroupId = group.Id,
+            CreatedAt = joinRequest.CreatedAt
+        }));
+        await BroadcastNotificationSummaryAsync(managerIds);
         return Ok();
     }
 
@@ -313,14 +327,28 @@ public class CommunityController : ControllerBase
             .FirstOrDefaultAsync(i => i.CommunityRoomId == groupId && i.InviteeId == request.UserId && i.Status == CommunityGroupRequestStatus.Pending);
         if (invite == null)
         {
-            _context.CommunityGroupInvitations.Add(new CommunityGroupInvitation
+            var group = await _context.CommunityRooms.FirstAsync(g => g.Id == groupId);
+            var inviter = await _context.Users.FindAsync(UserId);
+            var invitation = new CommunityGroupInvitation
             {
                 CommunityRoomId = groupId,
                 InviterId = UserId!,
                 InviteeId = request.UserId,
                 Status = CommunityGroupRequestStatus.Pending
-            });
+            };
+            _context.CommunityGroupInvitations.Add(invitation);
             await _context.SaveChangesAsync();
+            await AddNotificationEventsAsync(new NotificationEvent
+            {
+                UserId = request.UserId,
+                Type = "group-invitation",
+                Title = $"Invitation til {group.Name}",
+                Description = $"Inviteret af {DisplayName(inviter)}",
+                Href = $"/community/groups/{group.Slug}",
+                RelatedId = invitation.Id,
+                GroupId = group.Id,
+                CreatedAt = invitation.CreatedAt
+            });
             await BroadcastNotificationSummaryAsync(request.UserId);
         }
         return Ok();
@@ -520,6 +548,24 @@ public class CommunityController : ControllerBase
         await _hubContext.Clients
             .Groups(groups)
             .SendAsync("NotificationSummaryChanged");
+    }
+
+    private async Task AddNotificationEventsAsync(params NotificationEvent[] events)
+    {
+        await AddNotificationEventsAsync((IEnumerable<NotificationEvent>)events);
+    }
+
+    private async Task AddNotificationEventsAsync(IEnumerable<NotificationEvent> events)
+    {
+        var items = events.ToList();
+        if (items.Count == 0) return;
+        _context.NotificationEvents.AddRange(items);
+        await _context.SaveChangesAsync();
+    }
+
+    private static string DisplayName(ApplicationUser? user)
+    {
+        return user?.Callsign ?? user?.Email ?? "Ukendt bruger";
     }
 
     private static CommunityGroupDto MapGroupDto(CommunityRoom room, string? userId)

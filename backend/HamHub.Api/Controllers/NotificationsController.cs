@@ -32,6 +32,7 @@ public class NotificationsController : ControllerBase
     public async Task<IActionResult> GetCenter()
     {
         var summary = await BuildSummaryAsync();
+        var history = await BuildHistoryAsync(20);
         var items = new List<NotificationItemDto>();
 
         var messages = await _context.Messages
@@ -115,10 +116,29 @@ public class NotificationsController : ControllerBase
 
         return Ok(new NotificationCenterDto(
             summary,
+            history,
             items
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(30)
                 .ToList()));
+    }
+
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory([FromQuery] int limit = 50)
+    {
+        return Ok(await BuildHistoryAsync(Math.Clamp(limit, 1, 100)));
+    }
+
+    [HttpPost("history/read")]
+    public async Task<IActionResult> MarkHistoryRead()
+    {
+        var unread = await _context.NotificationEvents
+            .Where(e => e.UserId == UserId && e.ReadAt == null)
+            .ToListAsync();
+        var readAt = DateTime.UtcNow;
+        foreach (var item in unread) item.ReadAt = readAt;
+        if (unread.Count > 0) await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     private async Task<NotificationSummaryDto> BuildSummaryAsync()
@@ -152,6 +172,30 @@ public class NotificationsController : ControllerBase
     {
         return user?.Callsign ?? user?.Email ?? "Ukendt bruger";
     }
+
+    private async Task<NotificationHistoryDto> BuildHistoryAsync(int limit)
+    {
+        var unreadCount = await _context.NotificationEvents
+            .CountAsync(e => e.UserId == UserId && e.ReadAt == null);
+        var items = await _context.NotificationEvents
+            .Where(e => e.UserId == UserId)
+            .OrderByDescending(e => e.CreatedAt)
+            .Take(limit)
+            .Select(e => new NotificationHistoryItemDto(
+                e.Id,
+                e.Type,
+                e.Title,
+                e.Description,
+                e.CreatedAt,
+                e.ReadAt,
+                e.Href,
+                e.RelatedId,
+                e.GroupId,
+                e.ReadAt != null))
+            .ToListAsync();
+
+        return new NotificationHistoryDto(unreadCount, items);
+    }
 }
 
 public record NotificationSummaryDto(
@@ -163,6 +207,7 @@ public record NotificationSummaryDto(
 
 public record NotificationCenterDto(
     NotificationSummaryDto Summary,
+    NotificationHistoryDto History,
     IReadOnlyList<NotificationItemDto> Items);
 
 public record NotificationItemDto(
@@ -176,3 +221,19 @@ public record NotificationItemDto(
     int? GroupId,
     string? PrimaryAction,
     string? SecondaryAction);
+
+public record NotificationHistoryDto(
+    int UnreadCount,
+    IReadOnlyList<NotificationHistoryItemDto> Items);
+
+public record NotificationHistoryItemDto(
+    int Id,
+    string Type,
+    string Title,
+    string Description,
+    DateTime CreatedAt,
+    DateTime? ReadAt,
+    string Href,
+    int? RelatedId,
+    int? GroupId,
+    bool IsRead);

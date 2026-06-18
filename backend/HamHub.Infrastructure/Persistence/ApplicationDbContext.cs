@@ -30,6 +30,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PostImage> PostImages => Set<PostImage>();
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
+    public DbSet<NotificationEvent> NotificationEvents => Set<NotificationEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -205,5 +206,30 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(r => r.TargetUserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<NotificationEvent>()
+            .HasIndex(n => new { n.UserId, n.ReadAt, n.CreatedAt });
+
+        builder.Entity<NotificationEvent>()
+            .Property(n => n.Type)
+            .HasMaxLength(50);
+
+        builder.Entity<NotificationEvent>()
+            .Property(n => n.Title)
+            .HasMaxLength(200);
+
+        builder.Entity<NotificationEvent>()
+            .Property(n => n.Description)
+            .HasMaxLength(1000);
+
+        builder.Entity<NotificationEvent>()
+            .Property(n => n.Href)
+            .HasMaxLength(500);
+
+        builder.Entity<NotificationEvent>()
+            .HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

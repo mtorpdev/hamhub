@@ -18,7 +18,7 @@ const emptySummary: NotificationSummary = {
   groupJoinRequests: 0,
   total: 0,
 }
-const emptyCenter: NotificationCenter = { summary: emptySummary, items: [] }
+const emptyCenter: NotificationCenter = { summary: emptySummary, history: { unreadCount: 0, items: [] }, items: [] }
 
 function Badge({ count }: { count: number }) {
   if (count <= 0) return null
@@ -163,7 +163,10 @@ export function Navbar() {
           <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-white">Notifikationer</p>
-              <p className="text-xs text-gray-500">{summary.total} nye</p>
+              <p className="text-xs text-gray-500">
+                {summary.total} handlinger
+                {center.history.unreadCount > 0 ? ` · ${center.history.unreadCount} ulæst i historik` : ''}
+              </p>
             </div>
             <Link href="/notifications" onClick={() => setNotificationsOpen(false)} className="text-xs font-medium text-blue-300 hover:text-blue-200">
               Se alle

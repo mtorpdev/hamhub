@@ -58,6 +58,11 @@ public class CommunityGroupsControllerTests
         Assert.IsType<OkResult>(approveResult);
         Assert.True(await context.CommunityGroupMemberships.AnyAsync(m => m.CommunityRoomId == group.Id && m.UserId == applicant.Id && m.Role == CommunityGroupRole.Member));
         Assert.True(await context.CommunityGroupJoinRequests.Where(r => r.UserId == applicant.Id).Select(r => r.Status == CommunityGroupRequestStatus.Approved).SingleAsync());
+        var notification = await context.NotificationEvents.SingleAsync(e => e.Type == "group-join-request");
+        Assert.Equal(owner.Id, notification.UserId);
+        Assert.Equal("Join request til Award Hunters", notification.Title);
+        Assert.Equal(group.Id, notification.GroupId);
+        Assert.Equal("/community/groups/award-hunters", notification.Href);
     }
 
     [Fact]
@@ -105,20 +110,25 @@ public class CommunityGroupsControllerTests
         await context.SaveChangesAsync();
         context.CommunityGroupMemberships.Add(new CommunityGroupMembership { CommunityRoomId = group.Id, UserId = owner.Id, Role = CommunityGroupRole.Owner });
         var joinRequest = new CommunityGroupJoinRequest { CommunityRoomId = group.Id, UserId = applicant.Id, Status = CommunityGroupRequestStatus.Pending };
-        var invitation = new CommunityGroupInvitation { CommunityRoomId = group.Id, InviterId = owner.Id, InviteeId = invitee.Id, Status = CommunityGroupRequestStatus.Pending };
         context.CommunityGroupJoinRequests.Add(joinRequest);
-        context.CommunityGroupInvitations.Add(invitation);
         await context.SaveChangesAsync();
         var ownerController = CreateController(context, owner.Id);
         var inviteeController = CreateController(context, invitee.Id);
 
+        var inviteResult = await ownerController.InviteToGroup(group.Id, new InviteToCommunityGroupRequest(invitee.Id));
+        var invitation = await context.CommunityGroupInvitations.SingleAsync(i => i.InviteeId == invitee.Id);
         var rejectResult = await ownerController.RejectJoinRequest(group.Id, joinRequest.Id);
         var declineResult = await inviteeController.DeclineGroupInvitation(invitation.Id);
         var archiveResult = await ownerController.ArchiveGroup(group.Id);
 
+        Assert.IsType<OkResult>(inviteResult);
         Assert.IsType<OkResult>(rejectResult);
         Assert.IsType<OkResult>(declineResult);
         Assert.IsType<NoContentResult>(archiveResult);
+        var inviteNotification = await context.NotificationEvents.SingleAsync(e => e.Type == "group-invitation");
+        Assert.Equal(invitee.Id, inviteNotification.UserId);
+        Assert.Equal("Invitation til Archive Me", inviteNotification.Title);
+        Assert.Equal(group.Id, inviteNotification.GroupId);
         Assert.Equal(CommunityGroupRequestStatus.Rejected, await context.CommunityGroupJoinRequests.Where(r => r.Id == joinRequest.Id).Select(r => r.Status).SingleAsync());
         Assert.Equal(CommunityGroupRequestStatus.Rejected, await context.CommunityGroupInvitations.Where(i => i.Id == invitation.Id).Select(i => i.Status).SingleAsync());
         Assert.True(await context.CommunityRooms.Where(r => r.Id == group.Id).Select(r => r.IsArchived).SingleAsync());

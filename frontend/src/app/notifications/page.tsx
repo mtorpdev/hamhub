@@ -10,6 +10,8 @@ import { useNotificationActions } from '@/hooks/useNotificationActions'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
+import { formatUtcDate } from '@/lib/utils'
+import { useToast } from '@/contexts/ToastContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const emptyCenter: NotificationCenter = {
@@ -20,14 +22,20 @@ const emptyCenter: NotificationCenter = {
     groupJoinRequests: 0,
     total: 0,
   },
+  history: {
+    unreadCount: 0,
+    items: [],
+  },
   items: [],
 }
 
 export default function NotificationsPage() {
   useRequireAuth()
   const { user } = useAuth()
+  const { toast } = useToast()
   const [center, setCenter] = useState<NotificationCenter>(emptyCenter)
   const [loading, setLoading] = useState(true)
+  const [markingRead, setMarkingRead] = useState(false)
 
   const loadCenter = useCallback(async () => {
     setLoading(true)
@@ -38,6 +46,19 @@ export default function NotificationsPage() {
     }
   }, [])
   const { busyItemId, runAction } = useNotificationActions(loadCenter)
+
+  const markHistoryRead = async () => {
+    setMarkingRead(true)
+    try {
+      await api.notifications.markHistoryRead()
+      toast('Notifikationshistorik markeret som læst')
+      await loadCenter()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke markere historik som læst', 'error')
+    } finally {
+      setMarkingRead(false)
+    }
+  }
 
   useEffect(() => {
     void Promise.resolve().then(loadCenter)
@@ -100,6 +121,46 @@ export default function NotificationsPage() {
           onAction={runAction}
         />
       )}
+
+      <div className="mt-10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Historik</h2>
+            <p className="mt-1 text-sm text-gray-500">{center.history.unreadCount} ulæste historik-events</p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={markHistoryRead}
+            disabled={markingRead || center.history.unreadCount === 0}
+          >
+            {markingRead ? 'Gemmer...' : 'Marker alle som læst'}
+          </Button>
+        </div>
+
+        {center.history.items.length === 0 ? (
+          <div className="rounded-md border border-gray-800 bg-gray-900 px-4 py-8 text-center text-sm text-gray-400">
+            Ingen historik endnu.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {center.history.items.map(item => (
+              <a
+                key={item.id}
+                href={item.href}
+                className={`block rounded-md border p-4 ${item.isRead ? 'border-gray-800 bg-gray-900/70' : 'border-blue-500/40 bg-blue-500/10'}`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-white">{item.title}</p>
+                  <span className="text-xs text-gray-500">{formatUtcDate(item.createdAt)}</span>
+                </div>
+                <p className="mt-1 text-sm text-gray-400">{item.description}</p>
+                <p className="mt-2 text-xs font-medium text-blue-300">{item.isRead ? 'Læst' : 'Ulæst'}</p>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

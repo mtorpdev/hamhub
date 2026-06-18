@@ -128,6 +128,85 @@ public class NotificationsControllerTests
             });
     }
 
+    [Fact]
+    public async Task GetHistory_ReturnsStoredNotificationEventsForCurrentUser()
+    {
+        await using var context = CreateContext();
+        var me = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var other = new ApplicationUser { Id = "user-2", UserName = "oz2def@hamhub.local", Email = "oz2def@hamhub.local", Callsign = "OZ2DEF" };
+        context.Users.AddRange(me, other);
+        context.NotificationEvents.AddRange(
+            new NotificationEvent
+            {
+                UserId = me.Id,
+                Type = "message",
+                Title = "Ny besked fra OZ2DEF",
+                Description = "Ping",
+                Href = "/messages/1",
+                RelatedId = 1,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+            },
+            new NotificationEvent
+            {
+                UserId = me.Id,
+                Type = "friend-request",
+                Title = "Venneanmodning fra OZ2DEF",
+                Description = "Accepter eller afvis anmodningen",
+                Href = "/messages?tab=requests",
+                RelatedId = 2,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-2),
+                ReadAt = DateTime.UtcNow.AddMinutes(-1)
+            },
+            new NotificationEvent
+            {
+                UserId = other.Id,
+                Type = "message",
+                Title = "Anden bruger",
+                Description = "Skal ikke med",
+                Href = "/messages/99"
+            });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, me.Id);
+
+        var result = await controller.GetHistory();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var history = Assert.IsType<NotificationHistoryDto>(ok.Value);
+        Assert.Equal(2, history.Items.Count);
+        Assert.Equal(1, history.UnreadCount);
+        Assert.Collection(history.Items,
+            item =>
+            {
+                Assert.Equal("message", item.Type);
+                Assert.False(item.IsRead);
+            },
+            item =>
+            {
+                Assert.Equal("friend-request", item.Type);
+                Assert.True(item.IsRead);
+            });
+    }
+
+    [Fact]
+    public async Task MarkHistoryRead_MarksOnlyCurrentUsersEventsRead()
+    {
+        await using var context = CreateContext();
+        var me = new ApplicationUser { Id = "user-1", UserName = "oz1abc@hamhub.local", Email = "oz1abc@hamhub.local", Callsign = "OZ1ABC" };
+        var other = new ApplicationUser { Id = "user-2", UserName = "oz2def@hamhub.local", Email = "oz2def@hamhub.local", Callsign = "OZ2DEF" };
+        context.Users.AddRange(me, other);
+        context.NotificationEvents.AddRange(
+            new NotificationEvent { UserId = me.Id, Type = "message", Title = "A", Description = "A", Href = "/messages/1" },
+            new NotificationEvent { UserId = other.Id, Type = "message", Title = "B", Description = "B", Href = "/messages/2" });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, me.Id);
+
+        var result = await controller.MarkHistoryRead();
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == me.Id && e.ReadAt != null));
+        Assert.True(await context.NotificationEvents.AnyAsync(e => e.UserId == other.Id && e.ReadAt == null));
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

@@ -136,6 +136,17 @@ public class MessagesController : ControllerBase
             .Include(m => m.Sender)
             .Include(m => m.Recipient)
             .FirstAsync(m => m.Id == message.Id);
+        _context.NotificationEvents.Add(new NotificationEvent
+        {
+            UserId = created.RecipientId,
+            Type = "message",
+            Title = $"Ny besked fra {DisplayName(created.Sender)}",
+            Description = string.IsNullOrWhiteSpace(created.Subject) ? "Privat besked" : created.Subject,
+            Href = $"/messages/{created.Id}",
+            RelatedId = created.Id,
+            CreatedAt = created.CreatedAt
+        });
+        await _context.SaveChangesAsync();
 
         var dto = MapDto(created);
         if (_hubContext != null)
@@ -185,6 +196,11 @@ public class MessagesController : ControllerBase
         m.IsRead,
         m.CreatedAt,
     };
+
+    private static string DisplayName(ApplicationUser? user)
+    {
+        return user?.Callsign ?? user?.Email ?? "Ukendt bruger";
+    }
 }
 
 public record SendMessageRequest(string RecipientId, string Subject, string Body);

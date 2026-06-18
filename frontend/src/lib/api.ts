@@ -198,6 +198,8 @@ export const api = {
   notifications: {
     summary: () => request<import('./types').NotificationSummary>('/api/notifications/summary'),
     center: () => request<import('./types').NotificationCenter>('/api/notifications/center'),
+    history: () => request<import('./types').NotificationHistory>('/api/notifications/history'),
+    markHistoryRead: () => request<void>('/api/notifications/history/read', { method: 'POST' }),
   },
   safety: {
     getBlockedUsers: () => request<import('./types').BlockedUser[]>('/api/safety/blocks'),

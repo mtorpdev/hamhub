@@ -112,6 +112,7 @@ public class FriendsController : ControllerBase
                 existing.RespondedAt = null;
                 await _context.SaveChangesAsync();
                 var dto = MapDto(await LoadFriendshipAsync(existing.Id));
+                await AddFriendRequestNotificationAsync(existing.Id, existing.AddresseeId, UserId);
                 await BroadcastFriendshipChangedAsync(existing.RequesterId, existing.AddresseeId);
                 return CreatedAtAction(nameof(GetRequests), new { id = existing.Id }, dto);
             }
@@ -129,6 +130,7 @@ public class FriendsController : ControllerBase
         };
         _context.Friendships.Add(friendship);
         await _context.SaveChangesAsync();
+        await AddFriendRequestNotificationAsync(friendship.Id, friendship.AddresseeId, UserId);
         await BroadcastFriendshipChangedAsync(friendship.RequesterId, friendship.AddresseeId);
 
         return CreatedAtAction(nameof(GetRequests), new { id = friendship.Id }, MapDto(await LoadFriendshipAsync(friendship.Id)));
@@ -233,6 +235,21 @@ public class FriendsController : ControllerBase
     {
         var name = $"{user.FirstName} {user.LastName}".Trim();
         return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    private async Task AddFriendRequestNotificationAsync(int friendshipId, string userId, string requesterId)
+    {
+        var requester = await _context.Users.FindAsync(requesterId);
+        _context.NotificationEvents.Add(new NotificationEvent
+        {
+            UserId = userId,
+            Type = "friend-request",
+            Title = $"Venneanmodning fra {requester?.Callsign ?? requester?.Email ?? "Ukendt bruger"}",
+            Description = "Accepter eller afvis anmodningen",
+            Href = "/messages?tab=requests",
+            RelatedId = friendshipId
+        });
+        await _context.SaveChangesAsync();
     }
 
     private async Task BroadcastFriendshipChangedAsync(string requesterId, string addresseeId)
