@@ -117,6 +117,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(p => p.CommunityRoomId);
 
         builder.Entity<Post>()
+            .HasIndex(p => new { p.IsPinned, p.UpdatedAt });
+
+        builder.Entity<Post>()
             .Property(p => p.Title)
             .HasMaxLength(160);
 

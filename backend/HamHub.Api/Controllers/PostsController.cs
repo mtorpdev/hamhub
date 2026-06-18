@@ -83,7 +83,8 @@ public class PostsController : ControllerBase
         if (solved.HasValue) query = query.Where(p => p.IsSolved == solved.Value);
 
         var posts = await query
-            .OrderByDescending(p => p.CreatedAt)
+            .OrderByDescending(p => p.IsPinned)
+            .ThenByDescending(p => p.CreatedAt)
             .Skip(skip)
             .Take(pageSize)
             .ToListAsync();
@@ -232,6 +233,32 @@ public class PostsController : ControllerBase
         return Ok(MapDto(post, UserId));
     }
 
+    [HttpPost("{id:int}/pinned")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SetPinned(int id, [FromBody] SetPostPinnedRequest req)
+    {
+        var post = await LoadPostForModerationAsync(id);
+        if (post == null) return NotFound();
+
+        post.IsPinned = req.IsPinned;
+        post.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok(MapDto(post, UserId));
+    }
+
+    [HttpPost("{id:int}/locked")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SetLocked(int id, [FromBody] SetPostLockedRequest req)
+    {
+        var post = await LoadPostForModerationAsync(id);
+        if (post == null) return NotFound();
+
+        post.IsLocked = req.IsLocked;
+        post.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok(MapDto(post, UserId));
+    }
+
     // GET /api/posts/{id}/comments
     [HttpGet("{id:int}/comments")]
     public async Task<IActionResult> GetComments(int id)
@@ -251,6 +278,7 @@ public class PostsController : ControllerBase
     {
         var post = await _context.Posts.FindAsync(id);
         if (post == null) return NotFound();
+        if (post.IsLocked) return BadRequest("Tråden er låst");
         if (string.IsNullOrWhiteSpace(req.Content)) return BadRequest("Kommentar må ikke være tom");
 
         var comment = new PostComment { PostId = id, UserId = UserId!, Content = req.Content };
@@ -299,6 +327,8 @@ public class PostsController : ControllerBase
         p.Title,
         SplitTags(p.Tags),
         p.IsSolved,
+        p.IsPinned,
+        p.IsLocked,
         p.Content,
         p.Images.OrderBy(i => i.Order).Select(i => $"/uploads/posts/{i.FileName}").ToList(),
         p.Likes.Count,
@@ -352,6 +382,17 @@ public class PostsController : ControllerBase
         if (room.IsSystem && room.Visibility == CommunityGroupVisibility.Public) return true;
         return room.Memberships.Any(m => m.UserId == UserId);
     }
+
+    private async Task<Post?> LoadPostForModerationAsync(int id)
+    {
+        return await _context.Posts
+            .Include(p => p.User)
+            .Include(p => p.CommunityRoom)
+            .Include(p => p.Images)
+            .Include(p => p.Likes)
+            .Include(p => p.Comments)
+            .FirstOrDefaultAsync(p => p.Id == id);
+    }
 }
 
 public record PostsFeedResponse(int Total, int Page, int PageSize, IReadOnlyList<PostDto> Items);
@@ -366,6 +407,8 @@ public record PostDto(
     string? Title,
     IReadOnlyList<string> Tags,
     bool IsSolved,
+    bool IsPinned,
+    bool IsLocked,
     string Content,
     IReadOnlyList<string> Images,
     int LikeCount,
@@ -376,3 +419,5 @@ public record PostDto(
 public record CreatePostRequest(string Content, string? RoomSlug = null, string? Title = null, string? Tags = null);
 public record AddCommentRequest(string Content);
 public record SetPostSolvedRequest(bool IsSolved);
+public record SetPostPinnedRequest(bool IsPinned);
+public record SetPostLockedRequest(bool IsLocked);

@@ -843,6 +843,8 @@ export interface Post {
   title: string | null
   tags: string[]
   isSolved: boolean
+  isPinned: boolean
+  isLocked: boolean
   content: string
   images: string[]
   likeCount: number

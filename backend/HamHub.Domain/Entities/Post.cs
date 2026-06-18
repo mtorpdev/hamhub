@@ -8,6 +8,8 @@ public class Post
     public string? Title { get; set; }
     public string? Tags { get; set; }
     public bool IsSolved { get; set; }
+    public bool IsPinned { get; set; }
+    public bool IsLocked { get; set; }
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

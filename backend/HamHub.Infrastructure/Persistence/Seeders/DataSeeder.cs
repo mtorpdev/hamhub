@@ -223,7 +223,9 @@ public static class DataSeeder
                 Title = title,
                 Tags = "features,bugs,roadmap",
                 Content = content,
-                IsSolved = false
+                IsSolved = false,
+                IsPinned = true,
+                IsLocked = true
             });
             await context.SaveChangesAsync();
             return;
@@ -231,6 +233,8 @@ public static class DataSeeder
 
         post.Tags = "features,bugs,roadmap";
         post.Content = content;
+        post.IsPinned = true;
+        post.IsLocked = true;
         post.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync();
     }

@@ -186,6 +186,7 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("friendships", () => EnsureFriendshipSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("safety", () => EnsureSafetySchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("article feed", () => EnsureArticleFeedSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("forum moderation", () => EnsureForumModerationSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("QSO external status", () => EnsureQsoExternalStatusSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("LoTW integration", () => EnsureLotwSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("award fields", () => EnsureAwardFieldsSchemaAsync(context), app.Logger);
@@ -492,6 +493,18 @@ static async Task EnsureQsoExternalStatusSchemaAsync(ApplicationDbContext contex
         ADD COLUMN IF NOT EXISTS "QrzConfirmationStatus" character varying(1),
         ADD COLUMN IF NOT EXISTS "QrzConfirmedAt" timestamp with time zone,
         ADD COLUMN IF NOT EXISTS "QrzQslDate" timestamp with time zone;
+        """);
+}
+
+static async Task EnsureForumModerationSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "Posts"
+        ADD COLUMN IF NOT EXISTS "IsPinned" boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS "IsLocked" boolean NOT NULL DEFAULT false;
+
+        CREATE INDEX IF NOT EXISTS "IX_Posts_IsPinned_UpdatedAt"
+            ON "Posts" ("IsPinned", "UpdatedAt");
         """);
 }
 

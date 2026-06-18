@@ -278,6 +278,10 @@ export const api = {
     toggleLike: (id: number) => request<{ liked: boolean }>(`/api/posts/${id}/like`, { method: 'POST' }),
     setSolved: (id: number, isSolved: boolean) =>
       request<import('./types').Post>(`/api/posts/${id}/solved`, { method: 'POST', body: JSON.stringify({ isSolved }) }),
+    setPinned: (id: number, isPinned: boolean) =>
+      request<import('./types').Post>(`/api/posts/${id}/pinned`, { method: 'POST', body: JSON.stringify({ isPinned }) }),
+    setLocked: (id: number, isLocked: boolean) =>
+      request<import('./types').Post>(`/api/posts/${id}/locked`, { method: 'POST', body: JSON.stringify({ isLocked }) }),
     getComments: (id: number) => request<import('./types').PostComment[]>(`/api/posts/${id}/comments`),
     addComment: (id: number, content: string) =>
       request<import('./types').PostComment>(`/api/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),

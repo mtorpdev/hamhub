@@ -65,7 +65,7 @@ export default function ForumPage() {
     event.preventDefault()
     if (!draft.title.trim() || !draft.content.trim()) return
     const created = await api.posts.create(draft.content, draft.roomSlug, draft.title, normalizeForumTags(draft.tags).join(','))
-    setThreads(current => [created, ...current])
+    setThreads(current => [created, ...current].sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
     setDraft({ title: '', content: '', tags: '', roomSlug: draft.roomSlug })
     setComposerOpen(false)
   }
@@ -146,6 +146,8 @@ function ForumThreadCard({ thread }: { thread: Post }) {
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              {thread.isPinned && <span className="border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-semibold text-blue-200">Pinned</span>}
+              {thread.isLocked && <span className="border border-gray-600 bg-gray-800 px-2 py-1 text-xs font-semibold text-gray-200">Låst</span>}
               <span className={`border px-2 py-1 text-xs font-semibold ${forumStatusClass(thread.isSolved)}`}>{forumStatusLabel(thread.isSolved)}</span>
               {thread.communityRoomName && <span className="text-xs text-gray-500">{thread.communityRoomName}</span>}
             </div>

@@ -53,6 +53,18 @@ export default function ForumThreadPage() {
     setThread(updated)
   }
 
+  const togglePinned = async () => {
+    if (!thread) return
+    const updated = await api.posts.setPinned(thread.id, !thread.isPinned)
+    setThread(updated)
+  }
+
+  const toggleLocked = async () => {
+    if (!thread) return
+    const updated = await api.posts.setLocked(thread.id, !thread.isLocked)
+    setThread(updated)
+  }
+
   const reportThread = async () => {
     if (!thread) return
     const reason = window.prompt('Hvad skal moderator kigge på?')
@@ -82,6 +94,8 @@ export default function ForumThreadPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {thread.isPinned && <span className="border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-semibold text-blue-200">Pinned</span>}
+                  {thread.isLocked && <span className="border border-gray-600 bg-gray-800 px-2 py-1 text-xs font-semibold text-gray-200">Låst</span>}
                   <span className={`border px-2 py-1 text-xs font-semibold ${forumStatusClass(thread.isSolved)}`}>{forumStatusLabel(thread.isSolved)}</span>
                   {thread.communityRoomName && <span className="text-xs text-gray-500">{thread.communityRoomName}</span>}
                 </div>
@@ -90,6 +104,8 @@ export default function ForumThreadPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {canManage && <Button variant="secondary" onClick={toggleSolved}>{thread.isSolved ? 'Åbn igen' : 'Markér løst'}</Button>}
+                {isAdmin && <Button variant="secondary" onClick={togglePinned}>{thread.isPinned ? 'Fjern pin' : 'Pin'}</Button>}
+                {isAdmin && <Button variant="secondary" onClick={toggleLocked}>{thread.isLocked ? 'Lås op' : 'Lås'}</Button>}
                 {isAuthenticated && user?.id !== thread.userId && <Button variant="secondary" onClick={reportThread}>Rapportér</Button>}
                 {canManage && <Button variant="secondary" onClick={deleteThread}>Slet</Button>}
               </div>
@@ -115,7 +131,9 @@ export default function ForumThreadPage() {
           {comments.length === 0 && <p className="border border-gray-800 bg-gray-900 px-4 py-6 text-sm text-gray-500">Ingen svar endnu.</p>}
         </section>
 
-        {isAuthenticated ? (
+        {thread.isLocked ? (
+          <p className="border border-gray-800 bg-gray-900 px-4 py-4 text-sm text-gray-400">Tråden er låst, så der kan ikke tilføjes nye svar.</p>
+        ) : isAuthenticated ? (
           <form onSubmit={addReply} className="space-y-3 border border-gray-800 bg-gray-900 p-4">
             <textarea value={reply} onChange={event => setReply(event.target.value)} rows={4} placeholder="Skriv et svar..." className="w-full border border-gray-800 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-700" />
             <Button type="submit">Send svar</Button>
