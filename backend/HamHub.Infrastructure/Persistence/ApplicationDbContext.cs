@@ -18,6 +18,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Listing> Listings => Set<Listing>();
     public DbSet<ListingImage> ListingImages => Set<ListingImage>();
     public DbSet<CommunityRoom> CommunityRooms => Set<CommunityRoom>();
+    public DbSet<CommunityGroupMembership> CommunityGroupMemberships => Set<CommunityGroupMembership>();
+    public DbSet<CommunityGroupJoinRequest> CommunityGroupJoinRequests => Set<CommunityGroupJoinRequest>();
+    public DbSet<CommunityGroupInvitation> CommunityGroupInvitations => Set<CommunityGroupInvitation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<UserBlock> UserBlocks => Set<UserBlock>();
@@ -39,6 +42,72 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<CommunityRoom>()
             .HasIndex(r => r.Slug)
             .IsUnique();
+
+        builder.Entity<CommunityRoom>()
+            .Property(r => r.Name)
+            .HasMaxLength(120);
+
+        builder.Entity<CommunityRoom>()
+            .Property(r => r.Description)
+            .HasMaxLength(500);
+
+        builder.Entity<CommunityRoom>()
+            .HasOne(r => r.Owner)
+            .WithMany()
+            .HasForeignKey(r => r.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<CommunityGroupMembership>()
+            .HasIndex(m => new { m.CommunityRoomId, m.UserId })
+            .IsUnique();
+
+        builder.Entity<CommunityGroupMembership>()
+            .HasOne(m => m.CommunityRoom)
+            .WithMany(r => r.Memberships)
+            .HasForeignKey(m => m.CommunityRoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupMembership>()
+            .HasOne(m => m.User)
+            .WithMany()
+            .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupJoinRequest>()
+            .HasIndex(r => new { r.CommunityRoomId, r.UserId, r.Status });
+
+        builder.Entity<CommunityGroupJoinRequest>()
+            .HasOne(r => r.CommunityRoom)
+            .WithMany(g => g.JoinRequests)
+            .HasForeignKey(r => r.CommunityRoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupJoinRequest>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupInvitation>()
+            .HasIndex(i => new { i.CommunityRoomId, i.InviteeId, i.Status });
+
+        builder.Entity<CommunityGroupInvitation>()
+            .HasOne(i => i.CommunityRoom)
+            .WithMany(g => g.Invitations)
+            .HasForeignKey(i => i.CommunityRoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupInvitation>()
+            .HasOne(i => i.Inviter)
+            .WithMany()
+            .HasForeignKey(i => i.InviterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CommunityGroupInvitation>()
+            .HasOne(i => i.Invitee)
+            .WithMany()
+            .HasForeignKey(i => i.InviteeId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Post>()
             .HasIndex(p => p.CommunityRoomId);

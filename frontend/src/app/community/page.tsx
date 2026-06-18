@@ -4,7 +4,7 @@ import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { FriendshipStatus, type CommunityContact, type CommunityOnlineUser, type CommunityRoom, type FriendRequests, type Message, type Post, type PostComment } from '@/lib/types'
+import { FriendshipStatus, type CommunityContact, type CommunityGroupInvitation, type CommunityGroupJoinRequest, type CommunityOnlineUser, type CommunityRoom, type FriendRequests, type Message, type Post, type PostComment } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
@@ -14,12 +14,32 @@ import { UserProfileCard, type ProfileCardUser } from '@/components/community/Us
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 const fallbackRooms: CommunityRoom[] = [
-  { id: 0, name: 'Alle opslag', slug: 'alle', description: 'Hele community-feedet.', sortOrder: 0, isSystem: true },
+  { id: 0, name: 'Alle grupper', slug: 'alle', description: 'Opslag fra de grupper du kan se.', sortOrder: 0, isSystem: true, visibility: 1, allowJoinRequests: true, memberCount: 0, membershipStatus: 3 },
   { id: 1, name: 'DX', slug: 'dx', description: 'DX spots, jagt og sjældne lande.', sortOrder: 10, isSystem: true },
   { id: 2, name: 'FT8/FT4', slug: 'ft8-ft4', description: 'Digitale modes og WSJT-X.', sortOrder: 20, isSystem: true },
   { id: 3, name: 'Teknik', slug: 'teknik', description: 'Radioer, antenner og software.', sortOrder: 30, isSystem: true },
   { id: 4, name: 'Køb/salg', slug: 'koeb-salg', description: 'Udstyr og gode fund.', sortOrder: 40, isSystem: true },
 ]
+
+const visibilityOptions = [
+  { value: 1, label: 'Offentlig', description: 'Alle kan finde og deltage i gruppen.' },
+  { value: 2, label: 'Ansøg om adgang', description: 'Alle kan finde gruppen, men admin skal godkende.' },
+  { value: 3, label: 'Kun inviterede', description: 'Gruppen er kun synlig for medlemmer.' },
+]
+
+function membershipStatus(value: CommunityRoom['membershipStatus']) {
+  if (value === 'Owner' || value === 1) return 'Owner'
+  if (value === 'Admin' || value === 2) return 'Admin'
+  if (value === 'Member' || value === 3) return 'Member'
+  if (value === 'Pending' || value === 4) return 'Pending'
+  return 'None'
+}
+
+function groupVisibilityLabel(value: CommunityRoom['visibility']) {
+  if (value === 'InviteOnly' || value === 3) return 'Kun inviterede'
+  if (value === 'RequestToJoin' || value === 2) return 'Ansøg om adgang'
+  return 'Offentlig'
+}
 
 function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId?: string; onDelete: () => void }) {
   const { toast } = useToast()
@@ -436,6 +456,8 @@ export default function CommunityPage() {
   const [selectedRoom, setSelectedRoom] = useState('alle')
   const [posts, setPosts] = useState<Post[]>([])
   const [contacts, setContacts] = useState<CommunityContact[]>([])
+  const [groupInvitations, setGroupInvitations] = useState<CommunityGroupInvitation[]>([])
+  const [joinRequests, setJoinRequests] = useState<CommunityGroupJoinRequest[]>([])
   const [onlineUsers, setOnlineUsers] = useState<CommunityOnlineUser[]>([])
   const [friendRequests, setFriendRequests] = useState<FriendRequests>({ incoming: [], outgoing: [] })
   const [messages, setMessages] = useState<Message[]>([])
@@ -448,12 +470,18 @@ export default function CommunityPage() {
   const [newContent, setNewContent] = useState('')
   const [newImages, setNewImages] = useState<File[]>([])
   const [posting, setPosting] = useState(false)
+  const [groupComposerOpen, setGroupComposerOpen] = useState(false)
+  const [groupDraft, setGroupDraft] = useState({ name: '', description: '', visibility: 1, allowJoinRequests: true })
+  const [groupActionLoading, setGroupActionLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const selectedRoomInfo = useMemo(
     () => rooms.find(r => r.slug === selectedRoom) ?? rooms[0],
     [rooms, selectedRoom]
   )
+  const selectedMembership = membershipStatus(selectedRoomInfo?.membershipStatus)
+  const canPostInSelectedGroup = selectedRoom === 'alle' || selectedRoomInfo?.isSystem || selectedMembership === 'Owner' || selectedMembership === 'Admin' || selectedMembership === 'Member' || selectedRoomInfo?.visibility === 1 || selectedRoomInfo?.visibility === 'Public'
+  const canManageSelectedGroup = selectedMembership === 'Owner' || selectedMembership === 'Admin'
 
   const loadOnlineUsers = useCallback(async () => {
     try {
@@ -468,6 +496,35 @@ export default function CommunityPage() {
       setMessages(await api.messages.getInbox())
     } catch {
       setMessages([])
+    }
+  }, [])
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const groups = await api.community.getGroups()
+      setRooms(groups.length > 0 ? groups : fallbackRooms)
+    } catch {
+      setRooms(fallbackRooms)
+    }
+  }, [])
+
+  const loadGroupInvitations = useCallback(async () => {
+    try {
+      setGroupInvitations(await api.community.getGroupInvitations())
+    } catch {
+      setGroupInvitations([])
+    }
+  }, [])
+
+  const loadJoinRequests = useCallback(async (group: CommunityRoom | undefined) => {
+    if (!group || group.slug === 'alle' || !(membershipStatus(group.membershipStatus) === 'Owner' || membershipStatus(group.membershipStatus) === 'Admin')) {
+      setJoinRequests([])
+      return
+    }
+    try {
+      setJoinRequests(await api.community.getGroupJoinRequests(group.id))
+    } catch {
+      setJoinRequests([])
     }
   }, [])
 
@@ -489,13 +546,14 @@ export default function CommunityPage() {
     async function loadCommunity() {
       setLoading(true)
       try {
-        const [roomData, feedData, contactData, onlineData, requestData, inboxData] = await Promise.all([
-          api.community.getRooms().catch(() => fallbackRooms),
+        const [roomData, feedData, contactData, onlineData, requestData, inboxData, invitationData] = await Promise.all([
+          api.community.getGroups().catch(() => fallbackRooms),
           api.posts.getFeed(1, selectedRoom, undefined, undefined, undefined, 'community'),
           api.community.getContacts().catch(() => []),
           api.community.getOnlineUsers().catch(() => []),
           api.friends.getRequests().catch(() => ({ incoming: [], outgoing: [] })),
           api.messages.getInbox().catch(() => []),
+          api.community.getGroupInvitations().catch(() => []),
         ])
         if (cancelled) return
         setRooms(roomData.length > 0 ? roomData : fallbackRooms)
@@ -506,6 +564,7 @@ export default function CommunityPage() {
         setOnlineUsers(onlineData)
         setFriendRequests(requestData)
         setMessages(inboxData)
+        setGroupInvitations(invitationData)
         setSelectedContactId(contactData[0]?.id ?? null)
       } finally {
         if (!cancelled) setLoading(false)
@@ -522,14 +581,92 @@ export default function CommunityPage() {
     return () => window.clearInterval(timer)
   }, [isAuthenticated, loadOnlineUsers])
 
-  const handleSelectRoom = (slug: string) => {
-    setSelectedRoom(slug)
+  const handleSelectRoom = (room: CommunityRoom) => {
+    setSelectedRoom(room.slug)
     setPosts([])
+    void loadJoinRequests(room)
+  }
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!groupDraft.name.trim()) return
+    setGroupActionLoading(true)
+    try {
+      const group = await api.community.createGroup({
+        name: groupDraft.name.trim(),
+        description: groupDraft.description.trim() || null,
+        visibility: groupDraft.visibility,
+        allowJoinRequests: groupDraft.visibility !== 3 && groupDraft.allowJoinRequests,
+      })
+      await loadGroups()
+      setSelectedRoom(group.slug)
+      setGroupDraft({ name: '', description: '', visibility: 1, allowJoinRequests: true })
+      setGroupComposerOpen(false)
+      toast('Gruppe oprettet')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke oprette gruppe', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
+  const handleRequestToJoin = async () => {
+    if (!selectedRoomInfo || selectedRoomInfo.slug === 'alle') return
+    setGroupActionLoading(true)
+    try {
+      await api.community.requestToJoinGroup(selectedRoomInfo.id)
+      await loadGroups()
+      toast('Ansøgning sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende ansøgning', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
+  const handleApproveJoinRequest = async (requestId: number) => {
+    if (!selectedRoomInfo) return
+    setGroupActionLoading(true)
+    try {
+      await api.community.approveGroupJoinRequest(selectedRoomInfo.id, requestId)
+      await Promise.all([loadGroups(), loadJoinRequests(selectedRoomInfo)])
+      toast('Medlem godkendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke godkende ansøgning', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
+  const handleInviteContact = async (contactId: string) => {
+    if (!selectedRoomInfo) return
+    setGroupActionLoading(true)
+    try {
+      await api.community.inviteToGroup(selectedRoomInfo.id, contactId)
+      toast('Invitation sendt')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke sende invitation', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
+  }
+
+  const handleAcceptInvitation = async (invitationId: number) => {
+    setGroupActionLoading(true)
+    try {
+      await api.community.acceptGroupInvitation(invitationId)
+      await Promise.all([loadGroups(), loadGroupInvitations()])
+      toast('Invitation accepteret')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Kunne ikke acceptere invitation', 'error')
+    } finally {
+      setGroupActionLoading(false)
+    }
   }
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newContent.trim()) return
+    if (!newContent.trim() || !canPostInSelectedGroup) return
     setPosting(true)
     try {
       const post = await api.posts.create(newContent, selectedRoom)
@@ -616,12 +753,69 @@ export default function CommunityPage() {
           }}
         />
       )}
+      {groupComposerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <form onSubmit={handleCreateGroup} className="w-full max-w-xl rounded-lg border border-gray-800 bg-gray-950 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">Opret gruppe</h2>
+              <button type="button" onClick={() => setGroupComposerOpen(false)} className="text-sm text-gray-400 hover:text-white">Luk</button>
+            </div>
+            <div className="space-y-3">
+              <input
+                value={groupDraft.name}
+                onChange={event => setGroupDraft(current => ({ ...current, name: event.target.value }))}
+                placeholder="Gruppenavn"
+                className="h-10 w-full rounded border border-gray-700 bg-gray-900 px-3 text-sm text-white outline-none focus:border-blue-600"
+              />
+              <textarea
+                value={groupDraft.description}
+                onChange={event => setGroupDraft(current => ({ ...current, description: event.target.value }))}
+                rows={3}
+                placeholder="Kort beskrivelse"
+                className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:border-blue-600"
+              />
+              <div className="grid gap-2">
+                {visibilityOptions.map(option => (
+                  <label key={option.value} className={`cursor-pointer rounded border p-3 ${groupDraft.visibility === option.value ? 'border-blue-600 bg-blue-950/30' : 'border-gray-800 bg-gray-900'}`}>
+                    <span className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="groupVisibility"
+                        checked={groupDraft.visibility === option.value}
+                        onChange={() => setGroupDraft(current => ({ ...current, visibility: option.value, allowJoinRequests: option.value !== 3 && current.allowJoinRequests }))}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-white">{option.label}</span>
+                        <span className="block text-xs text-gray-500">{option.description}</span>
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {groupDraft.visibility !== 3 && (
+                <label className="flex items-center gap-2 text-sm text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={groupDraft.allowJoinRequests}
+                    onChange={event => setGroupDraft(current => ({ ...current, allowJoinRequests: event.target.checked }))}
+                  />
+                  Tillad at andre kan ansøge om medlemskab
+                </label>
+              )}
+              <Button type="submit" disabled={groupActionLoading || !groupDraft.name.trim()}>
+                {groupActionLoading ? 'Opretter...' : 'Opret gruppe'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-start">
         <section className="min-w-0">
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,760px)]">
             <aside className="hidden lg:flex flex-col gap-4 sticky top-20">
               <div>
-                <h1 className="text-2xl font-bold text-white">Community</h1>
+                <h1 className="text-2xl font-bold text-white">Grupper</h1>
                 <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
               </div>
               <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
@@ -631,7 +825,7 @@ export default function CommunityPage() {
                     <button
                       key={room.slug}
                       type="button"
-                      onClick={() => handleSelectRoom(room.slug)}
+                      onClick={() => handleSelectRoom(room)}
                       className={`text-left rounded-md px-3 py-2 text-sm transition-colors ${
                         selectedRoom === room.slug
                           ? 'bg-blue-500/15 text-white border border-blue-500/30'
@@ -639,25 +833,26 @@ export default function CommunityPage() {
                       }`}
                     >
                       <span className="block font-medium">{room.name}</span>
+                      <span className="block text-[11px] text-gray-600">{groupVisibilityLabel(room.visibility)} · {room.memberCount ?? 0} medlemmer</span>
                       {room.description && <span className="block text-xs text-gray-500 truncate">{room.description}</span>}
                     </button>
                   ))}
                 </div>
-                <Button type="button" variant="secondary" className="mt-3 w-full" disabled>
-                  Ny side
+                <Button type="button" variant="secondary" className="mt-3 w-full" onClick={() => setGroupComposerOpen(true)}>
+                  Opret gruppe
                 </Button>
               </div>
             </aside>
 
             <main className="min-w-0">
               <div className="lg:hidden mb-4">
-                <h1 className="text-3xl font-bold text-white mb-3">Community</h1>
+                <h1 className="text-3xl font-bold text-white mb-3">Grupper</h1>
                 <div className="flex gap-2 overflow-x-auto pb-2">
                   {rooms.map(room => (
                     <button
                       key={room.slug}
                       type="button"
-                      onClick={() => handleSelectRoom(room.slug)}
+                      onClick={() => handleSelectRoom(room)}
                       className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${
                         selectedRoom === room.slug
                           ? 'border-blue-500 bg-blue-500/15 text-white'
@@ -674,15 +869,34 @@ export default function CommunityPage() {
                 <CardContent className="py-5">
                   <div className="mb-3">
                     <div className="text-sm font-semibold text-white">{selectedRoomInfo?.name ?? 'Alle opslag'}</div>
-                    <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? 'Del noget med HamHub community.'}</div>
+                    <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? 'Del noget med dine grupper.'}</div>
+                    {selectedRoomInfo && selectedRoomInfo.slug !== 'alle' && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                        <span className="rounded border border-gray-700 px-2 py-1">{groupVisibilityLabel(selectedRoomInfo.visibility)}</span>
+                        <span className="rounded border border-gray-700 px-2 py-1">{selectedRoomInfo.memberCount ?? 0} medlemmer</span>
+                        <span className="rounded border border-gray-700 px-2 py-1">{selectedMembership === 'None' ? 'Ikke medlem' : selectedMembership === 'Pending' ? 'Ansøgning sendt' : 'Medlem'}</span>
+                      </div>
+                    )}
                   </div>
+                  {!canPostInSelectedGroup && selectedMembership !== 'Pending' && selectedRoomInfo?.allowJoinRequests && (
+                    <div className="mb-3 rounded-md border border-yellow-700/40 bg-yellow-950/20 p-3 text-sm text-yellow-100">
+                      Du skal være medlem for at skrive i gruppen.
+                      <Button type="button" size="sm" className="ml-3" onClick={handleRequestToJoin} disabled={groupActionLoading}>
+                        Ansøg om adgang
+                      </Button>
+                    </div>
+                  )}
+                  {!canPostInSelectedGroup && selectedMembership === 'Pending' && (
+                    <div className="mb-3 rounded-md border border-blue-700/40 bg-blue-950/20 p-3 text-sm text-blue-100">Din ansøgning afventer godkendelse.</div>
+                  )}
                   <form onSubmit={handlePost} className="flex flex-col gap-3">
                     <textarea
                       rows={3}
                       value={newContent}
                       onChange={e => setNewContent(e.target.value)}
-                      placeholder="Del noget med community..."
-                      className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none"
+                      placeholder="Del noget med gruppen..."
+                      disabled={!canPostInSelectedGroup}
+                      className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none disabled:opacity-50"
                     />
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm">
@@ -697,13 +911,48 @@ export default function CommunityPage() {
                         />
                       </label>
                       {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
-                      <Button type="submit" disabled={posting || !newContent.trim()} size="sm">
+                      <Button type="submit" disabled={posting || !newContent.trim() || !canPostInSelectedGroup} size="sm">
                         {posting ? 'Poster...' : 'Post'}
                       </Button>
                     </div>
                   </form>
                 </CardContent>
               </Card>
+
+              {canManageSelectedGroup && selectedRoomInfo?.slug !== 'alle' && (
+                <Card className="mb-5">
+                  <CardContent className="space-y-4 py-5">
+                    <div>
+                      <h2 className="text-sm font-semibold text-white">Gruppeadministration</h2>
+                      <p className="text-xs text-gray-500">Godkend ansøgninger og inviter dine kontakter ind.</p>
+                    </div>
+                    {joinRequests.length > 0 && (
+                      <div className="space-y-2">
+                        {joinRequests.map(request => (
+                          <div key={request.id} className="flex items-center justify-between gap-3 rounded border border-gray-800 px-3 py-2">
+                            <span className="text-sm text-gray-200">{request.callsign || request.email || 'Ukendt bruger'}</span>
+                            <Button type="button" size="sm" onClick={() => handleApproveJoinRequest(request.id)} disabled={groupActionLoading}>
+                              Godkend
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {contacts.length > 0 && (
+                      <div>
+                        <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">Inviter kontakt</div>
+                        <div className="flex flex-wrap gap-2">
+                          {contacts.slice(0, 12).map(contact => (
+                            <Button key={contact.id} type="button" size="sm" variant="secondary" onClick={() => handleInviteContact(contact.id)} disabled={groupActionLoading}>
+                              {contact.callsign || contact.email}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {loading && posts.length === 0 ? (
                 <p className="text-gray-400">Indlæser...</p>
@@ -741,6 +990,23 @@ export default function CommunityPage() {
             onOpenProfile={setProfileUser}
             onInboxRefresh={loadInboxMessages}
           />
+
+          {groupInvitations.length > 0 && (
+            <div className="rounded-lg border border-blue-800/60 bg-blue-950/20 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-white">Gruppeinvitationer</h2>
+              <div className="space-y-2">
+                {groupInvitations.map(invitation => (
+                  <div key={invitation.id} className="rounded border border-blue-900/60 bg-gray-950/40 p-3">
+                    <div className="text-sm font-semibold text-blue-100">{invitation.groupName}</div>
+                    <div className="text-xs text-gray-500">Inviteret af {invitation.inviterCallsign || 'en admin'}</div>
+                    <Button type="button" size="sm" className="mt-2" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>
+                      Accepter
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <div className="mb-3 flex items-center justify-between">

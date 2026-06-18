@@ -113,7 +113,7 @@ public static class DataSeeder
     {
         var rooms = new[]
         {
-            new CommunityRoom { Name = "Alle opslag", Slug = "alle", Description = "Hele HamHub community-feedet.", SortOrder = 0, IsSystem = true },
+            new CommunityRoom { Name = "Alle grupper", Slug = "alle", Description = "Opslag fra de grupper du kan se.", SortOrder = 0, IsSystem = true },
             new CommunityRoom { Name = "DX", Slug = "dx", Description = "DX spots, jagt, pileups og sjældne lande.", SortOrder = 10, IsSystem = true },
             new CommunityRoom { Name = "FT8/FT4", Slug = "ft8-ft4", Description = "Digitale modes, WSJT-X og signalrapporter.", SortOrder = 20, IsSystem = true },
             new CommunityRoom { Name = "POTA / SOTA / Awards", Slug = "pota-sota-awards", Description = "Parker, toppe og diplomer.", SortOrder = 25, IsSystem = true },
@@ -134,8 +134,19 @@ public static class DataSeeder
 
         foreach (var room in rooms.Concat(forumRooms))
         {
-            if (!await context.CommunityRooms.AnyAsync(r => r.Slug == room.Slug))
+            var existing = await context.CommunityRooms.FirstOrDefaultAsync(r => r.Slug == room.Slug);
+            if (existing == null)
+            {
                 context.CommunityRooms.Add(room);
+            }
+            else if (existing.IsSystem)
+            {
+                existing.Name = room.Name;
+                existing.Description = room.Description;
+                existing.SortOrder = room.SortOrder;
+                existing.Visibility = room.Visibility;
+                existing.AllowJoinRequests = room.AllowJoinRequests;
+            }
         }
     }
 
@@ -157,7 +168,8 @@ public static class DataSeeder
         - Awards-overblik med worked/confirmed status og QSO backfill
         - Live Roster til WSJT-X decodes og call handling
         - POTA-side med live spots, filtre, kort, personlig progress og official activation link
-        - Community med opslag, kommentarer, likes, chat, venner, beskeder og rapportering
+        - Grupper med opslag, kommentarer, likes, gruppechat, offentlige/private grupper, ansøgninger og invitationer
+        - Venner, private beskeder, online-status og rapportering
         - Forum med kategorier, tags, søgning, svar og løst/åben status
         - Articles/vidensbase
         - Spots og marketplace

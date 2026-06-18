@@ -725,6 +725,29 @@ export interface CommunityRoom {
   description: string | null
   sortOrder: number
   isSystem: boolean
+  visibility?: 'Public' | 'RequestToJoin' | 'InviteOnly' | number
+  allowJoinRequests?: boolean
+  ownerId?: string | null
+  memberCount?: number
+  membershipStatus?: 'None' | 'Owner' | 'Admin' | 'Member' | 'Pending' | number
+}
+
+export interface CommunityGroupJoinRequest {
+  id: number
+  communityRoomId: number
+  userId: string
+  callsign: string | null
+  email: string | null
+  status: string | number
+  createdAt: string
+}
+
+export interface CommunityGroupInvitation {
+  id: number
+  communityRoomId: number
+  groupName: string
+  inviterCallsign: string | null
+  createdAt: string
 }
 
 export interface CommunityContact {

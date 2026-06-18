@@ -37,10 +37,16 @@ public class PostsController : ControllerBase
         var query = _context.Posts
             .Include(p => p.User)
             .Include(p => p.CommunityRoom)
+                .ThenInclude(r => r!.Memberships)
             .Include(p => p.Images)
             .Include(p => p.Likes)
             .Include(p => p.Comments)
             .AsQueryable();
+
+        query = query.Where(p =>
+            p.CommunityRoom == null ||
+            p.CommunityRoom.Visibility != CommunityGroupVisibility.InviteOnly ||
+            (UserId != null && p.CommunityRoom.Memberships.Any(m => m.UserId == UserId)));
 
         var normalizedScope = scope?.Trim().ToLowerInvariant();
         if (normalizedScope == "forum")
@@ -111,8 +117,11 @@ public class PostsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(req.RoomSlug) && !req.RoomSlug.Equals("alle", StringComparison.OrdinalIgnoreCase))
         {
             var normalizedRoom = req.RoomSlug.Trim().ToLowerInvariant();
-            room = await _context.CommunityRooms.FirstOrDefaultAsync(r => r.Slug == normalizedRoom);
+            room = await _context.CommunityRooms
+                .Include(r => r.Memberships)
+                .FirstOrDefaultAsync(r => r.Slug == normalizedRoom);
             if (room == null) return BadRequest("Community-rum ikke fundet");
+            if (!CanPostInRoom(room)) return Forbid();
         }
 
         var post = new Post
@@ -333,6 +342,14 @@ public class PostsController : ControllerBase
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(8)
             .ToArray();
+    }
+
+    private bool CanPostInRoom(CommunityRoom room)
+    {
+        if (room.Slug.StartsWith("forum-")) return true;
+        if (room.Visibility == CommunityGroupVisibility.Public && !room.IsSystem) return true;
+        if (room.IsSystem && room.Visibility == CommunityGroupVisibility.Public) return true;
+        return room.Memberships.Any(m => m.UserId == UserId);
     }
 }
 

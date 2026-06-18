@@ -36,6 +36,7 @@ public class ChatController : ControllerBase
     {
         var room = await FindRoomAsync(roomSlug);
         if (roomSlug != "alle" && room == null) return NotFound("Chatrum ikke fundet");
+        if (room != null && !CanAccessRoom(room)) return Forbid();
 
         var clampedLimit = Math.Clamp(limit, 1, 200);
         var query = _context.ChatMessages
@@ -65,6 +66,7 @@ public class ChatController : ControllerBase
 
         var room = await FindRoomAsync(roomSlug);
         if (roomSlug != "alle" && room == null) return NotFound("Chatrum ikke fundet");
+        if (room != null && !CanAccessRoom(room)) return Forbid();
 
         var message = new ChatMessage
         {
@@ -103,7 +105,16 @@ public class ChatController : ControllerBase
             ? "alle"
             : roomSlug.Trim().ToLowerInvariant();
         if (normalized == "alle") return null;
-        return await _context.CommunityRooms.FirstOrDefaultAsync(r => r.Slug == normalized);
+        return await _context.CommunityRooms
+            .Include(r => r.Memberships)
+            .FirstOrDefaultAsync(r => r.Slug == normalized);
+    }
+
+    private bool CanAccessRoom(CommunityRoom room)
+    {
+        if (room.Slug.StartsWith("forum-")) return false;
+        if (room.Visibility == CommunityGroupVisibility.Public) return true;
+        return room.Memberships.Any(m => m.UserId == UserId);
     }
 
     private static ChatMessageDto MapDto(ChatMessage message) => new(
