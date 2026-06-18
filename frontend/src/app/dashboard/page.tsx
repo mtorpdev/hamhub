@@ -6,7 +6,6 @@ import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { BandLabels, ModeLabels, type Qso, type DxSpot, type QsoMufFof2 } from '@/lib/types'
-import { formatDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 
 export default function DashboardPage() {

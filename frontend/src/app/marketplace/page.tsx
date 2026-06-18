@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ListingCategory, ListingCategoryLabels, ListingConditionLabels, type Listing } from '@/lib/types'
+import { ListingCategoryLabels, type Listing } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
@@ -23,7 +23,11 @@ export default function MarketplacePage() {
     api.listings.getAll(cat, s).then(setListings).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.listings.getAll()
+      .then(setListings)
+      .finally(() => setLoading(false))
+  }, [])
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -82,6 +86,7 @@ export default function MarketplacePage() {
               <Card className="h-full hover:border-gray-600 transition-colors">
                 <div className="aspect-video bg-gray-800 rounded-t-lg overflow-hidden">
                   {l.images.length > 0 ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={`${API_URL}${l.images[0].url}`}
                       alt={l.title}

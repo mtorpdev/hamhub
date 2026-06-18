@@ -6,15 +6,13 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { BandLabels, ModeLabels, type User, type Station, type Qso } from '@/lib/types'
+import { BandLabels, ModeLabels, type User, type Station } from '@/lib/types'
 import { type QrzCallsignInfo } from '@/lib/types'
-import { formatDate } from '@/lib/utils'
 
 export default function CallsignSearchPage() {
   const [callsign, setCallsign] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [stations, setStations] = useState<Station[]>([])
-  const [qsos, setQsos] = useState<Qso[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -23,7 +21,10 @@ export default function CallsignSearchPage() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (callsign.length < 3) { setQrzInfo(null); return }
+    if (callsign.length < 3) {
+      debounceRef.current = setTimeout(() => setQrzInfo(null), 0)
+      return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    }
     debounceRef.current = setTimeout(async () => {
       try {
         const info = await api.qrz.lookup(callsign)
@@ -42,7 +43,6 @@ export default function CallsignSearchPage() {
     setError('')
     setUser(null)
     setStations([])
-    setQsos([])
     setSearched(true)
     try {
       const found = await api.users.searchByCallsign(callsign.trim())
@@ -118,6 +118,7 @@ export default function CallsignSearchPage() {
             <CardTitle className="flex items-center gap-3">
               QRZ: {qrzInfo.callsign}
               {qrzInfo.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={qrzInfo.imageUrl} alt={qrzInfo.callsign} className="h-10 w-10 rounded-full object-cover" />
               )}
             </CardTitle>

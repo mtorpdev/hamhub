@@ -23,7 +23,11 @@ export default function MyListingsPage() {
     api.listings.getMine().then(setListings).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.listings.getMine()
+      .then(setListings)
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleMarkSold = async (id: number) => {
     try {
@@ -64,6 +68,7 @@ export default function MyListingsPage() {
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-16 bg-gray-800 rounded overflow-hidden flex-shrink-0">
                     {l.images.length > 0 ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={`${API_URL}${l.images[0].url}`} alt={l.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-600 text-2xl">📻</div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -27,14 +27,14 @@ export function ImageDropzone({
 }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [previews, setPreviews] = useState<Preview[]>([])
+  const previews = useMemo<Preview[]>(
+    () => files.map(file => ({ file, url: URL.createObjectURL(file) })),
+    [files])
   const remaining = Math.max(0, maxFiles - existingCount - files.length)
 
   useEffect(() => {
-    const next = files.map(file => ({ file, url: URL.createObjectURL(file) }))
-    setPreviews(next)
-    return () => next.forEach(preview => URL.revokeObjectURL(preview.url))
-  }, [files])
+    return () => previews.forEach(preview => URL.revokeObjectURL(preview.url))
+  }, [previews])
 
   const addFiles = (incoming: FileList | File[]) => {
     const available = maxFiles - existingCount - files.length
@@ -109,6 +109,7 @@ export function ImageDropzone({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {previews.map((preview, index) => (
             <div key={fileKey(preview.file)} className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview.url} alt="" className="aspect-square w-full object-cover" />
               <button
                 type="button"

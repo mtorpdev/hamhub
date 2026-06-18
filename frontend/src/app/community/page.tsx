@@ -110,6 +110,7 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
         {post.images.length > 0 && (
           <div className={`grid gap-2 mb-3 ${post.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {post.images.map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
               <img key={i} src={`${API_URL}${url}`} alt="" className="rounded-lg w-full object-cover max-h-80" />
             ))}
           </div>

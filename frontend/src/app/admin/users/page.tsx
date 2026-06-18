@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
 import type { User } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 

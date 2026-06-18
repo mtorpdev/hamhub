@@ -18,25 +18,25 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [roles, setRoles] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [token, setToken] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : localStorage.getItem('token'))
+  const [roles, setRoles] = useState<string[]>(() =>
+    typeof window === 'undefined' ? [] : JSON.parse(localStorage.getItem('roles') || '[]'))
+  const [isLoading, setIsLoading] = useState(() =>
+    typeof window !== 'undefined' && !!localStorage.getItem('token'))
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token')
-    if (storedToken) {
-      setToken(storedToken)
-      api.users.me()
-        .then(u => setUser(u))
-        .catch(() => { localStorage.removeItem('token'); setToken(null) })
-        .finally(() => setIsLoading(false))
-
-      const storedRoles = JSON.parse(localStorage.getItem('roles') || '[]')
-      setRoles(storedRoles)
-    } else {
-      setIsLoading(false)
-    }
-  }, [])
+    if (!token) return
+    api.users.me()
+      .then(u => setUser(u))
+      .catch(() => {
+        localStorage.removeItem('token')
+        localStorage.removeItem('roles')
+        setToken(null)
+        setRoles([])
+      })
+      .finally(() => setIsLoading(false))
+  }, [token])
 
   const login = async (email: string, password: string) => {
     const res = await api.auth.login(email, password)

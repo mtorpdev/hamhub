@@ -66,6 +66,7 @@ export default function ListingPage() {
         <div>
           <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden mb-3">
             {listing.images.length > 0 ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={`${API_URL}${listing.images[activeImg]?.url}`}
                 alt={listing.title}
@@ -83,6 +84,7 @@ export default function ListingPage() {
                   onClick={() => setActiveImg(i)}
                   className={`w-16 h-16 rounded overflow-hidden border-2 transition-colors ${i === activeImg ? 'border-blue-500' : 'border-gray-700'}`}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`${API_URL}${img.url}`} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}

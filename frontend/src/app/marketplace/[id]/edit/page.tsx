@@ -104,6 +104,7 @@ export default function EditListingPage() {
                 <div className="flex gap-2 flex-wrap">
                   {listing.images.map(img => (
                     <div key={img.id} className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={`${API_URL}${img.url}`} alt="" className="w-20 h-16 object-cover rounded" />
                       <button
                         type="button"
