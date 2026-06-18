@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { BandLabels, ModeLabels, type Qso } from '@/lib/types'
 import { formatTime } from '../decodeFormatters'
+import { type PotaQsoSuggestion } from '../potaQsoSuggestion'
 import { type QsoEditForm } from '../qsoEdit'
 
 type LoggedQsoPopupProps = {
@@ -12,6 +13,7 @@ type LoggedQsoPopupProps = {
   qsoForm: QsoEditForm
   qsoSaving: boolean
   qsoSaveStatus: string | null
+  potaSuggestion: PotaQsoSuggestion | null
   onQsoFieldChange: (key: keyof QsoEditForm) => ChangeEventHandler<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   onSaveLoggedQso: FormEventHandler<HTMLFormElement>
   onClose: () => void
@@ -22,6 +24,7 @@ export default function LoggedQsoPopup({
   qsoForm,
   qsoSaving,
   qsoSaveStatus,
+  potaSuggestion,
   onQsoFieldChange,
   onSaveLoggedQso,
   onClose,
@@ -71,6 +74,25 @@ export default function LoggedQsoPopup({
             <Input label="Kontaktens grid" value={qsoForm.locator} onChange={onQsoFieldChange('locator')} />
             <Input label="Mit grid" value={qsoForm.myGridsquare} onChange={onQsoFieldChange('myGridsquare')} />
             <Input label="Land" value={qsoForm.country} onChange={onQsoFieldChange('country')} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
+            <Input label="POTA refs" value={qsoForm.potaRefs} onChange={onQsoFieldChange('potaRefs')} placeholder="US-0001" />
+            <div className="rounded-md border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-gray-300">
+              {potaSuggestion ? (
+                <>
+                  <p className="font-semibold text-cyan-200">POTA forslag: {potaSuggestion.reference}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {potaSuggestion.activator}{potaSuggestion.parkName ? ` · ${potaSuggestion.parkName}` : ''} · {formatTime(potaSuggestion.spotTimeUtc)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-gray-400">Ingen POTA match fundet</p>
+                  <p className="mt-1 text-xs text-gray-500">Du kan stadig udfylde POTA refs manuelt før du gemmer.</p>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">

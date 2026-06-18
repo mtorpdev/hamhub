@@ -20,7 +20,7 @@ export default function NewQsoPage() {
   const [form, setForm] = useState({
     dateUtc: now, ownCallsign: user?.callsign || '', workedCallsign: '',
     band: Band.M20, frequency: '', mode: Mode.SSB,
-    rstSent: '59', rstReceived: '59', locator: '', country: '', notes: ''
+    rstSent: '59', rstReceived: '59', locator: '', country: '', potaRefs: '', notes: ''
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -77,6 +77,7 @@ export default function NewQsoPage() {
               <Input label="Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
               <Input label="Land" value={form.country} onChange={set('country')} />
             </div>
+            <Input label="POTA refs" value={form.potaRefs} onChange={set('potaRefs')} placeholder="US-0001" />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-300">Noter</label>
               <textarea rows={2} value={form.notes} onChange={set('notes')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
