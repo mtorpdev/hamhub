@@ -8,6 +8,7 @@ import { stationOptionLabel } from '@/app/logbook/stationGrid'
 import { formatTime } from '../decodeFormatters'
 import { type PotaQsoSuggestion } from '../potaQsoSuggestion'
 import { type QsoEditForm } from '../qsoEdit'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 type LoggedQsoPopupProps = {
   qso: Qso
@@ -34,57 +35,59 @@ export default function LoggedQsoPopup({
   onSaveLoggedQso,
   onClose,
 }: LoggedQsoPopupProps) {
+  const { t } = useLanguage()
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
       <form onSubmit={onSaveLoggedQso} className="max-h-[92vh] w-full max-w-4xl overflow-auto rounded-lg border border-gray-700 bg-gray-950 shadow-2xl">
         <div className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-gray-800 bg-gray-950 px-5 py-4">
           <div>
-            <p className="text-xs uppercase text-green-300">QSO logget automatisk</p>
+            <p className="text-xs uppercase text-green-300">{t('qso.autoLogged')}</p>
             <h2 className="mt-1 font-mono text-2xl font-bold text-white">{qso.workedCallsign}</h2>
             <p className="mt-1 text-sm text-gray-400">
-              QSO #{qso.id} fra WSJT-X kl. {formatTime(qso.dateUtc)}. Ret felterne og gem i HamHub.
+              {t('qso.popupDescription', { id: qso.id, time: formatTime(qso.dateUtc) })}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={() => window.open(`/logbook/${qso.id}`, '_blank')}>
-              Åbn fuld QSO
+              {t('qso.openFull')}
             </Button>
             <button
               type="button"
               onClick={onClose}
               className="rounded border border-gray-700 px-3 py-2 text-sm font-semibold text-gray-300 hover:bg-gray-800"
-              aria-label="Luk logget QSO popup"
+              aria-label={t('qso.closePopup')}
             >
-              Luk
+              {t('common.close')}
             </button>
           </div>
         </div>
 
         <div className="space-y-4 px-5 py-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <Input label="Dato/tid UTC" type="datetime-local" value={qsoForm.dateUtc} onChange={onQsoFieldChange('dateUtc')} required />
-            <Input label="Eget kaldesignal" value={qsoForm.ownCallsign} onChange={onQsoFieldChange('ownCallsign')} required />
-            <Input label="Kontaktens kaldesignal" value={qsoForm.workedCallsign} onChange={onQsoFieldChange('workedCallsign')} required />
-            <Input label="Frekvens (MHz)" type="number" step="0.001" value={qsoForm.frequency} onChange={onQsoFieldChange('frequency')} />
+            <Input label={t('qso.dateTimeUtc')} type="datetime-local" value={qsoForm.dateUtc} onChange={onQsoFieldChange('dateUtc')} required />
+            <Input label={t('qso.ownCallsign')} value={qsoForm.ownCallsign} onChange={onQsoFieldChange('ownCallsign')} required />
+            <Input label={t('qso.workedCallsign')} value={qsoForm.workedCallsign} onChange={onQsoFieldChange('workedCallsign')} required />
+            <Input label={t('qso.frequencyMhz')} type="number" step="0.001" value={qsoForm.frequency} onChange={onQsoFieldChange('frequency')} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            <SelectField label="Band" value={qsoForm.band} onChange={onQsoFieldChange('band')} options={BandLabels} />
-            <SelectField label="Mode" value={qsoForm.mode} onChange={onQsoFieldChange('mode')} options={ModeLabels} />
-            <Input label="RST sendt" value={qsoForm.rstSent} onChange={onQsoFieldChange('rstSent')} />
-            <Input label="RST modtaget" value={qsoForm.rstReceived} onChange={onQsoFieldChange('rstReceived')} />
+            <SelectField label={t('qso.band')} value={qsoForm.band} onChange={onQsoFieldChange('band')} options={BandLabels} />
+            <SelectField label={t('qso.mode')} value={qsoForm.mode} onChange={onQsoFieldChange('mode')} options={ModeLabels} />
+            <Input label={t('qso.rstSent')} value={qsoForm.rstSent} onChange={onQsoFieldChange('rstSent')} />
+            <Input label={t('qso.rstReceived')} value={qsoForm.rstReceived} onChange={onQsoFieldChange('rstReceived')} />
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <Input label="Kontaktens grid" value={qsoForm.locator} onChange={onQsoFieldChange('locator')} />
-            <Input label="Mit grid" value={qsoForm.myGridsquare} onChange={onQsoFieldChange('myGridsquare')} />
-            <Input label="Land" value={qsoForm.country} onChange={onQsoFieldChange('country')} />
+            <Input label={t('qso.contactGrid')} value={qsoForm.locator} onChange={onQsoFieldChange('locator')} />
+            <Input label={t('qso.myGrid')} value={qsoForm.myGridsquare} onChange={onQsoFieldChange('myGridsquare')} />
+            <Input label={t('qso.country')} value={qsoForm.country} onChange={onQsoFieldChange('country')} />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-300">Min station / rig</label>
+            <label className="text-sm font-medium text-gray-300">{t('qso.myStationRig')}</label>
             <select value={qsoForm.stationId} onChange={onStationChange} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
-              <option value="">VÃ¦lg station</option>
+              <option value="">{t('qso.selectStation')}</option>
               {stations.map(station => (
                 <option key={station.id} value={station.id}>{stationOptionLabel(station)}</option>
               ))}
@@ -96,28 +99,28 @@ export default function LoggedQsoPopup({
             <div className="rounded-md border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-gray-300">
               {potaSuggestion ? (
                 <>
-                  <p className="font-semibold text-cyan-200">POTA forslag: {potaSuggestion.reference}</p>
+                  <p className="font-semibold text-cyan-200">{t('qso.potaSuggestion', { reference: potaSuggestion.reference })}</p>
                   <p className="mt-1 text-xs text-gray-500">
                     {potaSuggestion.activator}{potaSuggestion.parkName ? ` · ${potaSuggestion.parkName}` : ''} · {formatTime(potaSuggestion.spotTimeUtc)}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="font-semibold text-gray-400">Ingen POTA match fundet</p>
-                  <p className="mt-1 text-xs text-gray-500">Du kan stadig udfylde POTA refs manuelt før du gemmer.</p>
+                  <p className="font-semibold text-gray-400">{t('qso.noPotaMatch')}</p>
+                  <p className="mt-1 text-xs text-gray-500">{t('qso.noPotaHelp')}</p>
                 </>
               )}
             </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
-            <Input label="Navn" value={qsoForm.name} onChange={onQsoFieldChange('name')} />
+            <Input label={t('qso.name')} value={qsoForm.name} onChange={onQsoFieldChange('name')} />
             <Input label="QTH" value={qsoForm.qth} onChange={onQsoFieldChange('qth')} />
-            <Input label="TX effekt (W)" type="number" step="0.1" value={qsoForm.txPower} onChange={onQsoFieldChange('txPower')} />
+            <Input label={t('qso.txPower')} type="number" step="0.1" value={qsoForm.txPower} onChange={onQsoFieldChange('txPower')} />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-300">Kommentar</label>
+            <label className="text-sm font-medium text-gray-300">{t('qso.comment')}</label>
             <textarea
               rows={3}
               value={qsoForm.comment}
@@ -129,7 +132,7 @@ export default function LoggedQsoPopup({
 
         <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-gray-800 bg-gray-950 px-5 py-4">
           {qsoSaveStatus && <p className="text-sm text-gray-300">{qsoSaveStatus}</p>}
-          <Button type="submit" disabled={qsoSaving}>{qsoSaving ? 'Gemmer...' : 'Gem QSO og luk'}</Button>
+          <Button type="submit" disabled={qsoSaving}>{qsoSaving ? t('common.saving') : t('qso.saveAndClose')}</Button>
         </div>
       </form>
     </div>

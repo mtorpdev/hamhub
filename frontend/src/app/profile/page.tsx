@@ -10,11 +10,15 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { pageShellClass } from '@/lib/layout'
 import { stationOptionLabel } from '@/app/logbook/stationGrid'
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
+import { useLanguage } from '@/i18n/LanguageContext'
+import { formatDateTime } from '@/i18n/format'
 
 export default function ProfilePage() {
   const { user } = useAuth()
   useRequireAuth()
   const { toast } = useToast()
+  const { t, language } = useLanguage()
   const [activeTab, setActiveTab] = useState<'profile' | 'integrations' | 'agent' | 'friends' | 'blocks'>(() => {
     if (typeof window === 'undefined') return 'profile'
     const tab = new URLSearchParams(window.location.search).get('tab')
@@ -54,7 +58,7 @@ export default function ProfilePage() {
     try {
       setFriends(await api.friends.getAll())
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke hente venner', 'error')
+      toast(err instanceof Error ? err.message : t('profile.friends.loadFailed'), 'error')
     } finally {
       setFriendsLoading(false)
     }
@@ -65,7 +69,7 @@ export default function ProfilePage() {
     try {
       setBlockedUsers(await api.safety.getBlockedUsers())
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke hente blokeringer', 'error')
+      toast(err instanceof Error ? err.message : t('profile.blocks.loadFailed'), 'error')
     } finally {
       setBlocksLoading(false)
     }
@@ -128,7 +132,7 @@ export default function ProfilePage() {
         visibility: Number(form.visibility),
         defaultStationId: form.defaultStationId ? Number(form.defaultStationId) : null,
       } as never)
-      toast('Profil gemt!')
+      toast(t('profile.saved'))
     } finally {
       setLoading(false)
     }
@@ -137,7 +141,7 @@ export default function ProfilePage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast('Den nye adgangskode matcher ikke gentagelsen.', 'error')
+      toast(t('profile.passwordMismatch'), 'error')
       return
     }
 
@@ -145,9 +149,9 @@ export default function ProfilePage() {
     try {
       await api.users.changePassword(passwordForm)
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
-      toast('Adgangskode opdateret!')
+      toast(t('profile.passwordUpdated'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke skifte adgangskode', 'error')
+      toast(err instanceof Error ? err.message : t('profile.passwordUpdateFailed'), 'error')
     } finally {
       setPasswordLoading(false)
     }
@@ -159,12 +163,12 @@ export default function ProfilePage() {
     setQrzLoading(true)
     try {
       await api.qrz.saveKey(qrzKey.trim())
-      toast('QRZ API nøgle gemt og verificeret!')
+      toast(t('profile.qrzKeySaved'))
       setQrzKey('')
       const status = await api.qrz.status()
       setQrzStatus(status)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke gemme QRZ nøgle', 'error')
+      toast(err instanceof Error ? err.message : t('profile.qrzKeySaveFailed'), 'error')
     } finally {
       setQrzLoading(false)
     }
@@ -176,13 +180,13 @@ export default function ProfilePage() {
     setQrzXmlLoading(true)
     try {
       await api.qrz.saveCredentials(qrzXmlUsername.trim(), qrzXmlPassword)
-      toast('QRZ brugernavn og adgangskode gemt og verificeret!')
+      toast(t('profile.qrzCredentialsSaved'))
       setQrzXmlUsername('')
       setQrzXmlPassword('')
       const status = await api.qrz.status()
       setQrzStatus(status)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke gemme QRZ credentials', 'error')
+      toast(err instanceof Error ? err.message : t('profile.qrzCredentialsSaveFailed'), 'error')
     } finally {
       setQrzXmlLoading(false)
     }
@@ -201,9 +205,9 @@ export default function ProfilePage() {
         setQrzStatus(status)
         if (status.lastSyncedAt !== prevSyncedAt) break
       }
-      toast('QRZ synkronisering fuldført!')
+      toast(t('profile.qrzSyncComplete'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Synkronisering mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('profile.syncFailed'), 'error')
     } finally {
       setQrzSyncing(false)
     }
@@ -215,13 +219,13 @@ export default function ProfilePage() {
     setEqslLoading(true)
     try {
       await api.eqsl.saveCredentials(eqslUsername.trim(), eqslPassword, eqslQthNickname.trim() || undefined)
-      toast('eQSL login gemt!')
+      toast(t('profile.eqslSaved'))
       setEqslUsername('')
       setEqslPassword('')
       setEqslQthNickname('')
       setEqslStatus(await api.eqsl.status())
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke gemme eQSL login', 'error')
+      toast(err instanceof Error ? err.message : t('profile.eqslSaveFailed'), 'error')
     } finally {
       setEqslLoading(false)
     }
@@ -233,12 +237,12 @@ export default function ProfilePage() {
     setLotwLoading(true)
     try {
       await api.lotw.saveCredentials(lotwUsername.trim(), lotwPassword)
-      toast('LoTW login gemt og verificeret!')
+      toast(t('profile.lotwCredentialsSaved'))
       setLotwUsername('')
       setLotwPassword('')
       setLotwStatus(await api.lotw.status())
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke gemme LoTW login', 'error')
+      toast(err instanceof Error ? err.message : t('profile.lotwCredentialsSaveFailed'), 'error')
     } finally {
       setLotwLoading(false)
     }
@@ -249,41 +253,45 @@ export default function ProfilePage() {
     try {
       const result = await api.lotw.sync()
       setLotwStatus(await api.lotw.status())
-      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.checkedNotFound} tjekket uden match, ${result.unmatched} ikke matchet.`)
+      toast(t('profile.lotwSyncComplete', {
+        confirmed: result.confirmed,
+        checkedNotFound: result.checkedNotFound,
+        unmatched: result.unmatched,
+      }))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('profile.syncFailed'), 'error')
     } finally {
       setLotwSyncing(false)
     }
   }
 
   const handleRemoveFriend = async (friend: Friendship) => {
-    const label = friend.otherCallsign || friend.otherName || friend.otherEmail || 'denne ven'
-    if (!window.confirm(`Fjern ${label} som ven?`)) return
+    const label = friend.otherCallsign || friend.otherName || friend.otherEmail || t('profile.friends.title').toLowerCase()
+    if (!window.confirm(t('profile.friends.removeConfirm', { label }))) return
 
     setRemovingFriendId(friend.otherUserId)
     try {
       await api.friends.remove(friend.otherUserId)
       setFriends(items => items.filter(item => item.otherUserId !== friend.otherUserId))
-      toast('Vennen er fjernet.')
+      toast(t('profile.friends.removed'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke fjerne ven', 'error')
+      toast(err instanceof Error ? err.message : t('profile.friends.removeFailed'), 'error')
     } finally {
       setRemovingFriendId(null)
     }
   }
 
   const handleUnblock = async (blocked: BlockedUser) => {
-    const label = blocked.callsign || blocked.name || blocked.email || 'denne bruger'
-    if (!window.confirm(`Fjern blokering af ${label}?`)) return
+    const label = blocked.callsign || blocked.name || blocked.email || t('profile.blocks.thisUser')
+    if (!window.confirm(t('profile.blocks.unblockConfirm', { label }))) return
 
     setUnblockingUserId(blocked.userId)
     try {
       await api.safety.unblockUser(blocked.userId)
       setBlockedUsers(items => items.filter(item => item.userId !== blocked.userId))
-      toast('Blokering fjernet.')
+      toast(t('profile.blocks.unblocked'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke fjerne blokering', 'error')
+      toast(err instanceof Error ? err.message : t('profile.blocks.unblockFailed'), 'error')
     } finally {
       setUnblockingUserId(null)
     }
@@ -291,15 +299,15 @@ export default function ProfilePage() {
 
   return (
     <div className={pageShellClass}>
-      <h1 className="text-3xl font-bold text-white mb-8">Min Profil</h1>
+      <h1 className="text-3xl font-bold text-white mb-8">{t('profile.title')}</h1>
 
       <div className="mb-6 flex flex-wrap gap-2 border-b border-gray-800">
         {[
-          { id: 'profile', label: 'Profil' },
-          { id: 'integrations', label: 'Integrationer' },
-          { id: 'agent', label: 'WSJT-X Agent' },
-          { id: 'friends', label: 'Venner' },
-          { id: 'blocks', label: 'Blokeringer' },
+          { id: 'profile', label: t('profile.tabs.profile') },
+          { id: 'integrations', label: t('profile.tabs.integrations') },
+          { id: 'agent', label: t('profile.tabs.agent') },
+          { id: 'friends', label: t('profile.tabs.friends') },
+          { id: 'blocks', label: t('profile.tabs.blocks') },
         ].map(tab => (
           <button
             key={tab.id}
@@ -319,53 +327,54 @@ export default function ProfilePage() {
       {activeTab === 'profile' && (
         <div className="flex flex-col gap-6">
           <Card>
-            <CardHeader><CardTitle>Profilindstillinger</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.settings')}</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                <Input label="Kaldesignal" value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input label="Fornavn" value={form.firstName} onChange={set('firstName')} />
-                  <Input label="Efternavn" value={form.lastName} onChange={set('lastName')} />
+                <div className="rounded-md border border-gray-800 bg-gray-950/50 p-3">
+                  <LanguageSwitcher />
                 </div>
-                <Input label="Land" value={form.country} onChange={set('country')} />
-                <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
+                <Input label={t('profile.callsign')} value={form.callsign} onChange={set('callsign')} placeholder="OZ1ABC" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input label={t('profile.firstName')} value={form.firstName} onChange={set('firstName')} />
+                  <Input label={t('profile.lastName')} value={form.lastName} onChange={set('lastName')} />
+                </div>
+                <Input label={t('profile.country')} value={form.country} onChange={set('country')} />
+                <Input label={t('profile.gridLocator')} value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-300">Default station til QSO grid</label>
+                  <label className="text-sm font-medium text-gray-300">{t('profile.defaultStation')}</label>
                   <select value={form.defaultStationId} onChange={set('defaultStationId')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                    <option value="">Ingen default station</option>
+                    <option value="">{t('profile.noDefaultStation')}</option>
                     {stations.map(station => (
                       <option key={station.id} value={station.id}>
                         {stationOptionLabel(station)}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500">
-                    Bruges til automatisk at sÃ¦tte Mit grid pÃ¥ nye og automatisk loggede QSOer.
-                  </p>
+                  <p className="text-xs text-gray-500">{t('profile.defaultStationHelp')}</p>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-300">Om mig</label>
+                  <label className="text-sm font-medium text-gray-300">{t('profile.aboutMe')}</label>
                   <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-300">Synlighed</label>
+                  <label className="text-sm font-medium text-gray-300">{t('profile.visibility')}</label>
                   <select value={form.visibility} onChange={set('visibility')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                    <option value={ProfileVisibility.Public}>Offentlig</option>
-                    <option value={ProfileVisibility.MembersOnly}>Kun medlemmer</option>
-                    <option value={ProfileVisibility.Private}>Privat</option>
+                    <option value={ProfileVisibility.Public}>{t('profile.visibility.public')}</option>
+                    <option value={ProfileVisibility.MembersOnly}>{t('profile.visibility.membersOnly')}</option>
+                    <option value={ProfileVisibility.Private}>{t('profile.visibility.private')}</option>
                   </select>
                 </div>
-                <Button type="submit" disabled={loading}>{loading ? 'Gemmer...' : 'Gem profil'}</Button>
+                <Button type="submit" disabled={loading}>{loading ? t('common.saving') : t('profile.saveProfile')}</Button>
               </form>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Skift adgangskode</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.changePassword')}</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
                 <Input
-                  label="Nuværende adgangskode"
+                  label={t('profile.currentPassword')}
                   type="password"
                   value={passwordForm.currentPassword}
                   onChange={setPassword('currentPassword')}
@@ -373,14 +382,14 @@ export default function ProfilePage() {
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
-                    label="Ny adgangskode"
+                    label={t('profile.newPassword')}
                     type="password"
                     value={passwordForm.newPassword}
                     onChange={setPassword('newPassword')}
                     autoComplete="new-password"
                   />
                   <Input
-                    label="Gentag ny adgangskode"
+                    label={t('profile.confirmPassword')}
                     type="password"
                     value={passwordForm.confirmPassword}
                     onChange={setPassword('confirmPassword')}
@@ -396,7 +405,7 @@ export default function ProfilePage() {
                     !passwordForm.confirmPassword
                   }
                 >
-                  {passwordLoading ? 'Opdaterer...' : 'Opdater adgangskode'}
+                  {passwordLoading ? t('profile.updating') : t('profile.changePassword')}
                 </Button>
               </form>
             </CardContent>
@@ -407,35 +416,35 @@ export default function ProfilePage() {
       {activeTab === 'integrations' && (
         <div className="flex flex-col gap-6">
           <Card>
-            <CardHeader><CardTitle>QRZ Integration</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.integration.qrzLogbook')}</CardTitle></CardHeader>
             <CardContent>
               {qrzStatus?.connected ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-green-400 text-sm">
-                    Tilsluttet som {qrzStatus.qrzCallsign || 'ukendt'}
+                    {qrzStatus.qrzCallsign ? t('profile.connectedAs', { name: qrzStatus.qrzCallsign }) : t('profile.connectedAsUnknown')}
                     {qrzStatus.lastSyncedAt && (
                       <span className="text-gray-400 ml-2">
-                        Sidst synkroniseret: {new Date(qrzStatus.lastSyncedAt).toLocaleString('da-DK')}
+                        {t('profile.lastSynced', { date: formatDateTime(qrzStatus.lastSyncedAt, language) })}
                       </span>
                     )}
                   </p>
                   <Button onClick={handleQrzSync} disabled={qrzSyncing} variant="secondary">
-                    {qrzSyncing ? 'Synkroniserer...' : 'Synkroniser nu'}
+                    {qrzSyncing ? t('profile.syncing') : t('profile.syncNow')}
                   </Button>
                 </div>
               ) : qrzStatus?.credentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  QRZ Logbook-nøglen er gemt, men skal gemmes igen for at forny den sikre forbindelse.
+                  {t('profile.qrzKeyRenew')}
                 </p>
               ) : (
-                <p className="text-gray-400 text-sm mb-3">Ikke tilsluttet QRZ Logbook.</p>
+                <p className="text-gray-400 text-sm mb-3">{t('profile.notConnectedQrzLogbook')}</p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                Synkroniser din HamHub-logbog med QRZ Logbook. HamHub matcher eksisterende QSOer og sender lokale QSOer, der mangler en QRZ-reference.
+                {t('profile.qrzLogbookHelp')}
               </div>
               <form onSubmit={handleSaveQrzKey} className="flex flex-col gap-3 mt-4">
                 <Input
-                  label={`QRZ Logbook API nøgle${qrzStatus?.connected ? ' (efterlad tom for at beholde eksisterende)' : ''}`}
+                  label={qrzStatus?.connected ? t('profile.qrzApiKeyOptional') : t('profile.qrzApiKey')}
                   type="password"
                   value={qrzKey}
                   onChange={e => setQrzKey(e.target.value.toUpperCase())}
@@ -443,152 +452,152 @@ export default function ProfilePage() {
                   autoComplete="off"
                 />
                 <Button type="submit" disabled={qrzLoading || !qrzKey.trim()}>
-                  {qrzLoading ? 'Verificerer...' : 'Gem og verificer'}
+                  {qrzLoading ? t('profile.verifying') : t('profile.verifyAndSave')}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>QRZ Kaldesignals-opslag</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.integration.qrzLookup')}</CardTitle></CardHeader>
             <CardContent>
               {qrzStatus?.xmlConnected ? (
                 <p className="text-green-400 text-sm mb-3">
-                  Tilsluttet som {qrzStatus.qrzUsername}
+                  {t('profile.connectedAs', { name: qrzStatus.qrzUsername || t('common.unknown') })}
                 </p>
               ) : qrzStatus?.xmlCredentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  QRZ XML-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
+                  {t('profile.qrzXmlRenew')}
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
-                  Ikke tilsluttet. Indtast dine QRZ.com login-oplysninger for at aktivere kaldesignals-opslag.
+                  {t('profile.notConnectedQrzLookup')}
                 </p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                QRZ XML bruges til kaldesignals-opslag og er separat fra QRZ Logbook API-nøglen.
+                {t('profile.qrzLookupHelp')}
               </div>
               <form onSubmit={handleSaveQrzCredentials} className="flex flex-col gap-3">
                 <Input
-                  label="QRZ brugernavn"
+                  label={t('profile.qrzUsername')}
                   value={qrzXmlUsername}
                   onChange={e => setQrzXmlUsername(e.target.value)}
                   placeholder={qrzStatus?.qrzUsername ?? 'OZ1ABC'}
                   autoComplete="username"
                 />
                 <Input
-                  label="QRZ adgangskode"
+                  label={t('profile.qrzPassword')}
                   type="password"
                   value={qrzXmlPassword}
                   onChange={e => setQrzXmlPassword(e.target.value)}
                   autoComplete="current-password"
                 />
                 <Button type="submit" disabled={qrzXmlLoading || !qrzXmlUsername.trim() || !qrzXmlPassword}>
-                  {qrzXmlLoading ? 'Verificerer...' : 'Gem og verificer'}
+                  {qrzXmlLoading ? t('profile.verifying') : t('profile.verifyAndSave')}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>LoTW Integration</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.integration.lotw')}</CardTitle></CardHeader>
             <CardContent>
               {lotwStatus?.connected ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-green-400 text-sm">
-                    Tilsluttet som {lotwStatus.username}
+                    {t('profile.connectedAs', { name: lotwStatus.username })}
                     {lotwStatus.lastSyncedAt && (
                       <span className="text-gray-400 ml-2">
-                        Sidst synkroniseret: {new Date(lotwStatus.lastSyncedAt).toLocaleString('da-DK')}
+                        {t('profile.lastSynced', { date: formatDateTime(lotwStatus.lastSyncedAt, language) })}
                       </span>
                     )}
                   </p>
                   <Button onClick={handleLotwSync} disabled={lotwSyncing} variant="secondary">
-                    {lotwSyncing ? 'Synkroniserer...' : 'Hent LoTW bekræftelser'}
+                    {lotwSyncing ? t('profile.syncing') : t('profile.fetchLotwConfirmations')}
                   </Button>
                 </div>
               ) : lotwStatus?.credentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  LoTW-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
+                  {t('profile.lotwRenew')}
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
-                  Ikke tilsluttet. Indtast dit LoTW brugernavn og adgangskode for at hente bekræftelser.
+                  {t('profile.notConnectedLotw')}
                 </p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                HamHub henter bekræftede LoTW QSL records og matcher dem mod dine lokale QSOer. Upload til LoTW kræver stadig TQSL/signering og kommer i agentfasen.
+                {t('profile.lotwHelp')}
               </div>
               <form onSubmit={handleSaveLotwCredentials} className="flex flex-col gap-3">
                 <Input
-                  label="LoTW brugernavn"
+                  label={t('profile.lotwUsername')}
                   value={lotwUsername}
                   onChange={e => setLotwUsername(e.target.value)}
                   placeholder={lotwStatus?.username ?? 'OZ1ABC'}
                   autoComplete="username"
                 />
                 <Input
-                  label="LoTW adgangskode"
+                  label={t('profile.lotwPassword')}
                   type="password"
                   value={lotwPassword}
                   onChange={e => setLotwPassword(e.target.value)}
                   autoComplete="current-password"
                 />
                 <Button type="submit" disabled={lotwLoading || !lotwUsername.trim() || !lotwPassword}>
-                  {lotwLoading ? 'Verificerer...' : 'Gem og verificer'}
+                  {lotwLoading ? t('profile.verifying') : t('profile.verifyAndSave')}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>eQSL Integration</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{t('profile.integration.eqsl')}</CardTitle></CardHeader>
             <CardContent>
               {eqslStatus?.connected ? (
                 <p className="text-green-400 text-sm mb-3">
-                  Tilsluttet som {eqslStatus.username}
+                  {t('profile.connectedAs', { name: eqslStatus.username })}
                   {eqslStatus.qthNickname && <span className="text-gray-400 ml-2">QTH: {eqslStatus.qthNickname}</span>}
                   {eqslStatus.lastSyncedAt && (
                     <span className="text-gray-400 ml-2">
-                      Sidst brugt: {new Date(eqslStatus.lastSyncedAt).toLocaleString('da-DK')}
+                      {t('profile.lastUsed', { date: formatDateTime(eqslStatus.lastSyncedAt, language) })}
                     </span>
                   )}
                 </p>
               ) : eqslStatus?.credentialError ? (
                 <p className="text-yellow-300 text-sm mb-3">
-                  eQSL-login er gemt, men adgangskoden skal gemmes igen for at forny den sikre forbindelse.
+                  {t('profile.eqslRenew')}
                 </p>
               ) : (
                 <p className="text-gray-400 text-sm mb-3">
-                  Ikke tilsluttet. Indtast dit eQSL.cc brugernavn og adgangskode for at kunne sende QSOer til eQSL.
+                  {t('profile.notConnectedEqsl')}
                 </p>
               )}
               <div className="mb-4 rounded-md border border-gray-800 bg-gray-950/50 p-3 text-sm text-gray-400">
-                eQSL bruges til ADIF-upload fra dine QSOer. Brug QTH nickname, hvis din eQSL-konto har flere QTH-profiler.
+                {t('profile.eqslHelp')}
               </div>
               <form onSubmit={handleSaveEqslCredentials} className="flex flex-col gap-3">
                 <Input
-                  label="eQSL brugernavn"
+                  label={t('profile.eqslUsername')}
                   value={eqslUsername}
                   onChange={e => setEqslUsername(e.target.value)}
                   placeholder={eqslStatus?.username ?? 'OZ1ABC'}
                   autoComplete="username"
                 />
                 <Input
-                  label="eQSL adgangskode"
+                  label={t('profile.eqslPassword')}
                   type="password"
                   value={eqslPassword}
                   onChange={e => setEqslPassword(e.target.value)}
                   autoComplete="current-password"
                 />
                 <Input
-                  label="QTH nickname"
+                  label={t('profile.qthNickname')}
                   value={eqslQthNickname}
                   onChange={e => setEqslQthNickname(e.target.value)}
-                  placeholder={eqslStatus?.qthNickname ?? 'Valgfrit'}
+                  placeholder={eqslStatus?.qthNickname ?? t('profile.optional')}
                 />
                 <Button type="submit" disabled={eqslLoading || !eqslUsername.trim() || !eqslPassword}>
-                  {eqslLoading ? 'Gemmer...' : 'Gem eQSL login'}
+                  {eqslLoading ? t('common.saving') : t('profile.saveEqsl')}
                 </Button>
               </form>
             </CardContent>
@@ -598,42 +607,39 @@ export default function ProfilePage() {
 
       {activeTab === 'agent' && (
         <Card>
-          <CardHeader><CardTitle>WSJT-X Agent</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('profile.agent.title')}</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col gap-6">
               <div>
-                <h2 className="text-white font-semibold mb-2">WSJT-X Agent</h2>
-                <p className="text-gray-400 text-sm max-w-3xl">
-                  Agenten kører lokalt på din computer, lytter efter WSJT-X UDP beskeder og sender decodes og loggede QSOer til HamHub.
-                  Den bruger production API på https://api.hamhub.dk og gemmer kun din lokale opsætning på din egen computer.
-                </p>
+                <h2 className="text-white font-semibold mb-2">{t('profile.agent.title')}</h2>
+                <p className="text-gray-400 text-sm max-w-3xl">{t('profile.agent.description')}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                  <h3 className="text-white font-semibold mb-1">macOS</h3>
-                  <p className="text-gray-400 text-sm mb-4">Til Apple Silicon Mac. Pak zip-filen ud og start appen.</p>
+                  <h3 className="text-white font-semibold mb-1">{t('profile.agent.macos')}</h3>
+                  <p className="text-gray-400 text-sm mb-4">{t('profile.agent.macosDescription')}</p>
                   <a href="/agent-downloads/HamHub-WSJTX-Agent-macOS-arm64.zip" download>
-                    <Button type="button">Download til Mac</Button>
+                    <Button type="button">{t('profile.agent.downloadMac')}</Button>
                   </a>
                 </div>
 
                 <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                  <h3 className="text-white font-semibold mb-1">Windows</h3>
-                  <p className="text-gray-400 text-sm mb-4">Til 64-bit Windows. Pak zip-filen ud og start HamHub.WsjtxTray.exe.</p>
+                  <h3 className="text-white font-semibold mb-1">{t('profile.agent.windows')}</h3>
+                  <p className="text-gray-400 text-sm mb-4">{t('profile.agent.windowsDescription')}</p>
                   <a href="/agent-downloads/HamHub-WSJTX-Agent-Windows-x64.zip" download>
-                    <Button type="button">Download til Windows</Button>
+                    <Button type="button">{t('profile.agent.downloadWindows')}</Button>
                   </a>
                 </div>
               </div>
 
               <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                <h3 className="text-white font-semibold mb-2">WSJT-X opsætning</h3>
+                <h3 className="text-white font-semibold mb-2">{t('profile.agent.setup')}</h3>
                 <ol className="list-decimal list-inside text-gray-400 text-sm space-y-1">
-                  <li>Installer agenten til dit operativsystem.</li>
-                  <li>Log ind med din HamHub email og adgangskode.</li>
-                  <li>Sæt WSJT-X UDP server til port 2237.</li>
-                  <li>Lad agenten køre mens WSJT-X er aktiv.</li>
+                  <li>{t('profile.agent.step1')}</li>
+                  <li>{t('profile.agent.step2')}</li>
+                  <li>{t('profile.agent.step3')}</li>
+                  <li>{t('profile.agent.step4')}</li>
                 </ol>
               </div>
             </div>
@@ -646,30 +652,30 @@ export default function ProfilePage() {
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Venner</CardTitle>
+                <CardTitle>{t('profile.friends.title')}</CardTitle>
                 <p className="text-sm text-gray-400 mt-1">
-                  Se dine accepterede venner og fjern forbindelser direkte fra profilen.
+                  {t('profile.friends.description')}
                 </p>
               </div>
               <Button type="button" variant="secondary" onClick={loadFriends} disabled={friendsLoading}>
-                {friendsLoading ? 'Henter...' : 'Opdater'}
+                {friendsLoading ? t('common.loading') : t('common.refresh')}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {friendsLoading && friends.length === 0 ? (
-              <p className="text-gray-400 text-sm">Henter venner...</p>
+              <p className="text-gray-400 text-sm">{t('common.loading')}</p>
             ) : friends.length === 0 ? (
               <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                <p className="text-white font-medium">Ingen venner endnu</p>
+                <p className="text-white font-medium">{t('profile.friends.emptyTitle')}</p>
                 <p className="text-gray-400 text-sm mt-1">
-                  Find andre brugere under Beskeder og send en venneanmodning.
+                  {t('profile.friends.emptyDescription')}
                 </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-800 rounded-lg border border-gray-700 overflow-hidden">
                 {friends.map(friend => {
-                  const displayName = friend.otherCallsign || friend.otherName || friend.otherEmail || 'Ukendt bruger'
+                  const displayName = friend.otherCallsign || friend.otherName || friend.otherEmail || t('common.unknownUser')
                   const details = [
                     friend.otherName && friend.otherName !== displayName ? friend.otherName : null,
                     friend.otherGridLocator,
@@ -681,7 +687,7 @@ export default function ProfilePage() {
                       <div className="min-w-0">
                         <p className="text-white font-semibold truncate">{displayName}</p>
                         {details.length > 0 && (
-                          <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' · ')}</p>
+                          <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' - ')}</p>
                         )}
                       </div>
                       <Button
@@ -690,7 +696,7 @@ export default function ProfilePage() {
                         onClick={() => handleRemoveFriend(friend)}
                         disabled={removingFriendId === friend.otherUserId}
                       >
-                        {removingFriendId === friend.otherUserId ? 'Fjerner...' : 'Fjern ven'}
+                        {removingFriendId === friend.otherUserId ? t('profile.friends.removing') : t('profile.friends.remove')}
                       </Button>
                     </div>
                   )
@@ -706,35 +712,35 @@ export default function ProfilePage() {
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Blokeringer</CardTitle>
+                <CardTitle>{t('profile.blocks.title')}</CardTitle>
                 <p className="text-sm text-gray-400 mt-1">
-                  Brugere på listen kan ikke sende private beskeder til dig.
+                  {t('profile.blocks.description')}
                 </p>
               </div>
               <Button type="button" variant="secondary" onClick={loadBlockedUsers} disabled={blocksLoading}>
-                {blocksLoading ? 'Henter...' : 'Opdater'}
+                {blocksLoading ? t('common.loading') : t('common.refresh')}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {blocksLoading && blockedUsers.length === 0 ? (
-              <p className="text-gray-400 text-sm">Henter blokeringer...</p>
+              <p className="text-gray-400 text-sm">{t('common.loading')}</p>
             ) : blockedUsers.length === 0 ? (
               <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-                <p className="text-white font-medium">Ingen blokerede brugere</p>
-                <p className="text-gray-400 text-sm mt-1">Blokeringer du laver fra community eller beskeder vises her.</p>
+                <p className="text-white font-medium">{t('profile.blocks.emptyTitle')}</p>
+                <p className="text-gray-400 text-sm mt-1">{t('profile.blocks.emptyDescription')}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-800 rounded-lg border border-gray-700 overflow-hidden">
                 {blockedUsers.map(blocked => {
-                  const displayName = blocked.callsign || blocked.name || blocked.email || 'Ukendt bruger'
+                  const displayName = blocked.callsign || blocked.name || blocked.email || t('common.unknownUser')
                   const details = [blocked.name && blocked.name !== displayName ? blocked.name : null, blocked.gridLocator, blocked.country, blocked.email].filter(Boolean)
 
                   return (
                     <div key={blocked.userId} className="flex flex-col gap-3 bg-gray-900/40 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="text-white font-semibold truncate">{displayName}</p>
-                        {details.length > 0 && <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' · ')}</p>}
+                        {details.length > 0 && <p className="text-gray-400 text-sm mt-1 truncate">{details.join(' - ')}</p>}
                       </div>
                       <Button
                         type="button"
@@ -742,7 +748,7 @@ export default function ProfilePage() {
                         onClick={() => handleUnblock(blocked)}
                         disabled={unblockingUserId === blocked.userId}
                       >
-                        {unblockingUserId === blocked.userId ? 'Fjerner...' : 'Fjern blokering'}
+                        {unblockingUserId === blocked.userId ? t('profile.blocks.unblocking') : t('profile.blocks.unblock')}
                       </Button>
                     </div>
                   )

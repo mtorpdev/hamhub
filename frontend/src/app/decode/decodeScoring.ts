@@ -446,15 +446,15 @@ function rosterPriorityScore(entry: LiveRosterEntry) {
 
 function buildRosterBadges(entry: LiveRosterEntry): RosterBadge[] {
   const badges: RosterBadge[] = []
-  if (entry.awardReasons.includes('calling-me') || entry.wantedReasons.includes('calling-me')) badges.push(badge('calling-me', 'Kalder mig', 'border-red-700 bg-red-950 text-red-100'))
+  if (entry.awardReasons.includes('calling-me') || entry.wantedReasons.includes('calling-me')) badges.push(badge('calling-me', 'Calling me', 'border-red-700 bg-red-950 text-red-100'))
   if (entry.awardReasons.includes('dxcc')) badges.push(badge('dxcc', 'Ny DXCC', 'border-amber-700 bg-amber-950 text-amber-100'))
   if (entry.awardReasons.includes('dxcc-qsl')) badges.push(badge('dxcc-qsl', 'DXCC need QSL', 'border-orange-700 bg-orange-950 text-orange-100'))
   if (entry.awardReasons.includes('dxcc-band')) badges.push(badge('dxcc-band', 'New band', 'border-fuchsia-700 bg-fuchsia-950 text-fuchsia-100'))
   if (entry.awardReasons.includes('dxcc-mode')) badges.push(badge('dxcc-mode', 'New mode', 'border-purple-700 bg-purple-950 text-purple-100'))
-  if (entry.awardReasons.includes('continent')) badges.push(badge('continent', 'Nyt kontinent', 'border-pink-700 bg-pink-950 text-pink-100'))
-  if (entry.awardReasons.includes('grid')) badges.push(badge('grid', 'Ny grid', 'border-sky-700 bg-sky-950 text-sky-100'))
-  if (entry.awardReasons.includes('band-mode')) badges.push(badge('band-mode', 'Ny band/mode', 'border-violet-700 bg-violet-950 text-violet-100'))
-  if (entry.wantedReasons.includes('new-station')) badges.push(badge('new-station', 'Ny station', 'border-cyan-700 bg-cyan-950 text-cyan-100'))
+  if (entry.awardReasons.includes('continent')) badges.push(badge('continent', 'New continent', 'border-pink-700 bg-pink-950 text-pink-100'))
+  if (entry.awardReasons.includes('grid')) badges.push(badge('grid', 'New grid', 'border-sky-700 bg-sky-950 text-sky-100'))
+  if (entry.awardReasons.includes('band-mode')) badges.push(badge('band-mode', 'New band/mode', 'border-violet-700 bg-violet-950 text-violet-100'))
+  if (entry.wantedReasons.includes('new-station')) badges.push(badge('new-station', 'New station', 'border-cyan-700 bg-cyan-950 text-cyan-100'))
   if (entry.latest.needsConfirmation) badges.push(badge('need-qsl', 'Need QSL', 'border-yellow-700 bg-yellow-950 text-yellow-100'))
   if (entry.latest.isConfirmed) badges.push(badge('confirmed', 'Confirmed', 'border-emerald-700 bg-emerald-950 text-emerald-100'))
   if (entry.awardReasons.includes('worked')) badges.push(badge('worked', 'Worked B4', 'border-green-800 bg-green-950 text-green-100'))

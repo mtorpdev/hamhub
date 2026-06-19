@@ -3,22 +3,16 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '@/lib/api'
-import type { QrzReconciliationItem, QrzReconciliationResponse, QrzReconciliationStatus } from '@/lib/types'
+import type { QrzReconciliationAction, QrzReconciliationItem, QrzReconciliationResponse, QrzReconciliationStatus } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
-import { buildQrzReconciliationSummary, type QrzReconciliationSummaryCard } from './qrzReconciliationSummary'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { pageShellClass } from '@/lib/layout'
 
-function statusLabel(status: QrzReconciliationStatus) {
-  if (status === 'InSync') return 'I sync'
-  if (status === 'TimeDrift') return 'Tid afviger'
-  if (status === 'HamHubOnly') return 'Kun HamHub'
-  if (status === 'QrzOnly') return 'Kun QRZ'
-  return status
-}
+type SummaryTone = 'ok' | 'warn' | 'info' | 'bad'
 
 function statusClass(status: QrzReconciliationStatus) {
   if (status === 'InSync') return 'border-green-800/70 bg-green-950/40 text-green-100'
@@ -27,7 +21,7 @@ function statusClass(status: QrzReconciliationStatus) {
   return 'border-red-800/70 bg-red-950/40 text-red-100'
 }
 
-function summaryClass(tone: QrzReconciliationSummaryCard['tone']) {
+function summaryClass(tone: SummaryTone) {
   if (tone === 'ok') return 'text-green-200'
   if (tone === 'warn') return 'text-yellow-200'
   if (tone === 'bad') return 'text-red-200'
@@ -36,6 +30,7 @@ function summaryClass(tone: QrzReconciliationSummaryCard['tone']) {
 
 export default function QrzReconciliationPage() {
   useRequireAuth()
+  const { t } = useLanguage()
   const [result, setResult] = useState<QrzReconciliationResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,35 +46,25 @@ export default function QrzReconciliationPage() {
       setError(null)
     }
     return api.qrz.reconciliation()
-      .then(data => {
+      .then((data) => {
         if (!cancelledRef?.cancelled) setResult(data)
       })
-      .catch(err => {
-        if (!cancelledRef?.cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente QRZ afstemning')
+      .catch((err) => {
+        if (!cancelledRef?.cancelled) setError(err instanceof Error ? err.message : t('logbook.qrzRecon.loadFailed'))
       })
       .finally(() => {
         if (!cancelledRef?.cancelled) setLoading(false)
       })
-  }, [])
+  }, [t])
 
   useEffect(() => {
     const cancelledRef = { cancelled: false }
-    api.qrz.reconciliation()
-      .then(data => {
-        if (!cancelledRef.cancelled) setResult(data)
-      })
-      .catch(err => {
-        if (!cancelledRef.cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente QRZ afstemning')
-      })
-      .finally(() => {
-        if (!cancelledRef.cancelled) setLoading(false)
-      })
-
+    void loadReconciliation(cancelledRef)
     return () => { cancelledRef.cancelled = true }
-  }, [])
+  }, [loadReconciliation])
 
   const applyAction = async (item: QrzReconciliationItem) => {
-    const key = `${item.recommendedAction}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? item.workedCallsign}`
+    const key = actionKey(item)
     setApplyingKey(key)
     setActionMessage(null)
     setError(null)
@@ -89,10 +74,10 @@ export default function QrzReconciliationPage() {
         hamHubQsoId: item.hamHubQsoId,
         qrzLogId: item.qrzLogId,
       })
-      setActionMessage(response.message)
+      setActionMessage(qrzResultMessage(response.status, t))
       await loadReconciliation()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunne ikke udføre QRZ handling')
+      setError(err instanceof Error ? err.message : t('logbook.qrzRecon.actionFailed'))
     } finally {
       setApplyingKey(null)
     }
@@ -109,44 +94,61 @@ export default function QrzReconciliationPage() {
     setError(null)
     try {
       const response = await api.qrz.deleteDuplicate({ qrzLogId })
-      setActionMessage(response.message)
+      setActionMessage(qrzResultMessage(response.status, t))
       setPendingDeleteQrzLogId(null)
       await loadReconciliation()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunne ikke slette QRZ dublet')
+      setError(err instanceof Error ? err.message : t('logbook.qrzRecon.deleteFailed'))
     } finally {
       setDeletingQrzLogId(null)
     }
   }
 
-  const summary = useMemo(() => result ? buildQrzReconciliationSummary(result) : [], [result])
+  const summary = useMemo(() => result ? [
+    { label: statusLabel('InSync', t), value: String(result.inSyncCount), tone: 'ok' as const },
+    { label: statusLabel('TimeDrift', t), value: String(result.timeDriftCount), tone: 'warn' as const },
+    { label: statusLabel('HamHubOnly', t), value: String(result.hamHubOnlyCount), tone: 'info' as const },
+    { label: statusLabel('QrzOnly', t), value: String(result.qrzOnlyCount), tone: 'bad' as const },
+    { label: t('logbook.qrzRecon.duplicateGroups'), value: String(result.qrzDuplicateGroupCount), tone: 'warn' as const },
+  ] : [], [result, t])
+
   const items = useMemo(() => {
     const all = result?.items ?? []
-    return filter === 'all' ? all : all.filter(item => item.status === filter)
+    return filter === 'all' ? all : all.filter((item) => item.status === filter)
   }, [filter, result])
+
+  const headers = [
+    t('decode.raw.status'),
+    t('qso.contact'),
+    t('qso.band'),
+    t('qso.mode'),
+    'HamHub UTC',
+    'QRZ UTC',
+    'Delta',
+    t('logbook.qrzRecon.reference'),
+    t('admin.articles.actionsColumn'),
+  ]
 
   return (
     <div className={pageShellClass}>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">QRZ Afstemning</h1>
-          <p className="mt-2 max-w-2xl text-sm text-gray-400">
-            Sammenligning mellem HamHub og QRZ Logbook med sikre handlinger. Rækkehandlinger kan uploade, importere eller rette tid for den konkrete QSO, men sletter ikke poster i QRZ.
-          </p>
+          <h1 className="text-3xl font-bold text-white">{t('logbook.qrzRecon.title')}</h1>
+          <p className="mt-2 max-w-2xl text-sm text-gray-400">{t('logbook.qrzRecon.description')}</p>
         </div>
         <Link href="/logbook">
-          <Button variant="secondary">Tilbage til logbog</Button>
+          <Button variant="secondary">{t('logbook.backToLogbook')}</Button>
         </Link>
       </div>
 
-      {loading && <p className="text-gray-400">Henter QRZ logbook og matcher QSOer...</p>}
+      {loading && <p className="text-gray-400">{t('logbook.qrzRecon.loading')}</p>}
       {error && <p className="rounded border border-red-900/70 bg-red-950/30 p-4 text-sm text-red-200">{error}</p>}
       {actionMessage && <p className="mb-4 rounded border border-blue-900/70 bg-blue-950/30 p-4 text-sm text-blue-100">{actionMessage}</p>}
 
       {result && (
         <>
           <div className="mb-6 grid gap-3 md:grid-cols-5">
-            {summary.map(card => (
+            {summary.map((card) => (
               <Card key={card.label}>
                 <CardContent className="p-4">
                   <p className="text-xs uppercase tracking-wide text-gray-500">{card.label}</p>
@@ -159,20 +161,20 @@ export default function QrzReconciliationPage() {
           <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-500">HamHub: {result.hamHubCount}</span>
             <span className="text-gray-500">QRZ: {result.qrzCount}</span>
-            {(['all', 'InSync', 'TimeDrift', 'HamHubOnly', 'QrzOnly'] as const).map(value => (
+            {(['all', 'InSync', 'TimeDrift', 'HamHubOnly', 'QrzOnly'] as const).map((value) => (
               <button
                 key={value}
                 onClick={() => setFilter(value)}
                 className={`rounded border px-3 py-1 ${filter === value ? 'border-blue-500 bg-blue-950/50 text-blue-100' : 'border-gray-800 bg-gray-900 text-gray-400'}`}
               >
-                {value === 'all' ? 'Alle' : statusLabel(value)}
+                {value === 'all' ? t('awards.allStatuses') : statusLabel(value, t)}
               </button>
             ))}
           </div>
 
           {result.qrzDuplicateGroups.length > 0 && (
             <div className="mb-4 rounded border border-yellow-800/60 bg-yellow-950/25 px-4 py-3 text-sm text-yellow-100">
-              QRZ har {result.qrzDuplicateGroups.length} mulig(e) dubletgruppe(r). Sletning kræver først valg af LOGID og derefter bekræftelse.
+              {t('logbook.qrzRecon.duplicateWarning', { count: result.qrzDuplicateGroups.length })}
             </div>
           )}
 
@@ -182,7 +184,7 @@ export default function QrzReconciliationPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-800/50">
                     <tr>
-                      {['Status', 'Kontakt', 'Band', 'Mode', 'HamHub UTC', 'QRZ UTC', 'Delta', 'Reference', 'Handling'].map(header => (
+                      {headers.map((header) => (
                         <th key={header} className="px-4 py-3 text-left font-medium text-gray-400">{header}</th>
                       ))}
                     </tr>
@@ -190,7 +192,7 @@ export default function QrzReconciliationPage() {
                   <tbody className="divide-y divide-gray-800">
                     {items.map((item, index) => (
                       <tr key={`${item.status}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? index}`} className="hover:bg-gray-800/40">
-                        <td className="px-4 py-3"><span className={`rounded border px-2 py-1 text-xs ${statusClass(item.status)}`}>{statusLabel(item.status)}</span></td>
+                        <td className="px-4 py-3"><span className={`rounded border px-2 py-1 text-xs ${statusClass(item.status)}`}>{statusLabel(item.status, t)}</span></td>
                         <td className="px-4 py-3 font-mono font-bold text-white">{item.workedCallsign}</td>
                         <td className="px-4 py-3"><Badge variant="info">{item.band}</Badge></td>
                         <td className="px-4 py-3"><Badge>{item.mode}</Badge></td>
@@ -207,15 +209,15 @@ export default function QrzReconciliationPage() {
                     ))}
                   </tbody>
                 </table>
-                {items.length === 0 && <p className="p-6 text-gray-400">Ingen poster i dette filter.</p>}
+                {items.length === 0 && <p className="p-6 text-gray-400">{t('logbook.qrzRecon.emptyFilter')}</p>}
               </div>
             </CardContent>
           </Card>
 
           {result.qrzDuplicateGroups.length > 0 && (
             <div className="mt-6 space-y-3">
-              <h2 className="text-xl font-semibold text-white">Mulige QRZ dubletter</h2>
-              {result.qrzDuplicateGroups.map(group => (
+              <h2 className="text-xl font-semibold text-white">{t('logbook.qrzRecon.possibleQrzDuplicates')}</h2>
+              {result.qrzDuplicateGroups.map((group) => (
                 <Card key={`${group.workedCallsign}-${group.qrzLogIds.join('-')}`}>
                   <CardContent className="p-4">
                     <div className="flex flex-wrap items-center gap-2">
@@ -239,9 +241,9 @@ export default function QrzReconciliationPage() {
                               variant={pending ? 'danger' : 'secondary'}
                               onClick={() => deleteDuplicate(id)}
                               disabled={deleting}
-                              title="Sletter kun hvis LOGID stadig er en QRZ dublet ved frisk QRZ fetch."
+                              title={t('logbook.qrzRecon.deleteDuplicateTitle')}
                             >
-                              {deleting ? 'Sletter...' : pending ? 'Bekræft sletning' : 'Vælg til sletning'}
+                              {deleting ? t('common.deleting') : pending ? t('logbook.qrzRecon.confirmDelete') : t('logbook.qrzRecon.selectForDelete')}
                             </Button>
                           </div>
                         )
@@ -259,7 +261,8 @@ export default function QrzReconciliationPage() {
 }
 
 function ReconciliationAction({ item, applyingKey, onApply }: { item: QrzReconciliationItem; applyingKey: string | null; onApply: (item: QrzReconciliationItem) => void }) {
-  const key = `${item.recommendedAction}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? item.workedCallsign}`
+  const { t } = useLanguage()
+  const key = actionKey(item)
   const applying = applyingKey === key
 
   if (item.recommendedAction === 'UploadLocal' || item.recommendedAction === 'ImportFromQrz' || item.recommendedAction === 'ReviewTime' || item.recommendedAction === 'RunSync') {
@@ -270,12 +273,50 @@ function ReconciliationAction({ item, applyingKey, onApply }: { item: QrzReconci
         variant="secondary"
         onClick={() => onApply(item)}
         disabled={applying}
-        title={item.actionDescription}
+        title={actionDescription(item.recommendedAction, t)}
       >
-        {applying ? 'Arbejder...' : item.actionLabel}
+        {applying ? t('common.working') : actionLabel(item.recommendedAction, t)}
       </Button>
     )
   }
 
-  return <span className="text-xs text-gray-500" title={item.actionDescription}>{item.actionLabel}</span>
+  return <span className="text-xs text-gray-500" title={actionDescription(item.recommendedAction, t)}>{actionLabel(item.recommendedAction, t)}</span>
+}
+
+function actionKey(item: QrzReconciliationItem) {
+  return `${item.recommendedAction}-${item.hamHubQsoId ?? 'qrz'}-${item.qrzLogId ?? item.workedCallsign}`
+}
+
+function statusLabel(status: QrzReconciliationStatus, t: ReturnType<typeof useLanguage>['t']) {
+  if (status === 'InSync') return t('logbook.qrzRecon.status.inSync')
+  if (status === 'TimeDrift') return t('logbook.qrzRecon.status.timeDrift')
+  if (status === 'HamHubOnly') return t('logbook.qrzRecon.status.hamHubOnly')
+  if (status === 'QrzOnly') return t('logbook.qrzRecon.status.qrzOnly')
+  return status
+}
+
+function actionLabel(action: QrzReconciliationAction, t: ReturnType<typeof useLanguage>['t']) {
+  if (action === 'UploadLocal') return t('logbook.qrzRecon.action.uploadLocal')
+  if (action === 'ImportFromQrz') return t('logbook.qrzRecon.action.importFromQrz')
+  if (action === 'ReviewTime') return t('logbook.qrzRecon.action.reviewTime')
+  if (action === 'RunSync') return t('logbook.qrzRecon.action.runSync')
+  return t('logbook.qrzRecon.action.none')
+}
+
+function actionDescription(action: QrzReconciliationAction, t: ReturnType<typeof useLanguage>['t']) {
+  if (action === 'UploadLocal') return t('logbook.qrzRecon.actionDescription.uploadLocal')
+  if (action === 'ImportFromQrz') return t('logbook.qrzRecon.actionDescription.importFromQrz')
+  if (action === 'ReviewTime') return t('logbook.qrzRecon.actionDescription.reviewTime')
+  if (action === 'RunSync') return t('logbook.qrzRecon.actionDescription.runSync')
+  return t('logbook.qrzRecon.actionDescription.none')
+}
+
+function qrzResultMessage(status: string, t: ReturnType<typeof useLanguage>['t']) {
+  if (status === 'already-linked') return t('logbook.qrzRecon.result.alreadyLinked')
+  if (status === 'uploaded') return t('logbook.qrzRecon.result.uploaded')
+  if (status === 'linked') return t('logbook.qrzRecon.result.linked')
+  if (status === 'imported') return t('logbook.qrzRecon.result.imported')
+  if (status === 'time-updated') return t('logbook.qrzRecon.result.timeUpdated')
+  if (status === 'deleted') return t('logbook.qrzRecon.result.deleted')
+  return t('logbook.qrzRecon.result.generic')
 }

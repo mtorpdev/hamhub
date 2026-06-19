@@ -11,6 +11,7 @@ public class ApplicationUser : IdentityUser
     public string? Country { get; set; }
     public string? GridLocator { get; set; }
     public int? DefaultStationId { get; set; }
+    public string? PreferredLanguage { get; set; }
     public LicenseClass? LicenseClass { get; set; }
     public string? ProfileDescription { get; set; }
     public string? ProfileImageUrl { get; set; }

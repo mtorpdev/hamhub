@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
@@ -9,22 +9,43 @@ import { FriendshipStatus, type CommunityContact, type CommunityGroupInvitation,
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { formatUtcDate } from '@/lib/utils'
 import { UserProfileCard, type ProfileCardUser } from '@/components/community/UserProfileCard'
-import { filterCommunityGroups, groupOverviewCounts, groupVisibilityLabel, membershipStatus, type GroupOverviewView, visibilityOptions } from './groupUi'
+import { filterCommunityGroups, groupOverviewCounts, membershipStatus, type GroupOverviewView } from './groupUi'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
-const fallbackRooms: CommunityRoom[] = [
-  { id: 0, name: 'Alle grupper', slug: 'alle', description: 'Opslag fra de grupper du kan se.', sortOrder: 0, isSystem: true, visibility: 1, allowJoinRequests: true, memberCount: 0, membershipStatus: 3 },
-  { id: 1, name: 'DX', slug: 'dx', description: 'DX spots, jagt og sjældne lande.', sortOrder: 10, isSystem: true },
-  { id: 2, name: 'FT8/FT4', slug: 'ft8-ft4', description: 'Digitale modes og WSJT-X.', sortOrder: 20, isSystem: true },
-  { id: 3, name: 'Teknik', slug: 'teknik', description: 'Radioer, antenner og software.', sortOrder: 30, isSystem: true },
-  { id: 4, name: 'Køb/salg', slug: 'koeb-salg', description: 'Udstyr og gode fund.', sortOrder: 40, isSystem: true },
-]
+function fallbackRooms(t: ReturnType<typeof useLanguage>['t']): CommunityRoom[] {
+  return [
+    { id: 0, name: t('community.rooms.all'), slug: 'alle', description: t('community.rooms.allDescription'), sortOrder: 0, isSystem: true, visibility: 1, allowJoinRequests: true, memberCount: 0, membershipStatus: 3 },
+    { id: 1, name: 'DX', slug: 'dx', description: t('community.rooms.dxDescription'), sortOrder: 10, isSystem: true },
+    { id: 2, name: 'FT8/FT4', slug: 'ft8-ft4', description: t('community.rooms.digitalDescription'), sortOrder: 20, isSystem: true },
+    { id: 3, name: t('community.rooms.tech'), slug: 'teknik', description: t('community.rooms.techDescription'), sortOrder: 30, isSystem: true },
+    { id: 4, name: t('community.rooms.market'), slug: 'koeb-salg', description: t('community.rooms.marketDescription'), sortOrder: 40, isSystem: true },
+    { id: 5, name: 'POTA / SOTA / Awards', slug: 'pota-sota-awards', description: t('community.rooms.potaDescription'), sortOrder: 25, isSystem: true },
+  ]
+}
+
+function presentCommunityRoom(room: CommunityRoom, t: ReturnType<typeof useLanguage>['t']): CommunityRoom {
+  if (!room.isSystem) return room
+  if (room.slug === 'alle') return { ...room, name: t('community.rooms.all'), description: t('community.rooms.allDescription') }
+  if (room.slug === 'dx') return { ...room, name: 'DX', description: t('community.rooms.dxDescription') }
+  if (room.slug === 'ft8-ft4') return { ...room, name: 'FT8/FT4', description: t('community.rooms.digitalDescription') }
+  if (room.slug === 'teknik') return { ...room, name: t('community.rooms.tech'), description: t('community.rooms.techDescription') }
+  if (room.slug === 'koeb-salg') return { ...room, name: t('community.rooms.market'), description: t('community.rooms.marketDescription') }
+  if (room.slug === 'pota-sota-awards') return { ...room, name: 'POTA / SOTA / Awards', description: t('community.rooms.potaDescription') }
+  return room
+}
+
+function presentCommunityRooms(rooms: CommunityRoom[], fallbackRoomList: CommunityRoom[], t: ReturnType<typeof useLanguage>['t']) {
+  const source = rooms.length > 0 ? rooms : fallbackRoomList
+  return source.map(room => presentCommunityRoom(room, t)).sort((a, b) => a.sortOrder - b.sortOrder)
+}
 
 function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId?: string; onDelete: () => void }) {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [liked, setLiked] = useState(post.isLikedByMe)
   const [likeCount, setLikeCount] = useState(post.likeCount)
   const [comments, setComments] = useState<PostComment[]>([])
@@ -61,7 +82,7 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
       setComments(cs => [...cs, c])
       setCommentCount(n => n + 1)
       setCommentText('')
-    } catch { toast('Fejl ved kommentar', 'error') }
+    } catch { toast(t('community.post.commentFailed'), 'error') }
   }
 
   const handleDeleteComment = async (commentId: number) => {
@@ -69,17 +90,17 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
       await api.posts.deleteComment(post.id, commentId)
       setComments(cs => cs.filter(c => c.id !== commentId))
       setCommentCount(n => n - 1)
-    } catch { toast('Fejl', 'error') }
+    } catch { toast(t('messages.error'), 'error') }
   }
 
   const handleReportPost = async () => {
-    const reason = window.prompt('Hvad skal moderator kigge på?')
+    const reason = window.prompt(t('community.reportPlaceholder'))
     if (!reason?.trim()) return
     try {
       await api.safety.report({ targetType: 'post', targetUserId: post.userId, targetId: post.id, reason: reason.trim() })
-      toast('Rapport sendt')
+      toast(t('messages.reportSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+      toast(err instanceof Error ? err.message : t('messages.reportFailed'), 'error')
     }
   }
 
@@ -89,7 +110,7 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-white font-semibold font-mono">{post.authorCallsign || 'Ukendt'}</span>
+              <span className="text-white font-semibold font-mono">{post.authorCallsign || t('community.group.unknownAuthor')}</span>
               {post.authorName && <span className="text-gray-500 text-sm">{post.authorName}</span>}
               {post.communityRoomName && (
                 <span className="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-200">
@@ -100,10 +121,10 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
             <span className="text-gray-600 text-xs">{formatUtcDate(post.createdAt)}</span>
           </div>
           {currentUserId === post.userId && (
-            <button onClick={onDelete} className="text-gray-600 hover:text-red-400 text-xs">Slet</button>
+            <button onClick={onDelete} className="text-gray-600 hover:text-red-400 text-xs">{t('community.post.delete')}</button>
           )}
           {currentUserId && currentUserId !== post.userId && (
-            <button onClick={handleReportPost} className="text-gray-600 hover:text-yellow-300 text-xs">Rapportér</button>
+            <button onClick={handleReportPost} className="text-gray-600 hover:text-yellow-300 text-xs">{t('community.report')}</button>
           )}
         </div>
 
@@ -123,17 +144,17 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
             onClick={handleLike}
             className={`text-sm transition-colors ${liked ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'} ${!currentUserId ? 'cursor-default' : ''}`}
           >
-            Synes om ({likeCount})
+            {t('community.post.like', { count: likeCount })}
           </button>
           <button onClick={toggleComments} className="text-sm text-gray-500 hover:text-gray-300">
-            Kommentarer ({commentCount})
+            {t('community.post.comments', { count: commentCount })}
           </button>
         </div>
 
         {showComments && (
           <div className="mt-3 border-t border-gray-800 pt-3">
             {loadingComments ? (
-              <p className="text-gray-500 text-sm">Indlæser...</p>
+              <p className="text-gray-500 text-sm">{t('community.post.loadingComments')}</p>
             ) : (
               <div className="flex flex-col gap-2 mb-3">
                 {comments.map(c => (
@@ -143,11 +164,11 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
                       <span className="text-gray-300 text-sm ml-2">{c.content}</span>
                     </div>
                     {(currentUserId === c.userId || currentUserId === post.userId) && (
-                      <button onClick={() => handleDeleteComment(c.id)} className="text-gray-700 hover:text-red-400 text-xs">Slet</button>
+                      <button onClick={() => handleDeleteComment(c.id)} className="text-gray-700 hover:text-red-400 text-xs">{t('community.post.delete')}</button>
                     )}
                   </div>
                 ))}
-                {comments.length === 0 && <p className="text-gray-600 text-sm">Ingen kommentarer endnu</p>}
+                {comments.length === 0 && <p className="text-gray-600 text-sm">{t('community.post.noComments')}</p>}
               </div>
             )}
             {currentUserId && (
@@ -155,10 +176,10 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
                 <input
                   value={commentText}
                   onChange={e => setCommentText(e.target.value)}
-                  placeholder="Skriv en kommentar..."
+                  placeholder={t('community.post.commentPlaceholder')}
                   className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-white text-sm"
                 />
-                <Button type="submit" size="sm">Send</Button>
+                <Button type="submit" size="sm">{t('messages.sendReply')}</Button>
               </form>
             )}
           </div>
@@ -168,8 +189,22 @@ function PostCard({ post, currentUserId, onDelete }: { post: Post; currentUserId
   )
 }
 
-function contactLabel(contact: CommunityContact) {
-  return contact.callsign || contact.email || 'Ukendt'
+function contactLabel(contact: CommunityContact, fallback: string) {
+  return contact.callsign || contact.email || fallback
+}
+
+function translatedVisibilityOptions(t: ReturnType<typeof useLanguage>['t']) {
+  return [
+    { value: 1, label: t('community.visibility.public'), description: t('community.group.access.public.description') },
+    { value: 2, label: t('community.visibility.request'), description: t('community.group.access.notMember.description') },
+    { value: 3, label: t('community.visibility.inviteOnly'), description: t('community.group.access.inviteOnly.description') },
+  ]
+}
+
+function communityVisibilityLabel(value: CommunityRoom['visibility'], t: ReturnType<typeof useLanguage>['t']) {
+  if (value === 'InviteOnly' || value === 3) return t('community.visibility.inviteOnly')
+  if (value === 'RequestToJoin' || value === 2) return t('community.visibility.request')
+  return t('community.visibility.public')
 }
 
 function CommunityMessengerPanel({
@@ -192,6 +227,7 @@ function CommunityMessengerPanel({
   onInboxRefresh: () => Promise<void>
 }) {
   const { toast } = useToast()
+  const { t, language } = useLanguage()
   const [conversation, setConversation] = useState<Message[]>([])
   const [messageText, setMessageText] = useState('')
   const [loadingConversation, setLoadingConversation] = useState(false)
@@ -289,14 +325,14 @@ function CommunityMessengerPanel({
     try {
       const message = await api.messages.send({
         recipientId: selectedContact.id,
-        subject: 'Privat besked',
+        subject: t('messages.privateSubject'),
         body: messageText.trim(),
       })
       setConversation(prev => prev.some(item => item.id === message.id) ? prev : [...prev, message])
       setMessageText('')
       await onInboxRefresh()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende besked', 'error')
+      toast(err instanceof Error ? err.message : t('messages.sendFailed'), 'error')
     } finally {
       setSendingMessage(false)
     }
@@ -304,13 +340,13 @@ function CommunityMessengerPanel({
 
   const handleReportContact = async () => {
     if (!selectedContact) return
-    const reason = window.prompt('Hvad skal moderator kigge på?')
+    const reason = window.prompt(t('community.reportPlaceholder'))
     if (!reason?.trim()) return
     try {
       await api.safety.report({ targetType: 'user', targetUserId: selectedContact.id, reason: reason.trim() })
-      toast('Rapport sendt')
+      toast(t('messages.reportSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+      toast(err instanceof Error ? err.message : t('messages.reportFailed'), 'error')
     }
   }
 
@@ -319,11 +355,11 @@ function CommunityMessengerPanel({
       <div className="border-b border-gray-800 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-white">Messenger</h2>
-            <p className="text-xs text-gray-500">Private beskeder mellem venner</p>
+            <h2 className="text-sm font-semibold text-white">{t('community.messaging.title')}</h2>
+            <p className="text-xs text-gray-500">{t('community.messaging.description')}</p>
           </div>
           <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-200">
-            {inboxMessages.filter(message => !message.isRead).length} ulæst
+            {t('community.messaging.unread', { count: inboxMessages.filter(message => !message.isRead).length })}
           </span>
         </div>
       </div>
@@ -332,7 +368,7 @@ function CommunityMessengerPanel({
         <div className="border-b border-gray-800 md:border-b-0 md:border-r xl:border-b xl:border-r-0 2xl:border-b-0 2xl:border-r">
           <div className="max-h-64 overflow-y-auto p-2 md:max-h-[620px] xl:max-h-56 2xl:max-h-[620px]">
             {contacts.map(contact => {
-              const label = contactLabel(contact)
+              const label = contactLabel(contact, t('common.unknownUser'))
               const latest = latestByContact.get(contact.id)
               const unread = unreadByContact.get(contact.id) ?? 0
               const isOnline = onlineIds.has(contact.id)
@@ -355,13 +391,13 @@ function CommunityMessengerPanel({
                       <span className="truncate text-sm font-medium">{label}</span>
                       {unread > 0 && <span className="rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">{unread}</span>}
                     </span>
-                    <span className="block truncate text-xs text-gray-500">{latest?.body ?? contact.gridLocator ?? contact.name ?? 'Privat samtale'}</span>
+                    <span className="block truncate text-xs text-gray-500">{latest?.body ?? contact.gridLocator ?? contact.name ?? t('community.messaging.privateConversation')}</span>
                   </span>
                 </button>
               )
             })}
             {contacts.length === 0 && (
-              <p className="px-2 py-6 text-sm text-gray-500">Du skal have en ven før du kan skrive privat.</p>
+              <p className="px-2 py-6 text-sm text-gray-500">{t('community.messaging.needFriend')}</p>
             )}
           </div>
         </div>
@@ -369,16 +405,16 @@ function CommunityMessengerPanel({
         <div className="flex min-h-[420px] flex-col">
           <div className="flex items-center justify-between gap-3 border-b border-gray-800 p-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-white">{selectedContact ? contactLabel(selectedContact) : 'Vælg en ven'}</h3>
-              <p className="truncate text-xs text-gray-500">{selectedContact?.gridLocator || selectedContact?.country || selectedContact?.name || 'Privat besked'}</p>
+              <h3 className="truncate text-sm font-semibold text-white">{selectedContact ? contactLabel(selectedContact, t('common.unknownUser')) : t('community.messaging.selectFriend')}</h3>
+              <p className="truncate text-xs text-gray-500">{selectedContact?.gridLocator || selectedContact?.country || selectedContact?.name || t('community.messaging.privateMessage')}</p>
             </div>
             {selectedContact && (
               <div className="flex shrink-0 gap-2">
                 <Button type="button" size="sm" variant="secondary" onClick={() => onOpenProfile({ ...selectedContact, isFriend: true, friendshipStatus: FriendshipStatus.Accepted })}>
-                  Profil
+                  {t('community.profile')}
                 </Button>
                 <Button type="button" size="sm" variant="secondary" onClick={handleReportContact}>
-                  Rapportér
+                  {t('community.report')}
                 </Button>
               </div>
             )}
@@ -386,18 +422,18 @@ function CommunityMessengerPanel({
 
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-gray-950/40 p-3">
             {loadingConversation ? (
-              <p className="text-sm text-gray-500">Indlæser samtale...</p>
+              <p className="text-sm text-gray-500">{t('community.messaging.loadingConversation')}</p>
             ) : !selectedContact ? (
-              <p className="text-sm text-gray-500">Vælg en kontakt for at skrive privat.</p>
+              <p className="text-sm text-gray-500">{t('community.messaging.selectContact')}</p>
             ) : conversation.length === 0 ? (
-              <p className="text-sm text-gray-500">Ingen private beskeder i samtalen endnu.</p>
+              <p className="text-sm text-gray-500">{t('community.messaging.noMessages')}</p>
             ) : conversation.map(message => {
               const mine = message.senderId === currentUserId
               return (
                 <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[82%] rounded-md px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100'}`}>
                     <div className={`mb-1 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(message.createdAt).toLocaleTimeString(language === 'da' ? 'da-DK' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                     <div className="whitespace-pre-wrap break-words text-sm">{message.body}</div>
                   </div>
@@ -413,14 +449,14 @@ function CommunityMessengerPanel({
               maxLength={1000}
               value={messageText}
               onChange={e => setMessageText(e.target.value)}
-              placeholder={selectedContact ? `Skriv til ${contactLabel(selectedContact)}...` : 'Vælg en kontakt...'}
+              placeholder={selectedContact ? t('community.messaging.writeTo', { name: contactLabel(selectedContact, t('common.unknownUser')) }) : t('community.messaging.chooseContact')}
               disabled={!selectedContact}
               className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white disabled:opacity-50"
             />
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="text-xs text-gray-600">{messageText.length}/1000</span>
               <Button type="submit" size="sm" disabled={sendingMessage || !selectedContact || !messageText.trim()}>
-                {sendingMessage ? 'Sender...' : 'Send'}
+                {sendingMessage ? t('community.messaging.sending') : t('messages.sendPrivate')}
               </Button>
             </div>
           </form>
@@ -434,7 +470,9 @@ export default function CommunityPage() {
   const { isLoading } = useRequireAuth()
   const { isAuthenticated, user } = useAuth()
   const { toast } = useToast()
-  const [rooms, setRooms] = useState<CommunityRoom[]>(fallbackRooms)
+  const { t, language } = useLanguage()
+  const fallbackRoomList = useMemo(() => fallbackRooms(t), [t])
+  const [rooms, setRooms] = useState<CommunityRoom[]>(fallbackRoomList)
   const [selectedRoom, setSelectedRoom] = useState('alle')
   const [posts, setPosts] = useState<Post[]>([])
   const [contacts, setContacts] = useState<CommunityContact[]>([])
@@ -488,11 +526,11 @@ export default function CommunityPage() {
   const loadGroups = useCallback(async () => {
     try {
       const groups = await api.community.getGroups()
-      setRooms(groups.length > 0 ? groups : fallbackRooms)
+      setRooms(presentCommunityRooms(groups, fallbackRoomList, t))
     } catch {
-      setRooms(fallbackRooms)
+      setRooms(fallbackRoomList)
     }
-  }, [])
+  }, [fallbackRoomList, t])
 
   const loadGroupInvitations = useCallback(async () => {
     try {
@@ -533,7 +571,7 @@ export default function CommunityPage() {
       setLoading(true)
       try {
         const [roomData, feedData, contactData, onlineData, requestData, inboxData, invitationData] = await Promise.all([
-          api.community.getGroups().catch(() => fallbackRooms),
+          api.community.getGroups().catch(() => fallbackRoomList),
           api.posts.getFeed(1, selectedRoom, undefined, undefined, undefined, 'community'),
           api.community.getContacts().catch(() => []),
           api.community.getOnlineUsers().catch(() => []),
@@ -542,7 +580,7 @@ export default function CommunityPage() {
           api.community.getGroupInvitations().catch(() => []),
         ])
         if (cancelled) return
-        setRooms(roomData.length > 0 ? roomData : fallbackRooms)
+        setRooms(presentCommunityRooms(roomData, fallbackRoomList, t))
         setPosts(feedData.items)
         setTotal(feedData.total)
         setPage(1)
@@ -559,7 +597,7 @@ export default function CommunityPage() {
 
     loadCommunity()
     return () => { cancelled = true }
-  }, [isAuthenticated, selectedRoom])
+  }, [fallbackRoomList, isAuthenticated, selectedRoom, t])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -588,9 +626,9 @@ export default function CommunityPage() {
       setSelectedRoom(group.slug)
       setGroupDraft({ name: '', description: '', visibility: 1, allowJoinRequests: true })
       setGroupComposerOpen(false)
-      toast('Gruppe oprettet')
+      toast(t('community.groups.created'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke oprette gruppe', 'error')
+      toast(err instanceof Error ? err.message : t('community.groups.createFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -602,9 +640,9 @@ export default function CommunityPage() {
     try {
       await api.community.requestToJoinGroup(selectedRoomInfo.id)
       await loadGroups()
-      toast('Ansøgning sendt')
+      toast(t('community.group.requestSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende ansøgning', 'error')
+      toast(err instanceof Error ? err.message : t('community.group.requestFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -616,9 +654,9 @@ export default function CommunityPage() {
     try {
       await api.community.approveGroupJoinRequest(selectedRoomInfo.id, requestId)
       await Promise.all([loadGroups(), loadJoinRequests(selectedRoomInfo)])
-      toast('Medlem godkendt')
+      toast(t('community.group.approved'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke godkende ansøgning', 'error')
+      toast(err instanceof Error ? err.message : t('community.group.approveFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -630,9 +668,9 @@ export default function CommunityPage() {
     try {
       await api.community.rejectGroupJoinRequest(selectedRoomInfo.id, requestId)
       await loadJoinRequests(selectedRoomInfo)
-      toast('Ansøgning afvist')
+      toast(t('community.group.rejected'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke afvise ansøgning', 'error')
+      toast(err instanceof Error ? err.message : t('community.group.rejectFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -643,9 +681,9 @@ export default function CommunityPage() {
     setGroupActionLoading(true)
     try {
       await api.community.inviteToGroup(selectedRoomInfo.id, contactId)
-      toast('Invitation sendt')
+      toast(t('community.group.invitationSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende invitation', 'error')
+      toast(err instanceof Error ? err.message : t('community.group.invitationFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -656,9 +694,9 @@ export default function CommunityPage() {
     try {
       await api.community.acceptGroupInvitation(invitationId)
       await Promise.all([loadGroups(), loadGroupInvitations()])
-      toast('Invitation accepteret')
+      toast(t('community.groups.invitationAccepted'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke acceptere invitation', 'error')
+      toast(err instanceof Error ? err.message : t('community.groups.invitationAcceptFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -669,9 +707,9 @@ export default function CommunityPage() {
     try {
       await api.community.declineGroupInvitation(invitationId)
       await loadGroupInvitations()
-      toast('Invitation afvist')
+      toast(t('community.groups.invitationDeclined'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke afvise invitation', 'error')
+      toast(err instanceof Error ? err.message : t('community.groups.invitationDeclineFailed'), 'error')
     } finally {
       setGroupActionLoading(false)
     }
@@ -691,17 +729,17 @@ export default function CommunityPage() {
       if (fileRef.current) fileRef.current.value = ''
       await loadFeed(1)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Fejl', 'error')
+      toast(err instanceof Error ? err.message : t('messages.error'), 'error')
     } finally { setPosting(false) }
   }
 
   const handleDelete = async (postId: number) => {
-    if (!confirm('Slet opslag?')) return
+    if (!confirm(t('community.post.deleteConfirm'))) return
     try {
       await api.posts.delete(postId)
       setPosts(ps => ps.filter(p => p.id !== postId))
       setTotal(t => t - 1)
-    } catch { toast('Fejl', 'error') }
+    } catch { toast(t('community.post.deleteFailed'), 'error') }
   }
 
   const handleOnlineUserClick = async (onlineUser: CommunityOnlineUser) => {
@@ -716,10 +754,10 @@ export default function CommunityPage() {
         setRequestingUserId(onlineUser.id)
         try {
           await api.friends.accept(request.id)
-          toast('Venneanmodning accepteret')
+          toast(t('community.groups.friendRequestAccepted'))
           await Promise.all([loadOnlineUsers(), api.community.getContacts().then(setContacts), api.friends.getRequests().then(setFriendRequests)])
         } catch (err) {
-          toast(err instanceof Error ? err.message : 'Kunne ikke acceptere anmodning', 'error')
+          toast(err instanceof Error ? err.message : t('community.groups.friendAcceptFailed'), 'error')
         } finally {
           setRequestingUserId(null)
         }
@@ -739,10 +777,10 @@ export default function CommunityPage() {
           ? { ...item, friendshipStatus: FriendshipStatus.Pending, friendshipDirection: 'outgoing' }
           : item
       ))
-      toast(`Venneanmodning sendt til ${onlineUser.callsign || onlineUser.name || onlineUser.email}.`)
+      toast(t('community.groups.friendRequestSentTo', { name: onlineUser.callsign || onlineUser.name || onlineUser.email || t('common.unknownUser') }))
       setFriendRequests(await api.friends.getRequests())
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende venneanmodning', 'error')
+      toast(err instanceof Error ? err.message : t('community.groups.friendRequestFailed'), 'error')
     } finally {
       setRequestingUserId(null)
     }
@@ -770,25 +808,25 @@ export default function CommunityPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
           <form onSubmit={handleCreateGroup} className="w-full max-w-xl rounded-lg border border-gray-800 bg-gray-950 p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-white">Opret gruppe</h2>
-              <button type="button" onClick={() => setGroupComposerOpen(false)} className="text-sm text-gray-400 hover:text-white">Luk</button>
+              <h2 className="text-lg font-semibold text-white">{t('community.groups.create')}</h2>
+              <button type="button" onClick={() => setGroupComposerOpen(false)} className="text-sm text-gray-400 hover:text-white">{t('common.close')}</button>
             </div>
             <div className="space-y-3">
               <input
                 value={groupDraft.name}
                 onChange={event => setGroupDraft(current => ({ ...current, name: event.target.value }))}
-                placeholder="Gruppenavn"
+                placeholder={t('community.groups.namePlaceholder')}
                 className="h-10 w-full rounded border border-gray-700 bg-gray-900 px-3 text-sm text-white outline-none focus:border-blue-600"
               />
               <textarea
                 value={groupDraft.description}
                 onChange={event => setGroupDraft(current => ({ ...current, description: event.target.value }))}
                 rows={3}
-                placeholder="Kort beskrivelse"
+                placeholder={t('community.groups.descriptionPlaceholder')}
                 className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:border-blue-600"
               />
               <div className="grid gap-2">
-                {visibilityOptions.map(option => (
+                {translatedVisibilityOptions(t).map(option => (
                   <label key={option.value} className={`cursor-pointer rounded border p-3 ${groupDraft.visibility === option.value ? 'border-blue-600 bg-blue-950/30' : 'border-gray-800 bg-gray-900'}`}>
                     <span className="flex items-start gap-3">
                       <input
@@ -813,11 +851,11 @@ export default function CommunityPage() {
                     checked={groupDraft.allowJoinRequests}
                     onChange={event => setGroupDraft(current => ({ ...current, allowJoinRequests: event.target.checked }))}
                   />
-                  Tillad at andre kan ansøge om medlemskab
+                  {t('community.groups.allowRequests')}
                 </label>
               )}
               <Button type="submit" disabled={groupActionLoading || !groupDraft.name.trim()}>
-                {groupActionLoading ? 'Opretter...' : 'Opret gruppe'}
+                {groupActionLoading ? t('community.groups.creating') : t('community.groups.create')}
               </Button>
             </div>
           </form>
@@ -828,18 +866,18 @@ export default function CommunityPage() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,760px)]">
             <aside className="hidden lg:flex flex-col gap-4 sticky top-20">
               <div>
-                <h1 className="text-2xl font-bold text-white">Grupper</h1>
-                <p className="text-sm text-gray-500 mt-1">Rum, forum og radio-snak samlet ét sted.</p>
+                <h1 className="text-2xl font-bold text-white">{t('community.groups.title')}</h1>
+                <p className="text-sm text-gray-500 mt-1">{t('community.groups.description')}</p>
               </div>
               <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Offentlige grupper og dine grupper</div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">{t('community.groups.overview')}</div>
                 <div className="mb-2 grid grid-cols-2 gap-1">
                   {[
-                    ['official', `Offentlige ${overviewCounts.official}`],
-                    ['mine', `Medlem ${overviewCounts.mine}`],
-                    ['owned', `Mine egne ${overviewCounts.owned}`],
-                    ['discover', `Find ${overviewCounts.discover}`],
-                    ['invitations', `Invites ${overviewCounts.invitations}`],
+                    ['official', t('community.groups.official', { count: overviewCounts.official })],
+                    ['mine', t('community.groups.mine', { count: overviewCounts.mine })],
+                    ['owned', t('community.groups.owned', { count: overviewCounts.owned })],
+                    ['discover', t('community.groups.discover', { count: overviewCounts.discover })],
+                    ['invitations', t('community.groups.invites', { count: overviewCounts.invitations })],
                   ].map(([view, label]) => (
                     <button
                       key={view}
@@ -854,7 +892,7 @@ export default function CommunityPage() {
                 <input
                   value={groupSearch}
                   onChange={event => setGroupSearch(event.target.value)}
-                  placeholder="Søg grupper"
+                  placeholder={t('community.groups.search')}
                   className="mb-2 h-9 w-full rounded border border-gray-800 bg-gray-950 px-2 text-sm text-white outline-none focus:border-blue-600"
                 />
                 <div className="flex flex-col gap-1">
@@ -870,28 +908,28 @@ export default function CommunityPage() {
                       }`}
                     >
                       <span className="block font-medium">{room.name}</span>
-                      <span className="block text-[11px] text-gray-600">{groupVisibilityLabel(room.visibility)} · {room.memberCount ?? 0} medlemmer</span>
+                      <span className="block text-[11px] text-gray-600">{communityVisibilityLabel(room.visibility, t)} - {t('community.group.membersCount', { count: room.memberCount ?? 0 })}</span>
                       {room.description && <span className="block text-xs text-gray-500 truncate">{room.description}</span>}
                     </button>
                   ))}
-                  {filteredGroups.length === 0 && <p className="px-2 py-4 text-sm text-gray-500">Ingen grupper matcher.</p>}
+                  {filteredGroups.length === 0 && <p className="px-2 py-4 text-sm text-gray-500">{t('community.groups.noMatches')}</p>}
                 </div>
                 <Button type="button" variant="secondary" className="mt-3 w-full" onClick={() => setGroupComposerOpen(true)}>
-                  Opret gruppe
+                  {t('community.groups.create')}
                 </Button>
               </div>
             </aside>
 
             <main className="min-w-0">
               <div className="lg:hidden mb-4">
-                <h1 className="text-3xl font-bold text-white mb-3">Grupper</h1>
+                <h1 className="text-3xl font-bold text-white mb-3">{t('community.groups.title')}</h1>
                 <div className="mb-3 flex gap-2 overflow-x-auto">
                   {[
-                    ['official', `Offentlige ${overviewCounts.official}`],
-                    ['mine', `Medlem ${overviewCounts.mine}`],
-                    ['owned', `Mine egne ${overviewCounts.owned}`],
-                    ['discover', `Find ${overviewCounts.discover}`],
-                    ['invitations', `Invites ${overviewCounts.invitations}`],
+                    ['official', t('community.groups.official', { count: overviewCounts.official })],
+                    ['mine', t('community.groups.mine', { count: overviewCounts.mine })],
+                    ['owned', t('community.groups.owned', { count: overviewCounts.owned })],
+                    ['discover', t('community.groups.discover', { count: overviewCounts.discover })],
+                    ['invitations', t('community.groups.invites', { count: overviewCounts.invitations })],
                   ].map(([view, label]) => (
                     <button
                       key={view}
@@ -906,7 +944,7 @@ export default function CommunityPage() {
                 <input
                   value={groupSearch}
                   onChange={event => setGroupSearch(event.target.value)}
-                  placeholder="Søg grupper"
+                  placeholder={t('community.groups.search')}
                   className="mb-3 h-10 w-full rounded border border-gray-800 bg-gray-950 px-3 text-sm text-white outline-none focus:border-blue-600"
                 />
                 <div className="flex gap-2 overflow-x-auto pb-2">
@@ -930,20 +968,20 @@ export default function CommunityPage() {
               {groupView === 'invitations' && (
                 <Card className="mb-5">
                   <CardContent className="py-5">
-                    <h2 className="mb-3 text-sm font-semibold text-white">Gruppeinvitationer</h2>
+                    <h2 className="mb-3 text-sm font-semibold text-white">{t('community.groups.invitations')}</h2>
                     {groupInvitations.length === 0 ? (
-                      <p className="text-sm text-gray-500">Du har ingen åbne gruppeinvitationer.</p>
+                      <p className="text-sm text-gray-500">{t('community.groups.noOpenInvitations')}</p>
                     ) : (
                       <div className="space-y-2">
                         {groupInvitations.map(invitation => (
                           <div key={invitation.id} className="flex flex-col gap-2 rounded border border-gray-800 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <div className="text-sm font-semibold text-white">{invitation.groupName}</div>
-                              <div className="text-xs text-gray-500">Inviteret af {invitation.inviterCallsign || 'en admin'}</div>
+                              <div className="text-xs text-gray-500">{t('community.groups.invitedBy', { name: invitation.inviterCallsign || t('community.groups.adminFallback') })}</div>
                             </div>
                             <div className="flex gap-2">
-                              <Button type="button" size="sm" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>Accepter</Button>
-                              <Button type="button" size="sm" variant="secondary" onClick={() => handleDeclineInvitation(invitation.id)} disabled={groupActionLoading}>Afvis</Button>
+                              <Button type="button" size="sm" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>{t('messages.accept')}</Button>
+                              <Button type="button" size="sm" variant="secondary" onClick={() => handleDeclineInvitation(invitation.id)} disabled={groupActionLoading}>{t('messages.decline')}</Button>
                             </div>
                           </div>
                         ))}
@@ -956,40 +994,40 @@ export default function CommunityPage() {
               <Card className="mb-5">
                 <CardContent className="py-5">
                   <div className="mb-3">
-                    <div className="text-sm font-semibold text-white">{selectedRoomInfo?.name ?? 'Alle opslag'}</div>
-                    <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? 'Del noget med dine grupper.'}</div>
+                    <div className="text-sm font-semibold text-white">{selectedRoomInfo?.name ?? t('community.groups.allPosts')}</div>
+                    <div className="text-xs text-gray-500">{selectedRoomInfo?.description ?? t('community.groups.shareFallback')}</div>
                     {selectedRoomInfo && selectedRoomInfo.slug !== 'alle' && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        <span className="rounded border border-gray-700 px-2 py-1">{groupVisibilityLabel(selectedRoomInfo.visibility)}</span>
-                        <span className="rounded border border-gray-700 px-2 py-1">{selectedRoomInfo.memberCount ?? 0} medlemmer</span>
-                        <span className="rounded border border-gray-700 px-2 py-1">{selectedMembership === 'None' ? 'Ikke medlem' : selectedMembership === 'Pending' ? 'Ansøgning sendt' : 'Medlem'}</span>
-                        <Link href={`/community/groups/${selectedRoomInfo.slug}`} className="rounded border border-blue-700 px-2 py-1 text-blue-200 hover:bg-blue-950/30">Åbn gruppe</Link>
+                        <span className="rounded border border-gray-700 px-2 py-1">{communityVisibilityLabel(selectedRoomInfo.visibility, t)}</span>
+                        <span className="rounded border border-gray-700 px-2 py-1">{t('community.group.membersCount', { count: selectedRoomInfo.memberCount ?? 0 })}</span>
+                        <span className="rounded border border-gray-700 px-2 py-1">{selectedMembership === 'None' ? t('community.groups.notMember') : selectedMembership === 'Pending' ? t('community.access.requestSent') : t('community.role.member')}</span>
+                        <Link href={`/community/groups/${selectedRoomInfo.slug}`} className="rounded border border-blue-700 px-2 py-1 text-blue-200 hover:bg-blue-950/30">{t('community.groups.openGroup')}</Link>
                       </div>
                     )}
                   </div>
                   {!canPostInSelectedGroup && selectedMembership !== 'Pending' && selectedRoomInfo?.allowJoinRequests && (
                     <div className="mb-3 rounded-md border border-yellow-700/40 bg-yellow-950/20 p-3 text-sm text-yellow-100">
-                      Du skal være medlem for at skrive i gruppen.
+                      {t('community.groups.memberOnlyNotice')}
                       <Button type="button" size="sm" className="ml-3" onClick={handleRequestToJoin} disabled={groupActionLoading}>
-                        Ansøg om adgang
+                        {t('community.group.requestAccess')}
                       </Button>
                     </div>
                   )}
                   {!canPostInSelectedGroup && selectedMembership === 'Pending' && (
-                    <div className="mb-3 rounded-md border border-blue-700/40 bg-blue-950/20 p-3 text-sm text-blue-100">Din ansøgning afventer godkendelse.</div>
+                    <div className="mb-3 rounded-md border border-blue-700/40 bg-blue-950/20 p-3 text-sm text-blue-100">{t('community.groups.pendingNotice')}</div>
                   )}
                   <form onSubmit={handlePost} className="flex flex-col gap-3">
                     <textarea
                       rows={3}
                       value={newContent}
                       onChange={e => setNewContent(e.target.value)}
-                      placeholder="Del noget med gruppen..."
+                      placeholder={t('community.group.postPlaceholder')}
                       disabled={!canPostInSelectedGroup}
                       className="w-full rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-white text-sm resize-none disabled:opacity-50"
                     />
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <label className="cursor-pointer text-gray-400 hover:text-gray-200 text-sm">
-                        Tilføj billeder
+                        {t('community.groups.addImages')}
                         <input
                           ref={fileRef}
                           type="file"
@@ -999,9 +1037,9 @@ export default function CommunityPage() {
                           onChange={e => setNewImages(Array.from(e.target.files || []).slice(0, 4))}
                         />
                       </label>
-                      {newImages.length > 0 && <span className="text-xs text-gray-500">{newImages.length} billede(r)</span>}
+                      {newImages.length > 0 && <span className="text-xs text-gray-500">{t('community.groups.imagesCount', { count: newImages.length })}</span>}
                       <Button type="submit" disabled={posting || !newContent.trim() || !canPostInSelectedGroup} size="sm">
-                        {posting ? 'Poster...' : 'Post'}
+                        {posting ? t('community.groups.posting') : 'Post'}
                       </Button>
                     </div>
                   </form>
@@ -1012,19 +1050,19 @@ export default function CommunityPage() {
                 <Card className="mb-5">
                   <CardContent className="space-y-4 py-5">
                     <div>
-                      <h2 className="text-sm font-semibold text-white">Gruppeadministration</h2>
-                      <p className="text-xs text-gray-500">Godkend ansøgninger og inviter dine kontakter ind.</p>
+                      <h2 className="text-sm font-semibold text-white">{t('community.groups.admin')}</h2>
+                      <p className="text-xs text-gray-500">{t('community.groups.adminDescription')}</p>
                     </div>
                     {joinRequests.length > 0 && (
                       <div className="space-y-2">
                         {joinRequests.map(request => (
                           <div key={request.id} className="flex items-center justify-between gap-3 rounded border border-gray-800 px-3 py-2">
-                            <span className="text-sm text-gray-200">{request.callsign || request.email || 'Ukendt bruger'}</span>
+                            <span className="text-sm text-gray-200">{request.callsign || request.email || t('common.unknownUser')}</span>
                             <Button type="button" size="sm" onClick={() => handleApproveJoinRequest(request.id)} disabled={groupActionLoading}>
-                              Godkend
+                              {t('community.group.approve')}
                             </Button>
                             <Button type="button" size="sm" variant="secondary" onClick={() => handleRejectJoinRequest(request.id)} disabled={groupActionLoading}>
-                              Afvis
+                              {t('messages.decline')}
                             </Button>
                           </div>
                         ))}
@@ -1032,7 +1070,7 @@ export default function CommunityPage() {
                     )}
                     {contacts.length > 0 && (
                       <div>
-                        <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">Inviter kontakt</div>
+                        <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">{t('community.group.inviteContact')}</div>
                         <div className="flex flex-wrap gap-2">
                           {contacts.slice(0, 12).map(contact => (
                             <Button key={contact.id} type="button" size="sm" variant="secondary" onClick={() => handleInviteContact(contact.id)} disabled={groupActionLoading}>
@@ -1047,9 +1085,9 @@ export default function CommunityPage() {
               )}
 
               {loading && posts.length === 0 ? (
-                <p className="text-gray-400">Indlæser...</p>
+                <p className="text-gray-400">{t('common.loading')}</p>
               ) : posts.length === 0 ? (
-                <Card><CardContent className="py-12 text-center text-gray-400">Ingen opslag i dette rum endnu.</CardContent></Card>
+                <Card><CardContent className="py-12 text-center text-gray-400">{t('community.groups.noRoomPosts')}</CardContent></Card>
               ) : (
                 <div className="flex flex-col gap-4">
                   {posts.map(p => (
@@ -1062,7 +1100,7 @@ export default function CommunityPage() {
                   ))}
                   {posts.length < total && (
                     <Button variant="secondary" onClick={() => loadFeed(page + 1)} disabled={loading}>
-                      {loading ? 'Indlæser...' : 'Indlæs flere'}
+                      {loading ? t('common.loading') : t('community.groups.loadMore')}
                     </Button>
                   )}
                 </div>
@@ -1085,17 +1123,17 @@ export default function CommunityPage() {
 
           {groupInvitations.length > 0 && (
             <div className="rounded-lg border border-blue-800/60 bg-blue-950/20 p-4">
-              <h2 className="mb-3 text-sm font-semibold text-white">Gruppeinvitationer</h2>
+              <h2 className="mb-3 text-sm font-semibold text-white">{t('community.groups.invitations')}</h2>
               <div className="space-y-2">
                 {groupInvitations.map(invitation => (
                   <div key={invitation.id} className="rounded border border-blue-900/60 bg-gray-950/40 p-3">
                     <div className="text-sm font-semibold text-blue-100">{invitation.groupName}</div>
-                    <div className="text-xs text-gray-500">Inviteret af {invitation.inviterCallsign || 'en admin'}</div>
+                    <div className="text-xs text-gray-500">{t('community.groups.invitedBy', { name: invitation.inviterCallsign || t('community.groups.adminFallback') })}</div>
                     <Button type="button" size="sm" className="mt-2" onClick={() => handleAcceptInvitation(invitation.id)} disabled={groupActionLoading}>
-                      Accepter
+                      {t('messages.accept')}
                     </Button>
                     <Button type="button" size="sm" variant="secondary" className="ml-2 mt-2" onClick={() => handleDeclineInvitation(invitation.id)} disabled={groupActionLoading}>
-                      Afvis
+                      {t('messages.decline')}
                     </Button>
                   </div>
                 ))}
@@ -1105,18 +1143,18 @@ export default function CommunityPage() {
 
           <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Online nu</h2>
+              <h2 className="text-sm font-semibold text-white">{t('community.groups.onlineNow')}</h2>
               <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-xs text-green-300">{onlineUsers.length}</span>
             </div>
             <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
               {onlineUsers.map(onlineUser => {
-                const label = onlineUser.callsign || onlineUser.name || onlineUser.email || 'Ukendt bruger'
+                const label = onlineUser.callsign || onlineUser.name || onlineUser.email || t('common.unknownUser')
                 const alreadyPending = onlineUser.friendshipStatus === FriendshipStatus.Pending
                 const buttonText = onlineUser.isFriend
-                  ? 'Åbn'
+                  ? t('community.groups.open')
                   : alreadyPending
-                    ? onlineUser.friendshipDirection === 'incoming' ? 'Svar' : 'Sendt'
-                    : requestingUserId === onlineUser.id ? 'Sender...' : 'Tilføj'
+                    ? onlineUser.friendshipDirection === 'incoming' ? t('community.groups.reply') : t('community.groups.sent')
+                    : requestingUserId === onlineUser.id ? t('community.messaging.sending') : t('community.groups.add')
 
                 return (
                   <button
@@ -1132,7 +1170,7 @@ export default function CommunityPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-gray-200">{label}</span>
-                      <span className="block truncate text-xs text-gray-500">{onlineUser.gridLocator || onlineUser.country || onlineUser.name || 'Online medlem'}</span>
+                      <span className="block truncate text-xs text-gray-500">{onlineUser.gridLocator || onlineUser.country || onlineUser.name || t('community.groups.onlineMember')}</span>
                     </span>
                     <span className={`shrink-0 rounded px-2 py-1 text-xs ${
                       onlineUser.isFriend
@@ -1146,7 +1184,7 @@ export default function CommunityPage() {
                   </button>
                 )
               })}
-              {onlineUsers.length === 0 && <p className="text-sm text-gray-500">Ingen andre online lige nu.</p>}
+              {onlineUsers.length === 0 && <p className="text-sm text-gray-500">{t('community.groups.noOnline')}</p>}
             </div>
           </div>
         </aside>

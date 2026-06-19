@@ -221,5 +221,5 @@ export function continentFromCountry(country: string | null | undefined) {
 export function countryFromCallsign(callsign: string | null) {
   const normalized = normalizeCallsignForCountry(callsign)
   if (!normalized) return '-'
-  return CALLSIGN_COUNTRY_PREFIXES.find(([pattern]) => pattern.test(normalized))?.[1] ?? 'Ukendt'
+  return CALLSIGN_COUNTRY_PREFIXES.find(([pattern]) => pattern.test(normalized))?.[1] ?? 'Unknown'
 }

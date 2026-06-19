@@ -7,7 +7,7 @@ export function normalizeForumTags(value: string | null | undefined) {
 }
 
 export function forumStatusLabel(isSolved: boolean) {
-  return isSolved ? 'Løst' : 'Åben'
+  return isSolved ? 'Solved' : 'Open'
 }
 
 export function forumStatusClass(isSolved: boolean) {

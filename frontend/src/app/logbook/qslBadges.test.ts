@@ -43,28 +43,37 @@ function qso(overrides: Partial<Qso> = {}): Qso {
   }
 }
 
+const daLotwLabels = {
+  confirmed: 'LoTW bekræftet af modparten',
+  pending: 'LoTW er klar eller ikke tjekket endnu',
+  checkedUnconfirmed: 'LoTW tjekket, men QSO er ikke bekræftet endnu',
+  verifyFailed: 'LoTW status kunne ikke verificeres',
+  ready: 'LoTW er klar eller ikke tjekket endnu',
+}
+
 test('marks LoTW as confirmed when a confirmation date exists', () => {
   assert.equal(lotwTone(qso({ lotwConfirmedAt: '2026-06-17T08:10:11Z' })), 'confirmed')
-  assert.equal(lotwTitle(qso({ lotwConfirmedAt: '2026-06-17T08:10:11Z' })), 'LoTW bekræftet af modparten')
+  assert.equal(lotwTitle(qso({ lotwConfirmedAt: '2026-06-17T08:10:11Z' })), 'LoTW confirmed by the other station')
+  assert.equal(lotwTitle(qso({ lotwConfirmedAt: '2026-06-17T08:10:11Z' }), daLotwLabels), 'LoTW bekræftet af modparten')
 })
 
 test('marks LoTW as missing when it was checked but not confirmed', () => {
   const checked = qso({ lotwLastResult: 'LoTW status opdateret: ikke fundet' })
 
   assert.equal(lotwTone(checked), 'missing')
-  assert.equal(lotwTitle(checked), 'LoTW tjekket, men QSO er ikke bekræftet endnu')
+  assert.equal(lotwTitle(checked), 'LoTW checked, but QSO is not confirmed yet')
 })
 
 test('marks LoTW as pending before status has been checked', () => {
   const unchecked = qso()
 
   assert.equal(lotwTone(unchecked), 'pending')
-  assert.equal(lotwTitle(unchecked), 'LoTW er klar eller ikke tjekket endnu')
+  assert.equal(lotwTitle(unchecked), 'LoTW is ready or has not been checked yet')
 })
 
 test('keeps eQSL not-found checks pending so unconfirmed matches are not shown as errors', () => {
   const checked = qso({ eqslLastResult: 'eQSL status opdateret: QSO ikke fundet på eQSL endnu. QSO ikke fundet på eQSL endnu.' })
 
   assert.equal(eqslTone(checked), 'pending')
-  assert.equal(eqslTitle(checked), 'eQSL tjekket, men QSO er ikke bekræftet endnu')
+  assert.equal(eqslTitle(checked), 'eQSL checked, but QSO is not confirmed yet')
 })

@@ -11,6 +11,7 @@ public record UserDto(
     string? Country,
     string? GridLocator,
     int? DefaultStationId,
+    string? PreferredLanguage,
     LicenseClass? LicenseClass,
     string? ProfileDescription,
     string? ProfileImageUrl,

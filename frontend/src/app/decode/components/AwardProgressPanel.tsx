@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardContent } from '@/components/ui/Card'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { bandModeLabel, snrText } from '../decodeFormatters'
 import { type AwardSummary, type LiveRosterEntry } from '../decodeScoring'
 
@@ -10,25 +11,26 @@ type AwardProgressPanelProps = {
 }
 
 export default function AwardProgressPanel({ summary, onSelect }: AwardProgressPanelProps) {
+  const { t } = useLanguage()
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-white">Award status</h2>
-          <p className="mt-1 text-xs text-gray-500">Live opportunities fra rosteren</p>
+          <h2 className="text-sm font-semibold text-white">{t('decode.awards.title')}</h2>
+          <p className="mt-1 text-xs text-gray-500">{t('decode.awards.description')}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Stat label="New DXCC" value={summary.liveNeededDxcc} />
-          <Stat label="DXCC QSL" value={summary.liveDxccNeedQsl} />
-          <Stat label="Kontinenter" value={summary.liveNeededContinents} />
-          <Stat label="Grids" value={summary.liveNeededGrids} />
+          <Stat label={t('decode.awards.newDxcc')} value={summary.liveNeededDxcc} />
+          <Stat label={t('decode.awards.dxccQsl')} value={summary.liveDxccNeedQsl} />
+          <Stat label={t('decode.awards.continents')} value={summary.liveNeededContinents} />
+          <Stat label={t('decode.awards.grids')} value={summary.liveNeededGrids} />
           <Stat label="WPX" value={summary.liveNeededWpx} />
-          <Stat label="DXCC band" value={summary.liveNeededDxccBands} />
-          <Stat label="DXCC mode" value={summary.liveNeededDxccModes} />
-          <Stat label="Call band/mode" value={summary.liveNeededBandModes} />
-          <Stat label="Worked DXCC" value={summary.workedCountries} muted />
-          <Stat label="Confirmed DXCC" value={summary.confirmedCountries} muted />
+          <Stat label={t('decode.awards.dxccBand')} value={summary.liveNeededDxccBands} />
+          <Stat label={t('decode.awards.dxccMode')} value={summary.liveNeededDxccModes} />
+          <Stat label={t('decode.awards.callBandMode')} value={summary.liveNeededBandModes} />
+          <Stat label={t('decode.awards.workedDxcc')} value={summary.workedCountries} muted />
+          <Stat label={t('decode.awards.confirmedDxcc')} value={summary.confirmedCountries} muted />
         </div>
 
         <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
@@ -39,13 +41,13 @@ export default function AwardProgressPanel({ summary, onSelect }: AwardProgressP
               title={item.label}
             >
               <p className="font-mono text-sm font-bold text-white">{item.code}</p>
-              <p className="text-[10px] text-gray-500">{item.liveCount} live</p>
+          <p className="text-[10px] text-gray-500">{t('decode.awards.liveCount', { count: item.liveCount })}</p>
             </div>
           ))}
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase text-gray-500">Bedste live muligheder</p>
+          <p className="text-xs font-semibold uppercase text-gray-500">{t('decode.awards.bestOpportunities')}</p>
           {summary.opportunities.length > 0 ? summary.opportunities.map(entry => (
             <button
               key={entry.callsign}
@@ -59,7 +61,7 @@ export default function AwardProgressPanel({ summary, onSelect }: AwardProgressP
             </button>
           )) : (
             <p className="border border-gray-800 bg-gray-950 px-3 py-6 text-center text-xs text-gray-500">
-              Ingen needed hits live lige nu.
+              {t('decode.awards.noNeededHits')}
             </p>
           )}
         </div>

@@ -3,10 +3,12 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { viewportShellClass } from '@/lib/layout'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, isLoading } = useAuth()
+  const { t } = useLanguage()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -19,10 +21,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (isLoading) return null
 
   const links = [
-    { href: '/admin', label: 'Dashboard' },
-    { href: '/admin/articles', label: 'Artikler' },
-    { href: '/admin/users', label: 'Brugere' },
-    { href: '/admin/reports', label: 'Rapporter' },
+    { href: '/admin', label: t('admin.nav.dashboard') },
+    { href: '/admin/articles', label: t('admin.stats.articles') },
+    { href: '/admin/users', label: t('admin.stats.users') },
+    { href: '/admin/reports', label: t('admin.reports.title') },
   ]
 
   return (

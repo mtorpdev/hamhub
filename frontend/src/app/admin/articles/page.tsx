@@ -1,20 +1,23 @@
 'use client'
+
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import Link from 'next/link'
 import type { Article, ArticleCategory } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { pageShellClass } from '@/lib/layout'
 
 const emptyForm = { title: '', slug: '', summary: '', content: '', categoryId: 0 }
 
 export default function AdminArticlesPage() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [articles, setArticles] = useState<Article[]>([])
   const [categories, setCategories] = useState<ArticleCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,21 +37,21 @@ export default function AdminArticlesPage() {
   const handlePublish = async (id: number) => {
     try {
       await api.articles.publish(id)
-      toast('Artikel udgivet!')
+      toast(t('admin.articles.publishedToast'))
       load()
     } catch {
-      toast('Udgivelse mislykkedes', 'error')
+      toast(t('admin.articles.publishFailed'), 'error')
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Slet artikel?')) return
+    if (!confirm(t('admin.articles.deleteConfirm'))) return
     try {
       await api.articles.delete(id)
-      toast('Artikel slettet')
+      toast(t('admin.articles.deletedToast'))
       load()
     } catch {
-      toast('Sletning mislykkedes', 'error')
+      toast(t('admin.articles.deleteFailed'), 'error')
     }
   }
 
@@ -56,10 +59,10 @@ export default function AdminArticlesPage() {
     setImporting(true)
     try {
       const result = await api.articles.importFeeds()
-      toast(`Importerede ${result.imported} nyheder. Sprang ${result.skipped} over.`)
+      toast(t('admin.articles.importedToast', { imported: result.imported, skipped: result.skipped }))
       load()
     } catch {
-      toast('Import af nyheder mislykkedes', 'error')
+      toast(t('admin.articles.importFailed'), 'error')
     } finally {
       setImporting(false)
     }
@@ -67,15 +70,15 @@ export default function AdminArticlesPage() {
 
   const handleTitleChange = (title: string) => {
     const slug = title.toLowerCase()
-      .replace(/[æ]/g, 'ae').replace(/[ø]/g, 'oe').replace(/[å]/g, 'aa')
+      .replace(/[\u00e6]/g, 'ae').replace(/[\u00f8]/g, 'oe').replace(/[\u00e5]/g, 'aa')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    setForm(f => ({ ...f, title, slug }))
+    setForm((current) => ({ ...current, title, slug }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     if (!form.title || !form.slug || !form.content || !form.categoryId) {
-      setFormError('Titel, slug, indhold og kategori er påkrævet')
+      setFormError(t('admin.articles.requiredError'))
       return
     }
     setSaving(true)
@@ -90,25 +93,34 @@ export default function AdminArticlesPage() {
       })
       setForm(emptyForm)
       setShowForm(false)
-      toast('Artikel gemt som kladde!')
+      toast(t('admin.articles.draftSavedToast'))
       load()
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Fejl ved oprettelse')
+      setFormError(err instanceof Error ? err.message : t('admin.articles.createFailed'))
     } finally {
       setSaving(false)
     }
   }
 
+  const headers = [
+    t('admin.articles.titleColumn'),
+    t('admin.articles.categoryColumn'),
+    t('admin.articles.sourceColumn'),
+    t('admin.articles.statusColumn'),
+    t('admin.articles.createdColumn'),
+    t('admin.articles.actionsColumn'),
+  ]
+
   return (
     <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-white">Artikler</h1>
+        <h1 className="text-3xl font-bold text-white">{t('admin.articles.title')}</h1>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={handleImportFeeds} disabled={importing}>
-            {importing ? 'Henter...' : 'Importer nyheder'}
+            {importing ? t('common.loading') : t('admin.articles.importNews')}
           </Button>
-          <Button onClick={() => { setShowForm(s => !s); setFormError('') }}>
-            {showForm ? 'Annuller' : '+ Ny artikel'}
+          <Button onClick={() => { setShowForm((visible) => !visible); setFormError('') }}>
+            {showForm ? t('common.cancel') : t('admin.articles.newArticle')}
           </Button>
         </div>
       </div>
@@ -116,62 +128,62 @@ export default function AdminArticlesPage() {
       {showForm && (
         <Card className="mb-8">
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Opret artikel</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">{t('admin.articles.createTitle')}</h2>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Titel *</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('admin.articles.titleLabel')} *</label>
                   <Input
                     value={form.title}
-                    onChange={e => handleTitleChange(e.target.value)}
-                    placeholder="Artikel titel"
+                    onChange={(event) => handleTitleChange(event.target.value)}
+                    placeholder={t('admin.articles.titlePlaceholder')}
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Slug *</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('admin.articles.slugLabel')} *</label>
                   <Input
                     value={form.slug}
-                    onChange={e => setForm(f => ({ ...f, slug: e.target.value }))}
-                    placeholder="artikel-slug"
+                    onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
+                    placeholder="article-slug"
                     className="font-mono"
                   />
                 </div>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Kategori *</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('admin.articles.categoryLabel')} *</label>
                   <select
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
                     value={form.categoryId}
-                    onChange={e => setForm(f => ({ ...f, categoryId: Number(e.target.value) }))}
+                    onChange={(event) => setForm((current) => ({ ...current, categoryId: Number(event.target.value) }))}
                   >
-                    <option value={0}>Vælg kategori...</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    <option value={0}>{t('admin.articles.chooseCategory')}</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Resumé</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('admin.articles.summaryLabel')}</label>
                   <Input
                     value={form.summary}
-                    onChange={e => setForm(f => ({ ...f, summary: e.target.value }))}
-                    placeholder="Kort beskrivelse (valgfri)"
+                    onChange={(event) => setForm((current) => ({ ...current, summary: event.target.value }))}
+                    placeholder={t('admin.articles.summaryPlaceholder')}
                   />
                 </div>
               </div>
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">Indhold *</label>
+                <label className="text-sm text-gray-400 mb-1 block">{t('admin.articles.contentLabel')} *</label>
                 <textarea
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm min-h-[200px] resize-y"
                   value={form.content}
-                  onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-                  placeholder="Artikelindhold..."
+                  onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))}
+                  placeholder={t('admin.articles.contentPlaceholder')}
                 />
               </div>
               {formError && <p className="text-red-400 text-sm">{formError}</p>}
               <div className="flex gap-3">
-                <Button type="submit" disabled={saving}>{saving ? 'Gemmer...' : 'Gem som kladde'}</Button>
+                <Button type="submit" disabled={saving}>{saving ? t('common.saving') : t('admin.articles.saveDraft')}</Button>
               </div>
             </form>
           </CardContent>
@@ -180,34 +192,34 @@ export default function AdminArticlesPage() {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? <p className="p-6 text-gray-400">Indlæser...</p> : (
+          {loading ? <p className="p-6 text-gray-400">{t('common.loading')}</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Titel', 'Kategori', 'Kilde', 'Status', 'Oprettet', 'Handlinger'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
+                    {headers.map((header) => (
+                      <th key={header} className="px-4 py-3 text-left text-gray-400 font-medium">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {articles.map(a => (
-                    <tr key={a.id} className="hover:bg-gray-800/30 transition-colors">
-                      <td className="px-4 py-3 text-white">{a.title}</td>
-                      <td className="px-4 py-3 text-gray-400">{a.categoryName}</td>
-                      <td className="px-4 py-3 text-gray-400">{a.sourceName || a.authorCallsign}</td>
+                  {articles.map((article) => (
+                    <tr key={article.id} className="hover:bg-gray-800/30 transition-colors">
+                      <td className="px-4 py-3 text-white">{article.title}</td>
+                      <td className="px-4 py-3 text-gray-400">{article.categoryName}</td>
+                      <td className="px-4 py-3 text-gray-400">{article.sourceName || article.authorCallsign}</td>
                       <td className="px-4 py-3">
-                        <Badge variant={a.isPublished ? 'success' : 'warning'}>
-                          {a.isPublished ? 'Udgivet' : 'Kladde'}
+                        <Badge variant={article.isPublished ? 'success' : 'warning'}>
+                          {article.isPublished ? t('admin.articles.published') : t('admin.articles.draft')}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(a.createdAt)}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(article.createdAt)}</td>
                       <td className="px-4 py-3 flex gap-2">
-                        <Link href={`/admin/articles/${a.id}`} className="text-blue-400 hover:text-blue-300 text-xs">Rediger</Link>
-                        {!a.isPublished && (
-                          <button onClick={() => handlePublish(a.id)} className="text-green-400 hover:text-green-300 text-xs">Udgiv</button>
+                        <Link href={`/admin/articles/${article.id}`} className="text-blue-400 hover:text-blue-300 text-xs">{t('common.edit')}</Link>
+                        {!article.isPublished && (
+                          <button onClick={() => handlePublish(article.id)} className="text-green-400 hover:text-green-300 text-xs">{t('admin.articles.publish')}</button>
                         )}
-                        <button onClick={() => handleDelete(a.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
+                        <button onClick={() => handleDelete(article.id)} className="text-red-500 hover:text-red-400 text-xs">{t('common.delete')}</button>
                       </td>
                     </tr>
                   ))}

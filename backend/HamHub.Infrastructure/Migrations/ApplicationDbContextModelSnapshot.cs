@@ -124,6 +124,10 @@ namespace HamHub.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("PreferredLanguage")
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
                     b.Property<string>("QrzApiKey")
                         .HasColumnType("text");
 

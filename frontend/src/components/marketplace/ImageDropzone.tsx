@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -23,13 +24,15 @@ export function ImageDropzone({
   onChange,
   maxFiles = 8,
   existingCount = 0,
-  label = 'Billeder',
+  label,
 }: ImageDropzoneProps) {
+  const { t } = useLanguage()
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const previews = useMemo<Preview[]>(
     () => files.map(file => ({ file, url: URL.createObjectURL(file) })),
-    [files])
+    [files],
+  )
   const remaining = Math.max(0, maxFiles - existingCount - files.length)
 
   useEffect(() => {
@@ -55,24 +58,24 @@ export function ImageDropzone({
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-gray-300">{label} (maks {maxFiles})</label>
+      <label className="text-sm font-medium text-gray-300">{label || t('image.label')} (max {maxFiles})</label>
       <div
-        onDragEnter={e => {
-          e.preventDefault()
+        onDragEnter={event => {
+          event.preventDefault()
           setIsDragging(true)
         }}
-        onDragOver={e => {
-          e.preventDefault()
+        onDragOver={event => {
+          event.preventDefault()
           setIsDragging(true)
         }}
-        onDragLeave={e => {
-          e.preventDefault()
-          if (e.currentTarget === e.target) setIsDragging(false)
+        onDragLeave={event => {
+          event.preventDefault()
+          if (event.currentTarget === event.target) setIsDragging(false)
         }}
-        onDrop={e => {
-          e.preventDefault()
+        onDrop={event => {
+          event.preventDefault()
           setIsDragging(false)
-          addFiles(e.dataTransfer.files)
+          addFiles(event.dataTransfer.files)
         }}
         className={`rounded-lg border border-dashed px-4 py-6 transition-colors ${
           isDragging
@@ -81,32 +84,32 @@ export function ImageDropzone({
         }`}
       >
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="text-sm text-gray-300">Træk billeder hertil</div>
-          <div className="text-xs text-gray-500">JPG, PNG eller WEBP</div>
+          <div className="text-sm text-gray-300">{t('image.dragHere')}</div>
+          <div className="text-xs text-gray-500">{t('image.acceptedFormats')}</div>
           <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={remaining <= 0}>
-            Vælg billeder
+            {t('image.choose')}
           </Button>
           <input
             ref={inputRef}
             type="file"
             multiple
             accept={ACCEPTED_TYPES.join(',')}
-            onChange={e => {
-              addFiles(e.target.files || [])
-              e.currentTarget.value = ''
+            onChange={event => {
+              addFiles(event.target.files || [])
+              event.currentTarget.value = ''
             }}
             className="hidden"
           />
           {existingCount > 0 && (
             <p className="text-xs text-gray-500">
-              {existingCount} eksisterende, {remaining} ledige pladser
+              {t('image.existingSlots', { existing: existingCount, remaining })}
             </p>
           )}
         </div>
       </div>
 
       {previews.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {previews.map((preview, index) => (
             <div key={fileKey(preview.file)} className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -115,7 +118,7 @@ export function ImageDropzone({
                 type="button"
                 onClick={() => removeFile(index)}
                 className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-sm text-white shadow hover:bg-red-700"
-                aria-label="Fjern billede"
+                aria-label={t('image.remove')}
               >
                 x
               </button>

@@ -7,14 +7,14 @@ function status(overrides: Partial<QsoExternalLogStatus>): QsoExternalLogStatus 
   return {
     provider: 'LoTW',
     status: 'ready',
-    label: 'Klar til LoTW sync',
+    label: '',
     externalId: null,
     canSend: false,
     canFetch: true,
     description: '',
     isConfigured: true,
-    sendActionLabel: 'Kræver TQSL',
-    fetchActionLabel: 'Hent LoTW',
+    sendActionLabel: '',
+    fetchActionLabel: '',
     lastUpdatedAt: null,
     lastResult: null,
     ...overrides,
@@ -24,7 +24,7 @@ function status(overrides: Partial<QsoExternalLogStatus>): QsoExternalLogStatus 
 test('uses fetch action for configured LoTW status', () => {
   const action = externalPrimaryAction(status({ provider: 'LoTW', isConfigured: true, canFetch: true }))
 
-  assert.deepEqual(action, { kind: 'fetch', label: 'Hent LoTW', disabled: false })
+  assert.deepEqual(action, { kind: 'fetch', disabled: false })
 })
 
 test('uses setup action for unconfigured LoTW status', () => {
@@ -33,9 +33,7 @@ test('uses setup action for unconfigured LoTW status', () => {
     status: 'not-configured',
     isConfigured: false,
     canFetch: false,
-    fetchActionLabel: 'Opsæt LoTW',
   }))
 
-  assert.deepEqual(action, { kind: 'setup', label: 'Opsæt LoTW', disabled: false })
+  assert.deepEqual(action, { kind: 'setup', disabled: false })
 })
-

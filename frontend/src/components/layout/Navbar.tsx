@@ -10,6 +10,8 @@ import { viewportShellClass } from '@/lib/layout'
 import { NotificationList } from '@/components/notifications/NotificationList'
 import { useNotificationActions } from '@/hooks/useNotificationActions'
 import { HamHubLogo } from '@/components/brand/HamHubLogo'
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const emptySummary: NotificationSummary = {
@@ -40,6 +42,7 @@ function BellIcon() {
 
 export function Navbar() {
   const { isAuthenticated, user, logout, isAdmin } = useAuth()
+  const { t } = useLanguage()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [summary, setSummary] = useState<NotificationSummary>(emptySummary)
@@ -146,12 +149,12 @@ export function Navbar() {
     <div ref={ref} className="relative">
       <button
         type="button"
-        aria-label="Notifikationer"
+        aria-label={t('nav.notifications')}
         onClick={() => setNotificationsOpen(open => !open)}
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white"
       >
         <BellIcon />
-        <span className="sr-only">Notifikationer</span>
+        <span className="sr-only">{t('nav.notifications')}</span>
         {summary.total > 0 && (
           <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold text-white">
             {summary.total > 99 ? '99+' : summary.total}
@@ -163,18 +166,18 @@ export function Navbar() {
         <div className="absolute right-0 top-11 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-md border border-gray-700 bg-gray-900 shadow-xl">
           <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-white">Notifikationer</p>
+              <p className="text-sm font-semibold text-white">{t('notifications.title')}</p>
               <p className="text-xs text-gray-500">
-                {summary.total} handlinger
+                {t('notifications.actions', { count: summary.total })}
                 {center.history.unreadCount > 0 ? ` · ${center.history.unreadCount} ulæst i historik` : ''}
               </p>
             </div>
             <Link href="/notifications" onClick={() => setNotificationsOpen(false)} className="text-xs font-medium text-blue-300 hover:text-blue-200">
-              Se alle
+              {t('notifications.viewAll')}
             </Link>
           </div>
           {notificationsLoading ? (
-            <div className="px-4 py-6 text-center text-sm text-gray-400">Henter...</div>
+            <div className="px-4 py-6 text-center text-sm text-gray-400">{t('common.loading')}</div>
           ) : (
             <div className="max-h-[28rem] overflow-y-auto">
               <NotificationList
@@ -199,23 +202,24 @@ export function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
-            <Link href="/spots" className="text-gray-300 hover:text-white text-sm">DX Spots</Link>
-            <Link href="/pota" className="text-gray-300 hover:text-white text-sm">POTA</Link>
-            <Link href="/forum" className="text-gray-300 hover:text-white text-sm">Forum</Link>
-            <Link href="/articles" className="text-gray-300 hover:text-white text-sm">Artikler</Link>
-            <Link href="/marketplace" className="text-gray-300 hover:text-white text-sm">Marked</Link>
+            <Link href="/spots" className="text-gray-300 hover:text-white text-sm">{t('nav.dxSpots')}</Link>
+            <Link href="/pota" className="text-gray-300 hover:text-white text-sm">{t('nav.pota')}</Link>
+            <Link href="/forum" className="text-gray-300 hover:text-white text-sm">{t('nav.forum')}</Link>
+            <Link href="/articles" className="text-gray-300 hover:text-white text-sm">{t('nav.articles')}</Link>
+            <Link href="/marketplace" className="text-gray-300 hover:text-white text-sm">{t('nav.marketplace')}</Link>
             {isAuthenticated && <>
-              <Link href="/decode" className="text-gray-300 hover:text-white text-sm">Live Roster</Link>
-              <Link href="/awards" className="text-gray-300 hover:text-white text-sm">Awards</Link>
-              <Link href="/community" className="text-gray-300 hover:text-white text-sm">Grupper</Link>
-              <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">Dashboard</Link>
-              <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">Beskeder</Link>
-              {isAdmin && <Link href="/admin" className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">Admin</Link>}
+              <Link href="/decode" className="text-gray-300 hover:text-white text-sm">{t('nav.liveRoster')}</Link>
+              <Link href="/awards" className="text-gray-300 hover:text-white text-sm">{t('nav.awards')}</Link>
+              <Link href="/community" className="text-gray-300 hover:text-white text-sm">{t('nav.groups')}</Link>
+              <Link href="/dashboard" className="text-gray-300 hover:text-white text-sm">{t('nav.dashboard')}</Link>
+              <Link href="/logbook" className="text-gray-300 hover:text-white text-sm">{t('nav.logbook')}</Link>
+              <Link href="/messages" className="text-gray-300 hover:text-white text-sm">{t('nav.messages')}</Link>
+              {isAdmin && <Link href="/admin" className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">{t('nav.admin')}</Link>}
             </>}
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <LanguageSwitcher compact />
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
                 {renderNotificationBell(desktopNotificationRef)}
@@ -223,18 +227,19 @@ export function Navbar() {
                   {user?.callsign || user?.email}
                 </Link>
                 <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 transition-colors">
-                  Log ud
+                  {t('nav.logout')}
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/login" className="text-sm text-gray-300 hover:text-white px-3 py-1.5">Log ind</Link>
-                <Link href="/register" className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700">Opret konto</Link>
+                <Link href="/login" className="text-sm text-gray-300 hover:text-white px-3 py-1.5">{t('nav.login')}</Link>
+                <Link href="/register" className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700">{t('nav.register')}</Link>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
+            <LanguageSwitcher compact />
             {renderNotificationBell(mobileNotificationRef)}
             <button className="text-gray-400 hover:text-white" onClick={() => setMenuOpen(!menuOpen)}>
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -246,24 +251,24 @@ export function Navbar() {
 
         {menuOpen && (
           <div className="md:hidden py-3 border-t border-gray-800 flex flex-col gap-3">
-            <Link href="/spots" className="text-gray-300 text-sm py-1">DX Spots</Link>
-            <Link href="/pota" className="text-gray-300 text-sm py-1">POTA</Link>
-            <Link href="/forum" className="text-gray-300 text-sm py-1">Forum</Link>
-            <Link href="/articles" className="text-gray-300 text-sm py-1">Artikler</Link>
-            <Link href="/marketplace" className="text-gray-300 text-sm py-1">Marked</Link>
+            <Link href="/spots" className="text-gray-300 text-sm py-1">{t('nav.dxSpots')}</Link>
+            <Link href="/pota" className="text-gray-300 text-sm py-1">{t('nav.pota')}</Link>
+            <Link href="/forum" className="text-gray-300 text-sm py-1">{t('nav.forum')}</Link>
+            <Link href="/articles" className="text-gray-300 text-sm py-1">{t('nav.articles')}</Link>
+            <Link href="/marketplace" className="text-gray-300 text-sm py-1">{t('nav.marketplace')}</Link>
             {isAuthenticated ? <>
-              <Link href="/decode" className="text-gray-300 text-sm py-1">Live Roster</Link>
-              <Link href="/awards" className="text-gray-300 text-sm py-1">Awards</Link>
-              <Link href="/community" className="text-gray-300 text-sm py-1">Grupper</Link>
-              <Link href="/dashboard" className="text-gray-300 text-sm py-1">Dashboard</Link>
-              <Link href="/logbook" className="text-gray-300 text-sm py-1">Logbog</Link>
-              <Link href="/messages" className="text-gray-300 text-sm py-1">Beskeder</Link>
-              <Link href="/notifications" className="text-gray-300 text-sm py-1">Notifikationer<Badge count={summary.total} /></Link>
-              {isAdmin && <Link href="/admin" className="text-yellow-400 text-sm py-1">Admin</Link>}
-              <button onClick={handleLogout} className="text-gray-300 text-sm py-1 text-left">Log ud</button>
+              <Link href="/decode" className="text-gray-300 text-sm py-1">{t('nav.liveRoster')}</Link>
+              <Link href="/awards" className="text-gray-300 text-sm py-1">{t('nav.awards')}</Link>
+              <Link href="/community" className="text-gray-300 text-sm py-1">{t('nav.groups')}</Link>
+              <Link href="/dashboard" className="text-gray-300 text-sm py-1">{t('nav.dashboard')}</Link>
+              <Link href="/logbook" className="text-gray-300 text-sm py-1">{t('nav.logbook')}</Link>
+              <Link href="/messages" className="text-gray-300 text-sm py-1">{t('nav.messages')}</Link>
+              <Link href="/notifications" className="text-gray-300 text-sm py-1">{t('nav.notifications')}<Badge count={summary.total} /></Link>
+              {isAdmin && <Link href="/admin" className="text-yellow-400 text-sm py-1">{t('nav.admin')}</Link>}
+              <button onClick={handleLogout} className="text-gray-300 text-sm py-1 text-left">{t('nav.logout')}</button>
             </> : <>
-              <Link href="/login" className="text-gray-300 text-sm py-1">Log ind</Link>
-              <Link href="/register" className="text-blue-400 text-sm py-1">Opret konto</Link>
+              <Link href="/login" className="text-gray-300 text-sm py-1">{t('nav.login')}</Link>
+              <Link href="/register" className="text-blue-400 text-sm py-1">{t('nav.register')}</Link>
             </>}
           </div>
         )}

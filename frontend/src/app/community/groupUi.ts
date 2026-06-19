@@ -3,9 +3,9 @@ import { type CommunityContact, type CommunityGroupInvitation, type CommunityGro
 export type GroupOverviewView = 'official' | 'mine' | 'owned' | 'discover' | 'invitations' | 'all'
 
 export const visibilityOptions = [
-  { value: 1, label: 'Offentlig', description: 'Alle kan finde og deltage i gruppen.' },
-  { value: 2, label: 'Ansøg om adgang', description: 'Alle kan finde gruppen, men admin skal godkende.' },
-  { value: 3, label: 'Kun inviterede', description: 'Gruppen er kun synlig for medlemmer.' },
+  { value: 1, label: 'Public', description: 'Everyone can find and join the group.' },
+  { value: 2, label: 'Request to join', description: 'Everyone can find the group, but admins must approve membership.' },
+  { value: 3, label: 'Invite only', description: 'The group is only visible to members.' },
 ]
 
 export function membershipStatus(value: CommunityRoom['membershipStatus']) {
@@ -17,15 +17,15 @@ export function membershipStatus(value: CommunityRoom['membershipStatus']) {
 }
 
 export function groupVisibilityLabel(value: CommunityRoom['visibility']) {
-  if (value === 'InviteOnly' || value === 3) return 'Kun inviterede'
-  if (value === 'RequestToJoin' || value === 2) return 'Ansøg om adgang'
-  return 'Offentlig'
+  if (value === 'InviteOnly' || value === 3) return 'Invite only'
+  if (value === 'RequestToJoin' || value === 2) return 'Request to join'
+  return 'Public'
 }
 
 export function groupRoleLabel(value: string | number) {
   if (value === 'Owner' || value === 1) return 'Owner'
   if (value === 'Admin' || value === 2) return 'Admin'
-  return 'Medlem'
+  return 'Member'
 }
 
 export function canManageCommunityGroup(group: Pick<CommunityRoom, 'membershipStatus'> | null | undefined) {
@@ -41,42 +41,42 @@ export function buildGroupAccessSummary(group: Pick<CommunityRoom, 'membershipSt
   const status = membershipStatus(group.membershipStatus)
   if (status === 'Owner') {
     return {
-      label: 'Ejer',
-      description: 'Du ejer gruppen og kan administrere medlemmer, ansøgninger og indstillinger.',
+      label: 'Owner',
+      description: 'You own this group and can manage members, requests and settings.',
       tone: 'owner' as const,
     }
   }
   if (status === 'Admin') {
     return {
       label: 'Admin',
-      description: 'Du kan administrere medlemmer, invitationer og ansøgninger.',
+      description: 'You can manage members, invitations and requests.',
       tone: 'admin' as const,
     }
   }
   if (status === 'Member') {
     return {
-      label: group.isSystem ? 'Offentlig gruppe' : 'Medlem',
-      description: group.isSystem ? 'Dette er en offentlig standardgruppe i HamHub.' : 'Du er medlem af gruppen og kan deltage i samtalen.',
+      label: group.isSystem ? 'Public group' : 'Member',
+      description: group.isSystem ? 'This is a public default group in HamHub.' : 'You are a member of this group and can join the conversation.',
       tone: 'member' as const,
     }
   }
   if (status === 'Pending') {
     return {
-      label: 'Ansøgning sendt',
-      description: 'Din ansøgning afventer godkendelse fra gruppens administratorer.',
+      label: 'Request sent',
+      description: 'Your request is waiting for approval from the group administrators.',
       tone: 'pending' as const,
     }
   }
   if (group.visibility === 'InviteOnly' || group.visibility === 3 || !group.allowJoinRequests) {
     return {
-      label: 'Kun inviterede',
-      description: 'Du skal inviteres af en administrator for at blive medlem.',
+      label: 'Invite only',
+      description: 'You need an invitation from an administrator to become a member.',
       tone: 'locked' as const,
     }
   }
   return {
-    label: 'Ikke medlem',
-    description: 'Du kan ansøge om adgang og afvente godkendelse.',
+    label: 'Not a member',
+    description: 'You can request access and wait for approval.',
     tone: 'neutral' as const,
   }
 }

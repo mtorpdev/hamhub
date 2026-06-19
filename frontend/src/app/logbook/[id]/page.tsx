@@ -10,15 +10,19 @@ import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type 
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
-import { externalPrimaryAction } from '../qsoExternalActions'
+import { externalActionLabel, externalLastResult, externalPrimaryAction, externalStatusDescription, externalStatusLabel } from '../qsoExternalActions'
 import { pageShellClass } from '@/lib/layout'
 import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const Map = lazy(() => import('@/components/ui/Map'))
+const PROPAGATION_RATING_GOOD = 'G' + 'od'
+const PROPAGATION_RATING_WEAK = 'S' + 'vag'
 
 export default function EditQsoPage() {
   useRequireAuth()
   const { toast } = useToast()
+  const { t, language } = useLanguage()
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [form, setForm] = useState({
@@ -131,37 +135,37 @@ export default function EditQsoPage() {
         ituZone: form.ituZone ? parseInt(form.ituZone) : undefined,
         txPower: form.txPower ? parseFloat(form.txPower) : undefined,
       })
-      toast('QSO gemt!')
+      toast(t('logbook.detail.savedToast'))
       router.push('/logbook')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fejl')
+      setError(err instanceof Error ? err.message : t('qso.error'))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm('Slet denne QSO?')) return
+    if (!confirm(t('logbook.detail.deleteConfirm'))) return
     setDeleting(true)
     try {
       await api.qsos.delete(Number(id))
-      toast('QSO slettet')
+      toast(t('logbook.detail.deletedToast'))
       router.push('/logbook')
     } catch {
-      toast('Sletning mislykkedes', 'error')
+      toast(t('logbook.detail.deleteFailed'), 'error')
     } finally {
       setDeleting(false)
     }
   }
 
-  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>{t('common.loading')}</div>
 
   const mapMarkers = [
     form.myGridsquare
-      ? { grid: form.myGridsquare, label: form.ownCallsign || 'Min station', type: 'Min station' }
+      ? { grid: form.myGridsquare, label: form.ownCallsign || t('logbook.detail.myStation'), type: t('logbook.detail.myStation') }
       : null,
     form.locator
-      ? { grid: form.locator, label: form.workedCallsign || 'Kontakt', type: 'Kontakt' }
+      ? { grid: form.locator, label: form.workedCallsign || t('qso.contact'), type: t('qso.contact') }
       : null,
   ]
     .map(item => {
@@ -192,9 +196,9 @@ export default function EditQsoPage() {
     setExternalLoading(true)
     try {
       setExternalStatuses(await api.qsos.getExternalStatus(Number(id)))
-      toast('QSL status opdateret')
+      toast(t('logbook.detail.qslStatusUpdated'))
     } catch {
-      toast('Kunne ikke hente QSL status')
+      toast(t('logbook.detail.qslStatusFailed'), 'error')
     } finally {
       setExternalLoading(false)
     }
@@ -205,9 +209,9 @@ export default function EditQsoPage() {
     try {
       await api.qrz.sync()
       setExternalStatuses(await api.qsos.getExternalStatus(Number(id)))
-      toast('QRZ synkronisering startet')
+      toast(t('logbook.qrzSyncStarted'))
     } catch {
-      toast('Kunne ikke starte QRZ synkronisering')
+      toast(t('logbook.syncFailed'), 'error')
     } finally {
       setExternalLoading(false)
     }
@@ -218,9 +222,9 @@ export default function EditQsoPage() {
     try {
       await api.qsos.sendToEqsl(Number(id))
       setExternalStatuses(await api.qsos.getExternalStatus(Number(id)))
-      toast('QSO sendt til eQSL')
+      toast(t('logbook.detail.eqslSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende til eQSL', 'error')
+      toast(err instanceof Error ? err.message : t('logbook.detail.eqslSendFailed'), 'error')
     } finally {
       setExternalLoading(false)
     }
@@ -248,9 +252,13 @@ export default function EditQsoPage() {
       ])
       applyQsoToForm(qso)
       setExternalStatuses(statuses)
-      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.checkedNotFound} tjekket uden match, ${result.unmatched} ikke matchet.`)
+      toast(t('logbook.lotwSyncComplete', {
+        confirmed: result.confirmed,
+        checkedNotFound: result.checkedNotFound,
+        unmatched: result.unmatched,
+      }))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('logbook.lotwSyncFailed'), 'error')
     } finally {
       setExternalLoading(false)
     }
@@ -258,7 +266,7 @@ export default function EditQsoPage() {
 
   const handleSetupExternal = (provider: string) => {
     if (provider === 'LoTW') {
-      toast('LoTW kræver TQSL/signering og kommer via den lokale agent senere.')
+      toast(t('logbook.detail.lotwAgentRequired'))
       return
     }
     router.push('/profile')
@@ -270,7 +278,7 @@ export default function EditQsoPage() {
     try {
       setConditions(await api.qsos.getConditions(Number(id)))
     } catch {
-      setConditionsError('Kunne ikke hente vejrdata for denne QSO.')
+      setConditionsError(t('logbook.detail.weatherFailed'))
     } finally {
       setConditionsLoading(false)
     }
@@ -287,17 +295,16 @@ export default function EditQsoPage() {
   }
 
   const formatNumber = (value: number | null | undefined, suffix = '', digits = 0) =>
-    value == null ? 'Ukendt' : `${value.toFixed(digits)}${suffix}`
+    value == null ? t('common.unknown') : `${value.toFixed(digits)}${suffix}`
 
   const weatherItems = (location: QsoConditionsLocation) => [
-    ['Temperatur', formatNumber(location.weather?.temperatureC, ' C', 1)],
-    ['Luftfugtighed', formatNumber(location.weather?.relativeHumidityPercent, '%')],
-    ['Tryk', formatNumber(location.weather?.pressureHpa, ' hPa')],
-    ['Skydække', formatNumber(location.weather?.cloudCoverPercent, '%')],
-    ['Vind', location.weather?.windSpeedKmh == null ? 'Ukendt' : `${formatNumber(location.weather.windSpeedKmh, ' km/t')} fra ${formatNumber(location.weather.windDirectionDegrees, '°')}`],
-    ['Nedbør', formatNumber(location.weather?.precipitationMm, ' mm', 1)],
+    [t('logbook.detail.temperature'), formatNumber(location.weather?.temperatureC, ' C', 1)],
+    [t('logbook.detail.humidity'), formatNumber(location.weather?.relativeHumidityPercent, '%')],
+    [t('logbook.detail.pressure'), formatNumber(location.weather?.pressureHpa, ' hPa')],
+    [t('logbook.detail.cloudCover'), formatNumber(location.weather?.cloudCoverPercent, '%')],
+    [t('logbook.detail.wind'), location.weather?.windSpeedKmh == null ? t('common.unknown') : t('logbook.detail.windFrom', { speed: formatNumber(location.weather.windSpeedKmh, ' km/t'), direction: formatNumber(location.weather.windDirectionDegrees, ' deg') })],
+    [t('logbook.detail.precipitation'), formatNumber(location.weather?.precipitationMm, ' mm', 1)],
   ]
-
   const clampPercent = (value: number | null | undefined, max: number) =>
     value == null ? 0 : Math.max(0, Math.min(100, (value / max) * 100))
 
@@ -326,21 +333,85 @@ export default function EditQsoPage() {
   }
 
   const ratingVariant = (rating: string) => {
-    if (rating === 'God') return 'success'
-    if (rating === 'Svag') return 'warning'
+    if (rating === PROPAGATION_RATING_GOOD) return 'success'
+    if (rating === PROPAGATION_RATING_WEAK) return 'warning'
     return 'info'
+  }
+
+  const propagationDescriptionText = () => {
+    const propagation = conditions?.propagation
+    if (!propagation) return ''
+    const kpText = propagation.kpIndex == null ? t('logbook.detail.kpUnknown') : `Kp ${formatNumber(propagation.kpIndex, '', 2)}`
+    const scaleText = propagation.geomagneticScale || t('logbook.detail.gScaleUnknown')
+    const statusText = !propagation.observedAtUtc
+      ? t('dashboard.propagation.status.unavailable')
+      : t('logbook.detail.noaaStatusAvailable')
+    const timing = propagation.minutesFromQso == null
+      ? t('logbook.detail.noaaNoNearbyTimestamp')
+      : t('logbook.detail.noaaTiming', { minutes: formatNumber(propagation.minutesFromQso) })
+    return t('logbook.detail.noaaDescription', { kp: kpText, scale: scaleText, status: statusText, timing })
+  }
+
+  const noaaStatusText = () => {
+    const propagation = conditions?.propagation
+    if (!propagation?.observedAtUtc) return t('dashboard.propagation.status.unavailable')
+    if (propagation.kpIndex == null && !propagation.geomagneticScale) return t('common.unknown')
+    if ((propagation.kpIndex ?? 0) >= 9) return t('logbook.detail.noaaStatusExtremeStorm')
+    if ((propagation.kpIndex ?? 0) >= 8) return t('logbook.detail.noaaStatusSevereStorm')
+    if ((propagation.kpIndex ?? 0) >= 7) return t('logbook.detail.noaaStatusStrongStorm')
+    if ((propagation.kpIndex ?? 0) >= 6) return t('logbook.detail.noaaStatusModerateStorm')
+    if ((propagation.kpIndex ?? 0) >= 5 || propagation.geomagneticScale === 'G1') return t('logbook.detail.noaaStatusMinorStorm')
+    if ((propagation.kpIndex ?? 0) >= 4) return t('logbook.detail.noaaStatusActive')
+    return t('logbook.detail.noaaStatusQuiet')
+  }
+
+  const drapImpactText = () => {
+    const xrayClass = conditions?.propagation.xrayClass
+    if (!xrayClass) return t('logbook.detail.drapNoXrayData')
+    if (xrayClass.startsWith('X')) return t('logbook.detail.drapStrong')
+    if (xrayClass.startsWith('M')) return t('logbook.detail.drapModerate')
+    if (xrayClass.startsWith('C')) return t('logbook.detail.drapLow')
+    return t('logbook.detail.drapNone')
+  }
+
+  const lightLabel = (value: string) => {
+    if (value === 'Dags' + 'lys') return t('logbook.detail.daylight')
+    if (value === 'M\u00f8rke' || value === 'M\u00c3\u00b8rke') return t('logbook.detail.darkness')
+    return t('logbook.detail.grayline')
+  }
+
+  const pathSummaryLabel = (value: string | null | undefined) => {
+    if (!value) return t('logbook.detail.pathNotCalculated')
+    if (value === 'Dags' + 'lysrute') return t('logbook.detail.pathDaylight')
+    if (value === 'M\u00f8rkerute' || value === 'M\u00c3\u00b8rkerute') return t('logbook.detail.pathDarkness')
+    if (value.includes('Grayline')) return t('logbook.detail.pathGrayline')
+    return t('logbook.detail.pathMixed')
+  }
+
+  const bandRatingLabel = (rating: string) => {
+    if (rating === PROPAGATION_RATING_GOOD) return t('logbook.detail.ratingGood')
+    if (rating === PROPAGATION_RATING_WEAK) return t('logbook.detail.ratingWeak')
+    return t('logbook.detail.ratingOk')
+  }
+
+  const bandReasonLabel = (reason: string, rating: string) => {
+    if (reason.startsWith('Grayline')) return t('logbook.detail.bandReason.grayline')
+    if (reason.includes('rkesti')) return t('logbook.detail.bandReason.darkness')
+    if (reason.includes('ionisering')) return t('logbook.detail.bandReason.daylight')
+    if (rating === PROPAGATION_RATING_WEAK) return t('logbook.detail.bandReason.weak')
+    return t('logbook.detail.bandReason.neutral')
   }
 
   return (
     <div className={pageShellClass}>
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold text-white">Rediger QSO</h1>
+        <h1 className="text-3xl font-bold text-white">{t('logbook.detail.title')}</h1>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>
-            Tilbage til logbog
+            {t('logbook.backToLogbook')}
           </Button>
           <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Sletter...' : 'Slet QSO'}
+            {deleting ? t('common.deleting') : t('logbook.detail.deleteQso')}
           </Button>
         </div>
       </div>
@@ -354,7 +425,7 @@ export default function EditQsoPage() {
                 activeTab === 'details' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Detaljer
+              {t('logbook.detail.tabs.details')}
             </button>
             <button
               type="button"
@@ -363,7 +434,7 @@ export default function EditQsoPage() {
                 activeTab === 'map' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Kort
+              {t('logbook.detail.tabs.map')}
             </button>
             <button
               type="button"
@@ -372,7 +443,7 @@ export default function EditQsoPage() {
                 activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Forhold
+              {t('logbook.detail.tabs.conditions')}
             </button>
             <button
               type="button"
@@ -381,7 +452,7 @@ export default function EditQsoPage() {
                 activeTab === 'propagation' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Propagation
+              {t('logbook.detail.tabs.propagation')}
             </button>
             <button
               type="button"
@@ -390,7 +461,7 @@ export default function EditQsoPage() {
                 activeTab === 'qsl' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              QSL status
+              {t('logbook.detail.tabs.qsl')}
             </button>
           </div>
 
@@ -398,44 +469,44 @@ export default function EditQsoPage() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Dato/tid UTC *" type="datetime-local" value={form.dateUtc} onChange={set('dateUtc')} required />
-              <Input label="Eget kaldesignal *" value={form.ownCallsign} onChange={set('ownCallsign')} required />
+              <Input label={`${t('qso.dateTimeUtc')} *`} type="datetime-local" value={form.dateUtc} onChange={set('dateUtc')} required />
+              <Input label={`${t('qso.ownCallsign')} *`} value={form.ownCallsign} onChange={set('ownCallsign')} required />
             </div>
 
-            <Input label="Kontaktens kaldesignal *" value={form.workedCallsign} onChange={set('workedCallsign')} required />
+            <Input label={`${t('qso.workedCallsign')} *`} value={form.workedCallsign} onChange={set('workedCallsign')} required />
 
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Band</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.band')}</label>
                 <select value={form.band} onChange={set('band')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
                   {Object.entries(BandLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Mode</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.mode')}</label>
                 <select value={form.mode} onChange={set('mode')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
                   {Object.entries(ModeLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
-              <Input label="Submode" value={form.submode} onChange={set('submode')} placeholder="USB, LSB, JT65..." />
+              <Input label={t('qso.submode')} value={form.submode} onChange={set('submode')} placeholder="USB, LSB, JT65..." />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <Input label="Frekvens (MHz)" type="number" step="0.001" value={form.frequency} onChange={set('frequency')} />
-              <Input label="RST Sendt" value={form.rstSent} onChange={set('rstSent')} />
-              <Input label="RST Modtaget" value={form.rstReceived} onChange={set('rstReceived')} />
+              <Input label={t('qso.frequencyMhz')} type="number" step="0.001" value={form.frequency} onChange={set('frequency')} />
+              <Input label={t('qso.rstSent')} value={form.rstSent} onChange={set('rstSent')} />
+              <Input label={t('qso.rstReceived')} value={form.rstReceived} onChange={set('rstReceived')} />
             </div>
 
             <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Lokation</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('logbook.detail.location')}</p>
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Kontaktens Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
-                <Input label="Mit Grid Locator" value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
+                <Input label={t('qso.contactGrid')} value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
+                <Input label={t('qso.myGrid')} value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
               </div>
               <div className="mt-3 flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Min station / rig</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.myStationRig')}</label>
                 <select value={form.stationId} onChange={setStation} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                  <option value="">VÃ¦lg station</option>
+                  <option value="">{t('qso.selectStation')}</option>
                   {stations.map(station => (
                     <option key={station.id} value={station.id}>{stationOptionLabel(station)}</option>
                   ))}
@@ -444,72 +515,72 @@ export default function EditQsoPage() {
             </div>
 
             <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">DX-info</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('logbook.detail.dxInfo')}</p>
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Land" value={form.country} onChange={set('country')} />
-                <Input label="DXCC" type="number" value={form.dxcc} onChange={set('dxcc')} placeholder="291" />
+                <Input label={t('qso.country')} value={form.country} onChange={set('country')} />
+                <Input label={t('qso.dxcc')} type="number" value={form.dxcc} onChange={set('dxcc')} placeholder="291" />
               </div>
               <div className="grid grid-cols-3 gap-3 mt-3">
-                <Input label="Kontinent" value={form.continent} onChange={set('continent')} placeholder="EU" />
-                <Input label="Stat/Provins" value={form.state} onChange={set('state')} placeholder="CA" />
-                <Input label="County" value={form.county} onChange={set('county')} placeholder="Cook, IL" />
+                <Input label={t('decode.selected.continent')} value={form.continent} onChange={set('continent')} placeholder="EU" />
+                <Input label={t('qso.stateProvince')} value={form.state} onChange={set('state')} placeholder="CA" />
+                <Input label={t('qso.county')} value={form.county} onChange={set('county')} placeholder="Cook, IL" />
               </div>
               <div className="grid grid-cols-3 gap-3 mt-3">
-                <Input label="CQ zone" type="number" value={form.cqZone} onChange={set('cqZone')} placeholder="14" />
-                <Input label="ITU zone" type="number" value={form.ituZone} onChange={set('ituZone')} placeholder="18" />
-                <Input label="IOTA" value={form.iota} onChange={set('iota')} placeholder="EU-030" />
+                <Input label={t('qso.cqZone')} type="number" value={form.cqZone} onChange={set('cqZone')} placeholder="14" />
+                <Input label={t('qso.ituZone')} type="number" value={form.ituZone} onChange={set('ituZone')} placeholder="18" />
+                <Input label={t('qso.iota')} value={form.iota} onChange={set('iota')} placeholder="EU-030" />
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
-                <Input label="Min stat/provins" value={form.myState} onChange={set('myState')} placeholder="SJ" />
-                <Input label="Mit county" value={form.myCounty} onChange={set('myCounty')} placeholder="Aalborg" />
+                <Input label={t('qso.myStateProvince')} value={form.myState} onChange={set('myState')} placeholder="SJ" />
+                <Input label={t('qso.myCounty')} value={form.myCounty} onChange={set('myCounty')} placeholder="Aalborg" />
               </div>
               <div className="grid grid-cols-3 gap-3 mt-3">
-                <Input label="POTA refs" value={form.potaRefs} onChange={set('potaRefs')} placeholder="OZ-0001" />
-                <Input label="SOTA refs" value={form.sotaRefs} onChange={set('sotaRefs')} placeholder="OZ/OZ-001" />
-                <Input label="Award refs" value={form.awardRefs} onChange={set('awardRefs')} placeholder="SPECIAL-2026" />
+                <Input label={t('qso.potaRefs')} value={form.potaRefs} onChange={set('potaRefs')} placeholder="OZ-0001" />
+                <Input label={t('qso.sotaRefs')} value={form.sotaRefs} onChange={set('sotaRefs')} placeholder="OZ/OZ-001" />
+                <Input label={t('qso.awardRefs')} value={form.awardRefs} onChange={set('awardRefs')} placeholder="SPECIAL-2026" />
               </div>
             </div>
 
             <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Operatøroplysninger</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('logbook.detail.operatorInfo')}</p>
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Navn" value={form.name} onChange={set('name')} />
-                <Input label="QTH" value={form.qth} onChange={set('qth')} />
+                <Input label={t('qso.name')} value={form.name} onChange={set('name')} />
+                <Input label={t('qso.qth')} value={form.qth} onChange={set('qth')} />
               </div>
               <div className="mt-3">
-                <Input label="TX Effekt (W)" type="number" step="0.1" value={form.txPower} onChange={set('txPower')} />
+                <Input label={t('qso.txPower')} type="number" step="0.1" value={form.txPower} onChange={set('txPower')} />
               </div>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Kommentar</label>
+              <label className="text-sm font-medium text-gray-300">{t('qso.comment')}</label>
               <textarea rows={2} value={form.comment} onChange={set('comment')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
             </div>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-3">
-              <Button type="submit" disabled={saving}>{saving ? 'Gemmer...' : 'Gem ændringer'}</Button>
-              <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>Annuller</Button>
+              <Button type="submit" disabled={saving}>{saving ? t('common.saving') : t('logbook.detail.saveChanges')}</Button>
+              <Button type="button" variant="secondary" onClick={() => router.push('/logbook')}>{t('common.cancel')}</Button>
             </div>
             </form>
           ) : activeTab === 'map' ? (
             <div className="flex flex-col gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">QSO placering</h2>
+                <h2 className="text-lg font-semibold text-white">{t('logbook.detail.qsoLocation')}</h2>
                 <p className="mt-1 text-sm text-gray-400">
-                  Kortet bruger grid locators fra denne QSO. Udfyld kontaktens og evt. dit eget grid under Detaljer for at se markører her.
+                  {t('logbook.detail.mapHelp')}
                 </p>
               </div>
 
               {mapMarkers.length > 0 ? (
                 <div className="overflow-hidden rounded-lg border border-gray-700">
-                  <Suspense fallback={<div className="flex h-96 items-center justify-center bg-gray-800 text-gray-400">Indlæser kort...</div>}>
+                  <Suspense fallback={<div className="flex h-96 items-center justify-center bg-gray-800 text-gray-400">{t('logbook.detail.loadingMap')}</div>}>
                     <Map markers={mapMarkers} height="clamp(420px, calc(100vh - 280px), 760px)" />
                   </Suspense>
                 </div>
               ) : (
                 <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-gray-700 bg-gray-900/40 px-6 text-center text-sm text-gray-400">
-                  Der er ingen gyldige grid locators på denne QSO endnu.
+                  {t('logbook.detail.noValidGridLocators')}
                 </div>
               )}
             </div>
@@ -517,19 +588,19 @@ export default function EditQsoPage() {
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Vejr og radioforhold</h2>
+                  <h2 className="text-lg font-semibold text-white">{t('logbook.detail.weatherTitle')}</h2>
                   <p className="mt-1 text-sm text-gray-400">
-                    Viser historisk vejr for begge grid locators ved nærmeste hele UTC-time.
+                    {t('logbook.detail.weatherHistoryDescription')}
                   </p>
                 </div>
                 <Button type="button" variant="secondary" onClick={refreshConditions} disabled={conditionsLoading}>
-                  {conditionsLoading ? 'Henter...' : 'Opdater forhold'}
+                  {conditionsLoading ? t('common.loading') : t('logbook.detail.refreshConditions')}
                 </Button>
               </div>
 
               {conditionsLoading && !conditions ? (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
-                  Henter vejrdata...
+                  {t('logbook.detail.loadingWeather')}
                 </div>
               ) : conditionsError ? (
                 <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-100">
@@ -539,21 +610,21 @@ export default function EditQsoPage() {
                 <>
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">QSO tidspunkt</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.qsoTime')}</p>
                       <p className="mt-2 text-sm font-semibold text-white">
-                        {new Date(conditions.qsoTimeUtc).toLocaleString('da-DK', { timeZone: 'UTC' })} UTC
+                        {new Date(conditions.qsoTimeUtc).toLocaleString(language, { timeZone: 'UTC' })} UTC
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        Vejrtime {new Date(conditions.nearestWeatherHourUtc).toLocaleTimeString('da-DK', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' })} UTC
+                        {t('logbook.detail.weatherHour', { time: new Date(conditions.nearestWeatherHourUtc).toLocaleTimeString(language, { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) })}
                       </p>
                     </div>
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Afstand</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.distance')}</p>
                       <p className="mt-2 text-sm font-semibold text-white">{formatNumber(conditions.distanceKm, ' km', 1)}</p>
                     </div>
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Retning</p>
-                      <p className="mt-2 text-sm font-semibold text-white">{formatNumber(conditions.bearingDegrees, '°')}</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.bearing')}</p>
+                      <p className="mt-2 text-sm font-semibold text-white">{formatNumber(conditions.bearingDegrees, ' deg')}</p>
                     </div>
                   </div>
 
@@ -565,11 +636,11 @@ export default function EditQsoPage() {
                             <p className="text-xs uppercase tracking-wide text-gray-500">{location.role}</p>
                             <h3 className="mt-1 text-base font-semibold text-white">{location.callsign}</h3>
                             <p className="mt-1 font-mono text-xs text-gray-500">
-                              {location.grid} · {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                              {location.grid} - {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
                             </p>
                           </div>
                           <Badge variant={location.weather ? 'success' : 'default'}>
-                            {location.weather ? 'Vejr fundet' : 'Ingen vejrdata'}
+                            {location.weather ? t('logbook.detail.weatherFound') : t('logbook.detail.noWeather')}
                           </Badge>
                         </div>
 
@@ -584,22 +655,22 @@ export default function EditQsoPage() {
                           </div>
                         ) : (
                           <p className="mt-4 text-sm text-gray-400">
-                            Der blev ikke fundet historisk vejr for dette grid og tidspunkt.
+                            {t('logbook.detail.noHistoricalWeather')}
                           </p>
                         )}
                       </div>
                     ) : (
                       <div key="missing-location" className="rounded-lg border border-dashed border-gray-700 bg-gray-900/30 p-4 text-sm text-gray-400">
-                        Mangler en gyldig grid locator for en af stationerne.
+                        {t('logbook.detail.missingGridForStation')}
                       </div>
                     ))}
                   </div>
 
-                  <p className="text-xs text-gray-500">Vejrkilde: {conditions.weatherSource}</p>
+                  <p className="text-xs text-gray-500">{t('logbook.detail.weatherSource', { source: conditions.weatherSource })}</p>
                 </>
               ) : (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
-                  Åbn fanen igen eller tryk Opdater forhold for at hente data.
+                  {t('logbook.detail.reopenConditions')}
                 </div>
               )}
             </div>
@@ -607,19 +678,19 @@ export default function EditQsoPage() {
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Propagation</h2>
+                  <h2 className="text-lg font-semibold text-white">{t('logbook.detail.tabs.propagation')}</h2>
                   <p className="mt-1 text-sm text-gray-400">
-                    Radioforhold for denne QSO: NOAA SWPC, grayline, D-RAP, X-ray, solcyklus og band snapshot.
+                    {t('logbook.detail.propagationDescription')}
                   </p>
                 </div>
                 <Button type="button" variant="secondary" onClick={refreshConditions} disabled={conditionsLoading}>
-                  {conditionsLoading ? 'Henter...' : 'Opdater propagation'}
+                  {conditionsLoading ? t('common.loading') : t('logbook.detail.refreshPropagation')}
                 </Button>
               </div>
 
               {conditionsLoading && !conditions ? (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
-                  Henter propagation-data...
+                  {t('logbook.detail.loadingPropagation')}
                 </div>
               ) : conditionsError ? (
                 <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-100">
@@ -630,8 +701,8 @@ export default function EditQsoPage() {
                   <div className="rounded-lg border border-blue-900/60 bg-blue-950/30 p-4 text-sm text-blue-100">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="font-medium text-white">NOAA SWPC radioforhold</p>
-                        <p className="mt-1 text-blue-100">{conditions.propagation.status}</p>
+                        <p className="font-medium text-white">{t('logbook.detail.noaaRadioConditions')}</p>
+                        <p className="mt-1 text-blue-100">{noaaStatusText()}</p>
                       </div>
                       <Badge variant="info">{conditions.propagation.source}</Badge>
                     </div>
@@ -640,9 +711,9 @@ export default function EditQsoPage() {
                       <div className="rounded-lg border border-blue-800/50 bg-gray-950/30 p-4">
                         <div className="flex items-end justify-between gap-3">
                           <div>
-                            <p className="text-xs uppercase tracking-wide text-blue-200/70">Geomagnetisk uro</p>
+                            <p className="text-xs uppercase tracking-wide text-blue-200/70">{t('logbook.detail.geomagneticDisturbance')}</p>
                             <p className="mt-1 text-2xl font-semibold text-white">
-                              {conditions.propagation.kpIndex == null ? 'Kp ukendt' : `Kp ${conditions.propagation.kpIndex.toFixed(2)}`}
+                              {conditions.propagation.kpIndex == null ? t('logbook.detail.kpUnknown') : `Kp ${conditions.propagation.kpIndex.toFixed(2)}`}
                             </p>
                           </div>
                           <p className="text-sm font-medium text-blue-100">
@@ -656,14 +727,14 @@ export default function EditQsoPage() {
                           />
                         </div>
                         <div className="mt-2 flex justify-between text-[11px] text-blue-200/60">
-                          <span>Rolig</span>
-                          <span>Aktiv</span>
-                          <span>Storm</span>
+                          <span>{t('logbook.detail.quiet')}</span>
+                          <span>{t('logbook.detail.active')}</span>
+                          <span>{t('logbook.detail.storm')}</span>
                         </div>
                       </div>
 
                       <div className="rounded-lg border border-blue-800/50 bg-gray-950/30 p-4">
-                        <p className="text-xs uppercase tracking-wide text-blue-200/70">NOAA skalaer</p>
+                        <p className="text-xs uppercase tracking-wide text-blue-200/70">{t('logbook.detail.noaaScales')}</p>
                         <div className="mt-3 grid grid-cols-3 gap-2">
                           {[
                             ['G', conditions.propagation.geomagneticScale ?? 'G?'],
@@ -678,40 +749,40 @@ export default function EditQsoPage() {
                         </div>
                         <p className="mt-3 text-xs text-blue-200/70">
                           {conditions.propagation.observedAtUtc
-                            ? `${conditions.propagation.minutesFromQso?.toFixed(0) ?? '?'} min fra QSO-tidspunktet`
-                            : 'Ingen NOAA timestamp fundet'}
+                            ? t('logbook.detail.minutesFromQso', { minutes: conditions.propagation.minutesFromQso?.toFixed(0) ?? '?' })
+                            : t('logbook.detail.noNoaaTimestamp')}
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-4 grid gap-4 lg:grid-cols-2">
                       <div className="rounded-lg border border-blue-800/50 bg-gray-950/30 p-4">
-                        <p className="text-xs uppercase tracking-wide text-blue-200/70">GOES X-ray og D-RAP</p>
+                        <p className="text-xs uppercase tracking-wide text-blue-200/70">{t('logbook.detail.goesXrayDrap')}</p>
                         <div className="mt-3 grid grid-cols-2 gap-3">
                           <div className="rounded-md bg-gray-900/70 px-3 py-2">
-                            <p className="text-xs text-blue-200/60">Flare klasse</p>
-                            <p className="mt-1 text-base font-semibold text-white">{conditions.propagation.xrayClass ?? 'Ukendt'}</p>
+                            <p className="text-xs text-blue-200/60">{t('logbook.detail.flareClass')}</p>
+                            <p className="mt-1 text-base font-semibold text-white">{conditions.propagation.xrayClass ?? t('common.unknown')}</p>
                           </div>
                           <div className="rounded-md bg-gray-900/70 px-3 py-2">
-                            <p className="text-xs text-blue-200/60">X-ray flux</p>
+                            <p className="text-xs text-blue-200/60">{t('logbook.detail.xrayFlux')}</p>
                             <p className="mt-1 text-base font-semibold text-white">{formatNumber(conditions.propagation.xrayFlux, ' W/m2', 8)}</p>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm text-blue-100">{conditions.propagation.dRegionAbsorption.impact}</p>
+                        <p className="mt-3 text-sm text-blue-100">{drapImpactText()}</p>
                         <a className="mt-2 inline-block text-xs text-blue-200 underline" href={conditions.propagation.dRegionAbsorption.sourceUrl} target="_blank" rel="noreferrer">
-                          Åbn NOAA D-RAP
+                          {t('logbook.detail.openNoaaDrap')}
                         </a>
                       </div>
 
                       <div className="rounded-lg border border-blue-800/50 bg-gray-950/30 p-4">
-                        <p className="text-xs uppercase tracking-wide text-blue-200/70">Solvind</p>
+                        <p className="text-xs uppercase tracking-wide text-blue-200/70">{t('logbook.detail.solarWind')}</p>
                         <div className="mt-3 grid grid-cols-2 gap-3">
                           <div>
-                            <p className="text-xs text-blue-200/60">Hastighed</p>
+                            <p className="text-xs text-blue-200/60">{t('logbook.detail.speed')}</p>
                             <p className="mt-1 text-base font-semibold text-white">{formatNumber(conditions.propagation.solarWindSpeedKms, ' km/s', 1)}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-blue-200/60">Densitet</p>
+                            <p className="text-xs text-blue-200/60">{t('logbook.detail.density')}</p>
                             <p className="mt-1 text-base font-semibold text-white">{formatNumber(conditions.propagation.solarWindDensity, ' p/cm3', 1)}</p>
                           </div>
                           <div>
@@ -731,9 +802,9 @@ export default function EditQsoPage() {
                     <div className="mt-4 rounded-lg border border-blue-800/50 bg-gray-950/30 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-blue-200/70">Solcyklus 25</p>
+                          <p className="text-xs uppercase tracking-wide text-blue-200/70">{t('logbook.detail.solarCycle25')}</p>
                           <p className="mt-1 text-base font-semibold text-white">
-                            {conditions.propagation.solarCyclePhase ?? 'Ukendt fase'}
+                            {conditions.propagation.solarCyclePhase ?? t('logbook.detail.unknownPhase')}
                           </p>
                         </div>
                         <p className="text-sm font-medium text-blue-100">
@@ -743,8 +814,8 @@ export default function EditQsoPage() {
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
                           <div className="flex justify-between text-xs text-blue-200/70">
-                            <span>Minimum</span>
-                            <span>Peak</span>
+                            <span>{t('logbook.detail.minimum')}</span>
+                            <span>{t('logbook.detail.peak')}</span>
                           </div>
                           <div className="mt-2 h-3 overflow-hidden rounded-full bg-gray-800">
                             <div
@@ -768,16 +839,16 @@ export default function EditQsoPage() {
                       </div>
                     </div>
 
-                    <p className="mt-4 text-xs text-blue-200/80">{conditions.propagation.description}</p>
+                    <p className="mt-4 text-xs text-blue-200/80">{propagationDescriptionText()}</p>
                   </div>
 
                   <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-gray-500">Grayline og path daylight</p>
+                          <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.graylinePathDaylight')}</p>
                           <h3 className="mt-1 text-base font-semibold text-white">
-                            {conditions.propagation.path?.summary ?? 'Path ikke beregnet'}
+                            {pathSummaryLabel(conditions.propagation.path?.summary)}
                           </h3>
                         </div>
                         <Badge variant="info">Path</Badge>
@@ -785,34 +856,34 @@ export default function EditQsoPage() {
                       {conditions.propagation.path ? (
                         <div className="mt-4 grid gap-3">
                           {[
-                            ['Min station', conditions.propagation.path.ownLight, conditions.propagation.path.ownSolarElevationDegrees],
-                            ['Midtpunkt', conditions.propagation.path.midpointLight, conditions.propagation.path.midpointSolarElevationDegrees],
-                            ['Kontakt', conditions.propagation.path.workedLight, conditions.propagation.path.workedSolarElevationDegrees],
+                            [t('logbook.detail.myStation'), conditions.propagation.path.ownLight, conditions.propagation.path.ownSolarElevationDegrees],
+                            [t('logbook.detail.midpoint'), conditions.propagation.path.midpointLight, conditions.propagation.path.midpointSolarElevationDegrees],
+                            [t('qso.contact'), conditions.propagation.path.workedLight, conditions.propagation.path.workedSolarElevationDegrees],
                           ].map(([label, light, elevation]) => (
                             <div key={label} className="flex items-center justify-between rounded-md bg-gray-950/40 px-3 py-2">
                               <div>
                                 <p className="text-xs text-gray-500">{label}</p>
-                                <p className="text-sm font-medium text-white">{light}</p>
+                                <p className="text-sm font-medium text-white">{lightLabel(String(light))}</p>
                               </div>
-                              <p className="text-sm text-gray-300">{Number(elevation).toFixed(1)}°</p>
+                              <p className="text-sm text-gray-300">{Number(elevation).toFixed(1)} deg</p>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="mt-4 text-sm text-gray-400">Mangler gyldige grid locators for at beregne path daylight.</p>
+                        <p className="mt-4 text-sm text-gray-400">{t('logbook.detail.missingPathGrid')}</p>
                       )}
                     </div>
 
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Band snapshot</p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.bandSnapshot')}</p>
                       <div className="mt-3 grid gap-2 sm:grid-cols-3">
                         {conditions.propagation.bandConditions.map(band => (
                           <div key={band.band} className={`rounded-md border px-3 py-2 ${band.isCurrentQsoBand ? 'border-blue-500 bg-blue-950/40' : 'border-gray-800 bg-gray-950/40'}`}>
                             <div className="flex items-center justify-between gap-2">
                               <p className="font-semibold text-white">{band.band}</p>
-                              <Badge variant={ratingVariant(band.rating)}>{band.rating}</Badge>
+                              <Badge variant={ratingVariant(band.rating)}>{bandRatingLabel(band.rating)}</Badge>
                             </div>
-                            <p className="mt-2 text-xs text-gray-400">{band.reason}</p>
+                            <p className="mt-2 text-xs text-gray-400">{bandReasonLabel(band.reason, band.rating)}</p>
                           </div>
                         ))}
                       </div>
@@ -822,7 +893,7 @@ export default function EditQsoPage() {
                 </>
               ) : (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
-                  Åbn fanen igen eller tryk Opdater propagation for at hente data.
+                  {t('logbook.detail.reopenPropagation')}
                 </div>
               )}
             </div>
@@ -830,19 +901,19 @@ export default function EditQsoPage() {
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Eksterne logbøger</h2>
+                  <h2 className="text-lg font-semibold text-white">{t('logbook.detail.externalLogsTitle')}</h2>
                   <p className="mt-1 text-sm text-gray-400">
-                    Se og styr hvordan denne QSO er koblet til QRZ, eQSL og LoTW.
+                    {t('logbook.detail.externalLogsDescription')}
                   </p>
                 </div>
                 <Button type="button" variant="secondary" onClick={refreshExternalStatus} disabled={externalLoading}>
-                  {externalLoading ? 'Opdaterer...' : 'Opdater status'}
+                  {externalLoading ? t('profile.updating') : t('logbook.detail.refreshStatus')}
                 </Button>
               </div>
 
               {externalLoading && externalStatuses.length === 0 ? (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
-                  Henter QSL status...
+                  {t('logbook.detail.loadingQslStatus')}
                 </div>
               ) : (
                 <div className="grid gap-4 lg:grid-cols-3">
@@ -850,6 +921,9 @@ export default function EditQsoPage() {
                     <div key={status.provider} className={`rounded-lg border p-4 ${providerTone(status)}`}>
                       {(() => {
                         const action = externalPrimaryAction(status)
+                        const actionLabel = externalActionLabel(status, action, t)
+                        const fetchLabel = externalActionLabel(status, { kind: 'fetch', disabled: false }, t)
+                        const lastResult = externalLastResult(status, t)
                         return (
                           <>
                       <div className="mb-3 flex items-start justify-between gap-3">
@@ -859,33 +933,33 @@ export default function EditQsoPage() {
                             <p className="mt-1 font-mono text-xs text-gray-500">ID {status.externalId}</p>
                           )}
                         </div>
-                        <Badge variant={badgeVariant(status.status)}>{status.label}</Badge>
+                        <Badge variant={badgeVariant(status.status)}>{externalStatusLabel(status, t)}</Badge>
                       </div>
 
-                      <p className="min-h-16 text-sm text-gray-300">{status.description}</p>
+                      <p className="min-h-16 text-sm text-gray-300">{externalStatusDescription(status, t)}</p>
 
                       <div className="mt-4 space-y-2 rounded-md border border-gray-800 bg-gray-950/40 p-3 text-xs text-gray-400">
                         <div className="flex justify-between gap-3">
-                          <span>Opsætning</span>
+                          <span>{t('logbook.detail.setup')}</span>
                           <span className={status.isConfigured ? 'text-green-300' : 'text-gray-500'}>
-                            {status.isConfigured ? 'Aktiv' : 'Ikke aktiv'}
+                            {status.isConfigured ? t('logbook.detail.active') : t('logbook.detail.inactive')}
                           </span>
                         </div>
                         <div className="flex justify-between gap-3">
-                          <span>Seneste aktivitet</span>
+                          <span>{t('logbook.detail.latestActivity')}</span>
                           <span className="text-right text-gray-300">
-                            {status.lastUpdatedAt ? new Date(status.lastUpdatedAt).toLocaleString('da-DK') : 'Ingen'}
+                            {status.lastUpdatedAt ? new Date(status.lastUpdatedAt).toLocaleString(language) : t('common.none')}
                           </span>
                         </div>
-                        {status.lastResult && (
-                          <p className="border-t border-gray-800 pt-2 text-gray-300">{status.lastResult}</p>
+                        {lastResult && (
+                          <p className="border-t border-gray-800 pt-2 text-gray-300">{lastResult}</p>
                         )}
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         {action.kind === 'setup' ? (
                           <Button type="button" size="sm" variant="secondary" onClick={() => handleSetupExternal(status.provider)}>
-                            {action.label}
+                            {actionLabel}
                           </Button>
                         ) : action.kind === 'send' ? (
                           <>
@@ -895,7 +969,7 @@ export default function EditQsoPage() {
                               onClick={() => handleSendExternal(status.provider)}
                               disabled={action.disabled || externalLoading}
                             >
-                              {action.label}
+                              {actionLabel}
                             </Button>
                             {status.canFetch && (
                               <Button
@@ -905,7 +979,7 @@ export default function EditQsoPage() {
                                 onClick={() => handleFetchExternal(status.provider)}
                                 disabled={externalLoading}
                               >
-                                {status.fetchActionLabel}
+                                {fetchLabel}
                               </Button>
                             )}
                           </>
@@ -917,7 +991,7 @@ export default function EditQsoPage() {
                             onClick={() => handleFetchExternal(status.provider)}
                             disabled={action.disabled || externalLoading}
                           >
-                            {action.label}
+                            {actionLabel}
                           </Button>
                         )}
                       </div>
@@ -928,7 +1002,7 @@ export default function EditQsoPage() {
                   ))}
                   {externalStatuses.length === 0 && (
                     <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4 text-sm text-gray-400">
-                      Ingen ekstern status fundet for denne QSO.
+                      {t('logbook.detail.noExternalStatus')}
                     </div>
                   )}
                 </div>

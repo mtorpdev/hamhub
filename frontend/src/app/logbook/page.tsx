@@ -12,8 +12,9 @@ import { formatUtcDate } from '@/lib/utils'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { buildQsoAwardLabels, type QsoAwardLabelTone } from './awardLabels'
-import { lotwTitle, lotwTone, type QslBadgeTone } from './qslBadges'
+import { eqslTitle, eqslTone, lotwTitle, lotwTone, qrzTitle, qrzTone, type QslBadgeTone } from './qslBadges'
 import { pageShellClass } from '@/lib/layout'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const PAGE_SIZE = 25
 
@@ -100,36 +101,10 @@ function AwardLabelBadge({ text, tone, title }: { text: string; tone: QsoAwardLa
   )
 }
 
-function qrzTone(qso: Qso): QslBadgeTone {
-  if (qso.qrzConfirmedAt || qso.qrzConfirmationStatus?.toUpperCase() === 'C') return 'confirmed'
-  if (qso.qrzId) return 'pending'
-  return 'missing'
-}
-
-function qrzTitle(qso: Qso) {
-  if (qrzTone(qso) === 'confirmed') return 'QRZ bekræftet af modparten'
-  if (qso.qrzId) return 'QRZ registreret, men ikke bekræftet endnu'
-  return 'QRZ mangler eller er ikke synkroniseret'
-}
-
-function eqslTone(qso: Qso): QslBadgeTone {
-  if (qso.eqslConfirmedAt) return 'confirmed'
-  if (qso.eqslSentAt) return 'pending'
-  if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'missing'
-  return 'pending'
-}
-
-function eqslTitle(qso: Qso) {
-  if (qso.eqslConfirmedAt) return 'eQSL bekræftet af modparten'
-  if (qso.eqslSentAt) return 'eQSL sendt, men ikke bekræftet endnu'
-  if (qso.eqslLastResult?.startsWith('eQSL status opdateret:')) return 'eQSL tjekket, men QSO er ikke bekræftet endnu'
-  if (qso.eqslLastResult?.startsWith('Kunne ikke opdatere eQSL status:')) return 'eQSL status kunne ikke verificeres'
-  return 'eQSL er klar eller ikke tjekket endnu'
-}
-
 export default function LogbookPage() {
   useRequireAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const router = useRouter()
   const [qsos, setQsos] = useState<Qso[]>([])
   const [search, setSearch] = useState('')
@@ -162,10 +137,14 @@ export default function LogbookPage() {
     if (!file) return
     try {
       const result = await api.qsos.importAdif(file)
-      toast(`Importeret: ${result.imported} QSOer${result.merged ? `, ${result.merged} flettet` : ''}${result.skipped ? `, ${result.skipped} sprunget over` : ''}`)
+      toast(t('logbook.imported', {
+        imported: result.imported,
+        merged: result.merged ? t('logbook.importMerged', { count: result.merged }) : '',
+        skipped: result.skipped ? t('logbook.importSkipped', { count: result.skipped }) : '',
+      }))
       load()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Import mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('logbook.importFailed'), 'error')
     }
     e.target.value = ''
   }
@@ -174,11 +153,11 @@ export default function LogbookPage() {
     setQrzSyncing(true)
     try {
       await api.qrz.sync()
-      toast('QRZ synkronisering startet...')
+      toast(t('logbook.qrzSyncStarted'))
       await new Promise(r => setTimeout(r, 3000))
       load(search)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Synkronisering mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('logbook.syncFailed'), 'error')
     } finally {
       setQrzSyncing(false)
     }
@@ -188,10 +167,14 @@ export default function LogbookPage() {
     setLotwSyncing(true)
     try {
       const result = await api.lotw.sync()
-      toast(`LoTW sync færdig: ${result.confirmed} bekræftet, ${result.checkedNotFound} tjekket uden match, ${result.unmatched} ikke matchet.`)
+      toast(t('logbook.lotwSyncComplete', {
+        confirmed: result.confirmed,
+        checkedNotFound: result.checkedNotFound,
+        unmatched: result.unmatched,
+      }))
       load(search)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'LoTW synkronisering mislykkedes', 'error')
+      toast(err instanceof Error ? err.message : t('logbook.lotwSyncFailed'), 'error')
     } finally {
       setLotwSyncing(false)
     }
@@ -200,37 +183,37 @@ export default function LogbookPage() {
   return (
     <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-white">QSO Logbog</h1>
+        <h1 className="text-3xl font-bold text-white">{t('logbook.title')}</h1>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleQrzSync} disabled={qrzSyncing}>
-            {qrzSyncing ? 'Synkroniserer...' : 'QRZ Sync'}
+            {qrzSyncing ? t('common.syncing') : 'QRZ Sync'}
           </Button>
-          <Link href="/logbook/qrz-reconciliation"><Button variant="secondary">QRZ Afstemning</Button></Link>
+          <Link href="/logbook/qrz-reconciliation"><Button variant="secondary">{t('logbook.qrzReconciliation')}</Button></Link>
           <Button variant="secondary" onClick={handleLotwSync} disabled={lotwSyncing}>
-            {lotwSyncing ? 'Synkroniserer...' : 'LoTW Sync'}
+            {lotwSyncing ? t('common.syncing') : 'LoTW Sync'}
           </Button>
-          <Link href="/logbook/duplicates"><Button variant="secondary">Dubletter</Button></Link>
-          {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>Eksporter ADIF</Button>}
+          <Link href="/logbook/duplicates"><Button variant="secondary">{t('logbook.duplicates')}</Button></Link>
+          {qsos.length > 0 && <Button variant="secondary" onClick={() => exportAdif(qsos)}>{t('logbook.exportAdif')}</Button>}
           <label className="cursor-pointer">
-            <Button variant="secondary" type="button" onClick={() => document.getElementById('adif-import')?.click()}>Importer ADIF</Button>
+            <Button variant="secondary" type="button" onClick={() => document.getElementById('adif-import')?.click()}>{t('logbook.importAdif')}</Button>
             <input id="adif-import" type="file" accept=".adi,.adif" className="hidden" onChange={handleImport} />
           </label>
-          <Link href="/logbook/new"><Button>+ Ny QSO</Button></Link>
+          <Link href="/logbook/new"><Button>+ {t('logbook.newQso')}</Button></Link>
         </div>
       </div>
       <div className="flex gap-3 mb-6">
-        <Input className="max-w-sm" placeholder="Søg kaldesignal..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && load(search)} />
-        <Button variant="secondary" onClick={() => load(search)}>Søg</Button>
-        {search && <Button variant="ghost" onClick={() => { setSearch(''); load() }}>Ryd</Button>}
+        <Input className="max-w-sm" placeholder={t('logbook.searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && load(search)} />
+        <Button variant="secondary" onClick={() => load(search)}>{t('common.search')}</Button>
+        {search && <Button variant="ghost" onClick={() => { setSearch(''); load() }}>{t('logbook.clear')}</Button>}
       </div>
       <Card>
         <CardContent className="p-0">
-          {loading ? <p className="p-6 text-gray-400">Indlæser...</p> : (
+          {loading ? <p className="p-6 text-gray-400">{t('logbook.loading')}</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">
                   <tr>
-                    {['Dato/tid (UTC)', 'Eget kald', 'Kontakt', 'Band', 'Mode', 'RST S/R', 'Land', 'Awards', 'QSL'].map(h => (
+                    {[t('qso.dateTimeUtc'), t('qso.ownCallsign'), t('qso.contact'), t('qso.band'), t('qso.mode'), t('qso.rstSr'), t('qso.country'), 'Awards', 'QSL'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -253,31 +236,59 @@ export default function LogbookPage() {
                         <div className="flex max-w-xs flex-wrap gap-1.5">
                           {buildQsoAwardLabels(q).length > 0 ? buildQsoAwardLabels(q).map(label => (
                             <AwardLabelBadge key={label.key} text={label.text} title={label.title} tone={label.tone} />
-                          )) : <span className="text-gray-600">â€”</span>}
+                          )) : <span className="text-gray-600">-</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
-                          <QslStatusBadge label="QRZ" tone={qrzTone(q)} title={qrzTitle(q)} />
-                          <QslStatusBadge label="eQSL" tone={eqslTone(q)} title={eqslTitle(q)} />
-                          <QslStatusBadge label="LoTW" tone={lotwTone(q)} title={lotwTitle(q)} />
+                          <QslStatusBadge
+                            label="QRZ"
+                            tone={qrzTone(q)}
+                            title={qrzTitle(q, {
+                              confirmed: t('qsl.qrzConfirmed'),
+                              pending: t('qsl.qrzPending'),
+                              missing: t('qsl.qrzMissing'),
+                            })}
+                          />
+                          <QslStatusBadge
+                            label="eQSL"
+                            tone={eqslTone(q)}
+                            title={eqslTitle(q, {
+                              confirmed: t('qsl.eqslConfirmed'),
+                              pending: t('qsl.eqslPending'),
+                              checkedUnconfirmed: t('qsl.eqslCheckedUnconfirmed'),
+                              verifyFailed: t('qsl.eqslVerifyFailed'),
+                              ready: t('qsl.eqslReady'),
+                            })}
+                          />
+                          <QslStatusBadge
+                            label="LoTW"
+                            tone={lotwTone(q)}
+                            title={lotwTitle(q, {
+                              confirmed: t('qsl.lotwConfirmed'),
+                              pending: t('qsl.lotwReady'),
+                              checkedUnconfirmed: t('qsl.lotwCheckedUnconfirmed'),
+                              verifyFailed: t('qsl.lotwVerifyFailed'),
+                              ready: t('qsl.lotwReady'),
+                            })}
+                          />
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {qsos.length === 0 && <p className="p-6 text-gray-400">Ingen QSOer. <Link href="/logbook/new" className="text-blue-400">Log din første QSO →</Link></p>}
+              {qsos.length === 0 && <p className="p-6 text-gray-400">{t('logbook.empty')} <Link href="/logbook/new" className="text-blue-400">{t('logbook.logFirst')}</Link></p>}
             </div>
           )}
         </CardContent>
       </Card>
       <div className="flex items-center justify-between mt-3">
-        <p className="text-gray-500 text-sm">{qsos.length} QSOer</p>
+        <p className="text-gray-500 text-sm">{t('logbook.count', { count: qsos.length })}</p>
         {qsos.length > PAGE_SIZE && (
           <div className="flex gap-2 items-center">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">←</button>
-            <span className="text-gray-400 text-sm">Side {page} / {Math.ceil(qsos.length / PAGE_SIZE)}</span>
+            <span className="text-gray-400 text-sm">{t('logbook.page', { page, total: Math.ceil(qsos.length / PAGE_SIZE) })}</span>
             <button onClick={() => setPage(p => Math.min(Math.ceil(qsos.length / PAGE_SIZE), p + 1))} disabled={page >= Math.ceil(qsos.length / PAGE_SIZE)} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">→</button>
           </div>
         )}
