@@ -33,8 +33,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>(readInitialLanguage)
 
   useEffect(() => {
+    let cancelled = false
     const profileLanguage = normalizeLanguage(user?.preferredLanguage)
-    if (profileLanguage) setLanguageState(profileLanguage)
+    Promise.resolve().then(() => {
+      if (!cancelled && profileLanguage) setLanguageState(profileLanguage)
+    })
+    return () => { cancelled = true }
   }, [user?.preferredLanguage])
 
   useEffect(() => {

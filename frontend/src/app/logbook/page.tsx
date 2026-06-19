@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
@@ -15,8 +15,11 @@ import { buildQsoAwardLabels, type QsoAwardLabelTone } from './awardLabels'
 import { eqslTitle, eqslTone, lotwTitle, lotwTone, qrzTitle, qrzTone, type QslBadgeTone } from './qslBadges'
 import { pageShellClass } from '@/lib/layout'
 import { useLanguage } from '@/i18n/LanguageContext'
+import { gridToLatLng, type MapMarker } from '@/components/ui/Map'
 
 const PAGE_SIZE = 25
+const Map = lazy(() => import('@/components/ui/Map'))
+type LogbookTab = 'list' | 'map'
 
 const BAND_ADIF: Record<Band, string> = {
   [Band.M160]: '160M', [Band.M80]: '80M', [Band.M60]: '60M', [Band.M40]: '40M',
@@ -110,8 +113,38 @@ export default function LogbookPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const [activeTab, setActiveTab] = useState<LogbookTab>('list')
   const [qrzSyncing, setQrzSyncing] = useState(false)
   const [lotwSyncing, setLotwSyncing] = useState(false)
+
+  const qsoMapMarkers = useMemo<MapMarker[]>(() => qsos.flatMap(q => {
+    const position = gridToLatLng(q.locator)
+    if (!position) return []
+    const bandMode = `${BandLabels[q.band]} / ${ModeLabels[q.mode]}`
+    const grid = q.locator?.toUpperCase()
+    return [{
+      id: String(q.id),
+      lat: position.lat,
+      lng: position.lng,
+      label: q.workedCallsign,
+      tooltip: `${q.workedCallsign} - ${grid} - ${bandMode}`,
+      popup: [
+        `<b>${q.workedCallsign}</b>`,
+        `${formatUtcDate(q.dateUtc)}`,
+        `${bandMode}`,
+        grid ? `<span style="font-family: monospace">${grid}</span>` : '',
+        q.country ? `${q.country}` : '',
+      ].filter(Boolean).join('<br/>'),
+      variant: 'worked',
+      actionLabel: t('common.open'),
+    }]
+  }), [qsos, t])
+
+  const qsosMissingGrid = qsos.length - qsoMapMarkers.length
+
+  const handleMapMarkerAction = useCallback((marker: MapMarker) => {
+    if (marker.id) router.push(`/logbook/${marker.id}`)
+  }, [router])
 
   const load = (s?: string) => {
     setLoading(true)
@@ -206,9 +239,43 @@ export default function LogbookPage() {
         <Button variant="secondary" onClick={() => load(search)}>{t('common.search')}</Button>
         {search && <Button variant="ghost" onClick={() => { setSearch(''); load() }}>{t('logbook.clear')}</Button>}
       </div>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-md border border-gray-800 bg-gray-950 p-1">
+          {(['list', 'map'] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`rounded px-4 py-2 text-sm font-semibold transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}
+            >
+              {tab === 'list' ? t('logbook.tabs.list') : t('logbook.tabs.map')}
+            </button>
+          ))}
+        </div>
+        {activeTab === 'map' && (
+          <p className="text-sm text-gray-400">
+            {t('logbook.map.summary', { mapped: qsoMapMarkers.length, total: qsos.length })}
+            {qsosMissingGrid > 0 ? ` - ${t('logbook.map.missingGrid', { count: qsosMissingGrid })}` : ''}
+          </p>
+        )}
+      </div>
+
       <Card>
         <CardContent className="p-0">
-          {loading ? <p className="p-6 text-gray-400">{t('logbook.loading')}</p> : (
+          {loading ? <p className="p-6 text-gray-400">{t('logbook.loading')}</p> : activeTab === 'map' ? (
+            <div className="p-4">
+              {qsoMapMarkers.length > 0 ? (
+                <Suspense fallback={<p className="p-6 text-gray-400">{t('logbook.map.loading')}</p>}>
+                  <Map markers={qsoMapMarkers} height="68vh" onMarkerAction={handleMapMarkerAction} />
+                </Suspense>
+              ) : (
+                <div className="border border-gray-800 bg-gray-900 px-4 py-8 text-sm text-gray-400">
+                  {t('logbook.map.empty')}
+                </div>
+              )}
+            </div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/50">

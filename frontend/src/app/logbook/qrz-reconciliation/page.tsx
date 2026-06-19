@@ -59,7 +59,9 @@ export default function QrzReconciliationPage() {
 
   useEffect(() => {
     const cancelledRef = { cancelled: false }
-    void loadReconciliation(cancelledRef)
+    Promise.resolve().then(() => {
+      if (!cancelledRef.cancelled) void loadReconciliation(cancelledRef)
+    })
     return () => { cancelledRef.cancelled = true }
   }, [loadReconciliation])
 
