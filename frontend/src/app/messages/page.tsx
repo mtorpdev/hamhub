@@ -9,21 +9,24 @@ import { type FriendCandidate, type FriendRequests, type Friendship, FriendshipS
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { formatUtcDate } from '@/lib/utils'
 import { pageShellClass } from '@/lib/layout'
 
 type Tab = 'inbox' | 'sent' | 'friends' | 'requests' | 'conversations'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
-function friendLabel(friend: Friendship | FriendCandidate) {
-  if ('otherCallsign' in friend) return friend.otherCallsign || friend.otherEmail || 'Ukendt'
-  return friend.callsign || friend.email || 'Ukendt'
+function friendLabel(friend: Friendship | FriendCandidate, fallback: string) {
+  if ('otherCallsign' in friend) return friend.otherCallsign || friend.otherEmail || fallback
+  return friend.callsign || friend.email || fallback
 }
 
 export default function MessagesPage() {
   useRequireAuth()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { t, language } = useLanguage()
+  const locale = language === 'da' ? 'da-DK' : 'en-US'
   const [tab, setTab] = useState<Tab>(() => {
     if (typeof window === 'undefined') return 'inbox'
     return new URLSearchParams(window.location.search).get('tab') === 'requests' ? 'requests' : 'inbox'
@@ -38,10 +41,11 @@ export default function MessagesPage() {
   const [candidates, setCandidates] = useState<FriendCandidate[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const unknown = t('messages.unknown')
 
   const selectedFriend = useMemo(
     () => friends.find(f => f.otherUserId === selectedFriendId) ?? friends[0] ?? null,
-    [friends, selectedFriendId]
+    [friends, selectedFriendId],
   )
 
   const loadMessages = async (nextTab = tab) => {
@@ -144,12 +148,12 @@ export default function MessagesPage() {
     setBusy(true)
     try {
       await api.friends.sendRequest(userId)
-      toast('Venneanmodning sendt')
+      toast(t('messages.requestSent'))
       setSearch('')
       setCandidates([])
       await loadFriends()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende anmodning', 'error')
+      toast(err instanceof Error ? err.message : t('messages.requestFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -157,20 +161,20 @@ export default function MessagesPage() {
 
   const accept = async (id: number) => {
     await api.friends.accept(id)
-    toast('Venneanmodning accepteret')
+    toast(t('messages.requestAccepted'))
     await refreshAll()
   }
 
   const decline = async (id: number) => {
     await api.friends.decline(id)
-    toast('Venneanmodning afvist')
+    toast(t('messages.requestDeclined'))
     await loadFriends()
   }
 
   const remove = async (friend: Friendship) => {
-    if (!confirm(`Fjern ${friendLabel(friend)} som ven?`)) return
+    if (!confirm(t('messages.removeFriendConfirm', { label: friendLabel(friend, unknown) }))) return
     await api.friends.remove(friend.otherUserId)
-    toast('Ven fjernet')
+    toast(t('messages.friendRemoved'))
     setSelectedFriendId(null)
     await refreshAll()
   }
@@ -182,14 +186,14 @@ export default function MessagesPage() {
     try {
       const message = await api.messages.send({
         recipientId: selectedFriend.otherUserId,
-        subject: 'Privat besked',
+        subject: t('messages.privateSubject'),
         body: replyText.trim(),
       })
       setConversation(prev => [...prev, message])
       setReplyText('')
       await loadMessages(tab)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende besked', 'error')
+      toast(err instanceof Error ? err.message : t('messages.sendFailed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -197,24 +201,24 @@ export default function MessagesPage() {
 
   const reportSelectedFriend = async () => {
     if (!selectedFriend) return
-    const reason = window.prompt('Hvad skal moderator kigge på?')
+    const reason = window.prompt(t('messages.reportPrompt'))
     if (!reason?.trim()) return
     try {
       await api.safety.report({ targetType: 'user', targetUserId: selectedFriend.otherUserId, reason: reason.trim() })
-      toast('Rapport sendt')
+      toast(t('messages.reportSent'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke sende rapport', 'error')
+      toast(err instanceof Error ? err.message : t('messages.reportFailed'), 'error')
     }
   }
 
   const blockSelectedFriend = async () => {
     if (!selectedFriend) return
-    if (!confirm(`Blokér ${friendLabel(selectedFriend)}? I kan ikke sende private beskeder til hinanden.`)) return
+    if (!confirm(t('messages.blockConfirm', { label: friendLabel(selectedFriend, unknown) }))) return
     try {
       await api.safety.blockUser(selectedFriend.otherUserId)
-      toast('Bruger blokeret')
+      toast(t('messages.blocked'))
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke blokere bruger', 'error')
+      toast(err instanceof Error ? err.message : t('messages.blockFailed'), 'error')
     }
   }
 
@@ -224,20 +228,20 @@ export default function MessagesPage() {
     <div className={pageShellClass}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Beskeder</h1>
-          <p className="mt-1 text-sm text-gray-500">Private beskeder er kun mellem accepterede venner.</p>
-          {unread > 0 && <p className="mt-1 text-sm text-blue-400">{unread} ulæst(e)</p>}
+          <h1 className="text-3xl font-bold text-white">{t('messages.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('messages.description')}</p>
+          {unread > 0 && <p className="mt-1 text-sm text-blue-400">{t('messages.unread', { count: unread })}</p>}
         </div>
-        <Link href="/messages/new"><Button>Ny besked</Button></Link>
+        <Link href="/messages/new"><Button>{t('messages.new')}</Button></Link>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {([
-          ['inbox', 'Indbakke'],
-          ['sent', 'Sendt'],
-          ['conversations', 'Samtaler'],
-          ['friends', `Venner (${friends.length})`],
-          ['requests', `Anmodninger (${requests.incoming.length})`],
+          ['inbox', t('messages.tabs.inbox')],
+          ['sent', t('messages.tabs.sent')],
+          ['conversations', t('messages.tabs.conversations')],
+          ['friends', t('messages.tabs.friends', { count: friends.length })],
+          ['requests', t('messages.tabs.requests', { count: requests.incoming.length })],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -251,9 +255,9 @@ export default function MessagesPage() {
 
       {(tab === 'inbox' || tab === 'sent') && (
         loading ? (
-          <p className="text-gray-400">Indlæser...</p>
+          <p className="text-gray-400">{t('messages.loading')}</p>
         ) : messages.length === 0 ? (
-          <Card><CardContent className="py-12 text-center text-gray-400">Ingen beskeder</CardContent></Card>
+          <Card><CardContent className="py-12 text-center text-gray-400">{t('messages.empty')}</CardContent></Card>
         ) : (
           <div className="flex flex-col gap-2">
             {messages.map(m => (
@@ -265,7 +269,7 @@ export default function MessagesPage() {
                         <div className="mb-0.5 flex items-center gap-2">
                           {!m.isRead && tab === 'inbox' && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" />}
                           <span className={`font-medium ${!m.isRead && tab === 'inbox' ? 'text-white' : 'text-gray-300'}`}>
-                            {tab === 'inbox' ? (m.senderCallsign || 'Ukendt') : (m.recipientCallsign || 'Ukendt')}
+                            {tab === 'inbox' ? (m.senderCallsign || unknown) : (m.recipientCallsign || unknown)}
                           </span>
                           <span className="text-xs text-gray-500">{formatUtcDate(m.createdAt)}</span>
                         </div>
@@ -285,54 +289,49 @@ export default function MessagesPage() {
         <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
           <Card>
             <CardContent className="py-4">
-              <h2 className="mb-3 text-sm font-semibold text-white">Find venner</h2>
+              <h2 className="mb-3 text-sm font-semibold text-white">{t('messages.findFriends')}</h2>
               <input
                 value={search}
                 onChange={e => {
                   setSearch(e.target.value)
                   if (e.target.value.trim().length < 2) setCandidates([])
                 }}
-                placeholder="Søg callsign, navn eller email..."
+                placeholder={t('messages.searchFriends')}
                 className="mb-3 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
               />
               <div className="flex flex-col gap-2">
                 {candidates.map(candidate => (
                   <div key={candidate.userId} className="rounded-md border border-gray-800 bg-gray-950/50 p-3">
-                    <div className="font-mono text-sm font-semibold text-white">{friendLabel(candidate)}</div>
+                    <div className="font-mono text-sm font-semibold text-white">{friendLabel(candidate, unknown)}</div>
                     <div className="text-xs text-gray-500">{candidate.name || candidate.gridLocator || candidate.email}</div>
-                    <Button
-                      className="mt-2"
-                      size="sm"
-                      disabled={busy || candidate.friendshipStatus === FriendshipStatus.Accepted || candidate.friendshipStatus === FriendshipStatus.Pending}
-                      onClick={() => sendRequest(candidate.userId)}
-                    >
+                    <Button className="mt-2" size="sm" disabled={busy || candidate.friendshipStatus === FriendshipStatus.Accepted || candidate.friendshipStatus === FriendshipStatus.Pending} onClick={() => sendRequest(candidate.userId)}>
                       {candidate.friendshipStatus === FriendshipStatus.Accepted
-                        ? 'Allerede ven'
+                        ? t('messages.alreadyFriend')
                         : candidate.friendshipStatus === FriendshipStatus.Pending
-                          ? 'Anmodning findes'
-                          : 'Tilføj ven'}
+                          ? t('messages.requestExists')
+                          : t('messages.addFriend')}
                     </Button>
                   </div>
                 ))}
-                {search.trim().length >= 2 && candidates.length === 0 && <p className="text-sm text-gray-500">Ingen resultater.</p>}
+                {search.trim().length >= 2 && candidates.length === 0 && <p className="text-sm text-gray-500">{t('messages.noResults')}</p>}
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="py-4">
-              <h2 className="mb-3 text-sm font-semibold text-white">Mine venner</h2>
+              <h2 className="mb-3 text-sm font-semibold text-white">{t('messages.myFriends')}</h2>
               {friends.length === 0 ? (
-                <p className="text-sm text-gray-500">Du har ingen venner endnu.</p>
+                <p className="text-sm text-gray-500">{t('messages.noFriends')}</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {friends.map(friend => (
                     <div key={friend.id} className="rounded-md border border-gray-800 bg-gray-950/50 p-3">
-                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(friend)}</div>
+                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(friend, unknown)}</div>
                       <div className="text-xs text-gray-500">{friend.otherName || friend.otherGridLocator || friend.otherEmail}</div>
                       <div className="mt-3 flex gap-2">
-                        <Button size="sm" onClick={() => { setSelectedFriendId(friend.otherUserId); setTab('conversations') }}>Skriv</Button>
-                        <Button size="sm" variant="secondary" onClick={() => remove(friend)}>Fjern</Button>
+                        <Button size="sm" onClick={() => { setSelectedFriendId(friend.otherUserId); setTab('conversations') }}>{t('messages.write')}</Button>
+                        <Button size="sm" variant="secondary" onClick={() => remove(friend)}>{t('common.remove')}</Button>
                       </div>
                     </div>
                   ))}
@@ -348,34 +347,34 @@ export default function MessagesPage() {
           <div className="flex flex-col gap-5">
             <Card>
               <CardContent className="py-4">
-                <h2 className="mb-3 text-sm font-semibold text-white">Indgående anmodninger</h2>
+                <h2 className="mb-3 text-sm font-semibold text-white">{t('messages.incomingRequests')}</h2>
                 <div className="flex flex-col gap-2">
                   {requests.incoming.map(request => (
                     <div key={request.id} className="rounded-md border border-gray-800 bg-gray-950/50 p-3">
-                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(request)}</div>
+                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(request, unknown)}</div>
                       <div className="text-xs text-gray-500">{request.otherName || request.otherGridLocator || request.otherEmail}</div>
                       <div className="mt-3 flex gap-2">
-                        <Button size="sm" onClick={() => accept(request.id)}>Accepter</Button>
-                        <Button size="sm" variant="secondary" onClick={() => decline(request.id)}>Afvis</Button>
+                        <Button size="sm" onClick={() => accept(request.id)}>{t('messages.accept')}</Button>
+                        <Button size="sm" variant="secondary" onClick={() => decline(request.id)}>{t('messages.decline')}</Button>
                       </div>
                     </div>
                   ))}
-                  {requests.incoming.length === 0 && <p className="text-sm text-gray-500">Ingen indgående anmodninger.</p>}
+                  {requests.incoming.length === 0 && <p className="text-sm text-gray-500">{t('messages.noIncomingRequests')}</p>}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="py-4">
-                <h2 className="mb-3 text-sm font-semibold text-white">Sendte anmodninger</h2>
+                <h2 className="mb-3 text-sm font-semibold text-white">{t('messages.sentRequests')}</h2>
                 <div className="flex flex-col gap-2">
                   {requests.outgoing.map(request => (
                     <div key={request.id} className="rounded-md border border-gray-800 bg-gray-950/50 p-3">
-                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(request)}</div>
-                      <div className="text-xs text-gray-500">Afventer svar</div>
+                      <div className="font-mono text-sm font-semibold text-white">{friendLabel(request, unknown)}</div>
+                      <div className="text-xs text-gray-500">{t('messages.awaitingReply')}</div>
                     </div>
                   ))}
-                  {requests.outgoing.length === 0 && <p className="text-sm text-gray-500">Ingen sendte anmodninger.</p>}
+                  {requests.outgoing.length === 0 && <p className="text-sm text-gray-500">{t('messages.noSentRequests')}</p>}
                 </div>
               </CardContent>
             </Card>
@@ -383,8 +382,8 @@ export default function MessagesPage() {
 
           <Card>
             <CardContent className="py-4">
-              <h2 className="mb-2 text-sm font-semibold text-white">Samtaler</h2>
-              <p className="text-sm text-gray-500">Vælg fanen Samtaler for at skrive direkte med dine venner.</p>
+              <h2 className="mb-2 text-sm font-semibold text-white">{t('messages.tabs.conversations')}</h2>
+              <p className="text-sm text-gray-500">{t('messages.conversationHint')}</p>
             </CardContent>
           </Card>
         </div>
@@ -394,20 +393,15 @@ export default function MessagesPage() {
         <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
           <Card>
             <CardContent className="py-4">
-              <h2 className="mb-3 text-sm font-semibold text-white">Venner</h2>
+              <h2 className="mb-3 text-sm font-semibold text-white">{t('messages.myFriends')}</h2>
               <div className="flex flex-col gap-1">
                 {friends.map(friend => (
-                  <button
-                    key={friend.id}
-                    type="button"
-                    onClick={() => setSelectedFriendId(friend.otherUserId)}
-                    className={`rounded-md px-3 py-2 text-left text-sm ${selectedFriend?.otherUserId === friend.otherUserId ? 'bg-blue-500/15 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
-                  >
-                    <span className="block truncate font-mono font-semibold">{friendLabel(friend)}</span>
+                  <button key={friend.id} type="button" onClick={() => setSelectedFriendId(friend.otherUserId)} className={`rounded-md px-3 py-2 text-left text-sm ${selectedFriend?.otherUserId === friend.otherUserId ? 'bg-blue-500/15 text-white' : 'text-gray-300 hover:bg-gray-800'}`}>
+                    <span className="block truncate font-mono font-semibold">{friendLabel(friend, unknown)}</span>
                     <span className="block truncate text-xs text-gray-500">{friend.otherGridLocator || friend.otherName || friend.otherEmail}</span>
                   </button>
                 ))}
-                {friends.length === 0 && <p className="text-sm text-gray-500">Du skal have en ven før du kan skrive privat.</p>}
+                {friends.length === 0 && <p className="text-sm text-gray-500">{t('messages.needFriend')}</p>}
               </div>
             </CardContent>
           </Card>
@@ -416,26 +410,26 @@ export default function MessagesPage() {
             <CardContent className="py-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Messenger</h2>
-                  <p className="text-xs text-gray-500">{selectedFriend ? friendLabel(selectedFriend) : 'Vælg en ven'}</p>
+                  <h2 className="text-sm font-semibold text-white">{t('messages.messenger')}</h2>
+                  <p className="text-xs text-gray-500">{selectedFriend ? friendLabel(selectedFriend, unknown) : t('messages.chooseFriend')}</p>
                 </div>
                 {selectedFriend && (
                   <div className="flex gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={reportSelectedFriend}>Rapportér</Button>
-                    <Button type="button" size="sm" variant="danger" onClick={blockSelectedFriend}>Blokér</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={reportSelectedFriend}>{t('messages.report')}</Button>
+                    <Button type="button" size="sm" variant="danger" onClick={blockSelectedFriend}>{t('messages.block')}</Button>
                   </div>
                 )}
               </div>
               <div className="mb-3 flex min-h-96 max-h-[520px] flex-col gap-2 overflow-y-auto rounded-md border border-gray-800 bg-gray-950/60 p-3">
                 {conversation.length === 0 ? (
-                  <p className="text-sm text-gray-500">Ingen private beskeder i samtalen endnu.</p>
+                  <p className="text-sm text-gray-500">{t('messages.noConversation')}</p>
                 ) : conversation.map(message => {
                   const mine = message.senderId === user?.id
                   return (
                     <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[80%] rounded-md px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100'}`}>
                         <div className={`mb-1 text-[11px] ${mine ? 'text-blue-100' : 'text-gray-500'}`}>
-                          {new Date(message.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(message.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                         </div>
                         <div className="whitespace-pre-wrap break-words text-sm">{message.body}</div>
                       </div>
@@ -444,15 +438,8 @@ export default function MessagesPage() {
                 })}
               </div>
               <form onSubmit={sendPrivateMessage} className="flex flex-col gap-2">
-                <textarea
-                  rows={3}
-                  value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
-                  placeholder="Skriv privat besked..."
-                  disabled={!selectedFriend}
-                  className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
-                />
-                <Button type="submit" size="sm" disabled={busy || !selectedFriend || !replyText.trim()}>Send privat besked</Button>
+                <textarea rows={3} value={replyText} onChange={e => setReplyText(e.target.value)} placeholder={t('messages.privatePlaceholder')} disabled={!selectedFriend} className="w-full resize-none rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white" />
+                <Button type="submit" size="sm" disabled={busy || !selectedFriend || !replyText.trim()}>{t('messages.sendPrivate')}</Button>
               </form>
             </CardContent>
           </Card>

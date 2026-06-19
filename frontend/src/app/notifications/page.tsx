@@ -1,4 +1,5 @@
 'use client'
+
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr'
@@ -12,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { formatUtcDate } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const emptyCenter: NotificationCenter = {
@@ -33,6 +35,7 @@ export default function NotificationsPage() {
   useRequireAuth()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [center, setCenter] = useState<NotificationCenter>(emptyCenter)
   const [loading, setLoading] = useState(true)
   const [markingRead, setMarkingRead] = useState(false)
@@ -51,10 +54,10 @@ export default function NotificationsPage() {
     setMarkingRead(true)
     try {
       await api.notifications.markHistoryRead()
-      toast('Notifikationshistorik markeret som læst')
+      toast(t('notifications.historyRead'))
       await loadCenter()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke markere historik som læst', 'error')
+      toast(err instanceof Error ? err.message : t('notifications.historyReadFailed'), 'error')
     } finally {
       setMarkingRead(false)
     }
@@ -83,21 +86,21 @@ export default function NotificationsPage() {
   }, [loadCenter, user?.id])
 
   const summaryCards = [
-    ['Beskeder', center.summary.unreadMessages, '/messages'],
-    ['Venner', center.summary.incomingFriendRequests, '/messages?tab=requests'],
-    ['Invitationer', center.summary.groupInvitations, '/community'],
-    ['Join requests', center.summary.groupJoinRequests, '/community'],
+    [t('notifications.summary.messages'), center.summary.unreadMessages, '/messages'],
+    [t('notifications.summary.friends'), center.summary.incomingFriendRequests, '/messages?tab=requests'],
+    [t('notifications.summary.invitations'), center.summary.groupInvitations, '/community'],
+    [t('notifications.summary.joinRequests'), center.summary.groupJoinRequests, '/community'],
   ] as const
 
   return (
     <div className={pageShellClass}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-white">Notifikationer</h1>
-          <p className="mt-1 text-sm text-gray-500">Samlet overblik over beskeder, venner og gruppehandlinger.</p>
+          <h1 className="text-3xl font-bold text-white">{t('notifications.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('notifications.pageDescription')}</p>
         </div>
         <Button type="button" variant="secondary" onClick={loadCenter} disabled={loading}>
-          {loading ? 'Henter...' : 'Opdater'}
+          {loading ? t('common.loading') : t('common.refresh')}
         </Button>
       </div>
 
@@ -112,7 +115,7 @@ export default function NotificationsPage() {
 
       {loading && center.items.length === 0 ? (
         <div className="rounded-md border border-gray-800 bg-gray-900 px-4 py-8 text-center text-sm text-gray-400">
-          Henter notifikationer...
+          {t('notifications.loading')}
         </div>
       ) : (
         <NotificationList
@@ -125,8 +128,8 @@ export default function NotificationsPage() {
       <div className="mt-10">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-white">Historik</h2>
-            <p className="mt-1 text-sm text-gray-500">{center.history.unreadCount} ulæste historik-events</p>
+            <h2 className="text-xl font-semibold text-white">{t('notifications.history')}</h2>
+            <p className="mt-1 text-sm text-gray-500">{t('notifications.historyUnread', { count: center.history.unreadCount })}</p>
           </div>
           <Button
             type="button"
@@ -134,13 +137,13 @@ export default function NotificationsPage() {
             onClick={markHistoryRead}
             disabled={markingRead || center.history.unreadCount === 0}
           >
-            {markingRead ? 'Gemmer...' : 'Marker alle som læst'}
+            {markingRead ? t('common.saving') : t('notifications.markAllRead')}
           </Button>
         </div>
 
         {center.history.items.length === 0 ? (
           <div className="rounded-md border border-gray-800 bg-gray-900 px-4 py-8 text-center text-sm text-gray-400">
-            Ingen historik endnu.
+            {t('notifications.noHistory')}
           </div>
         ) : (
           <div className="space-y-3">
@@ -155,7 +158,7 @@ export default function NotificationsPage() {
                   <span className="text-xs text-gray-500">{formatUtcDate(item.createdAt)}</span>
                 </div>
                 <p className="mt-1 text-sm text-gray-400">{item.description}</p>
-                <p className="mt-2 text-xs font-medium text-blue-300">{item.isRead ? 'Læst' : 'Ulæst'}</p>
+                <p className="mt-2 text-xs font-medium text-blue-300">{item.isRead ? t('notifications.read') : t('notifications.unread')}</p>
               </a>
             ))}
           </div>

@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { BandLabels, ModeLabels, type DxSpot, type ClusterSpot } from '@/lib/types'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -23,6 +24,7 @@ export default function SpotsPage() {
   const [tab, setTab] = useState<'local' | 'cluster'>('local')
   const { isAuthenticated, user } = useAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadLocal = () => {
@@ -48,7 +50,6 @@ export default function SpotsPage() {
     loadInitialSpots().catch(() => {
       if (!cancelled) setLoading(false)
     })
-    // auto-refresh local spots every 60s
     refreshRef.current = setInterval(loadLocal, 60000)
     return () => {
       cancelled = true
@@ -87,38 +88,41 @@ export default function SpotsPage() {
   }, [tab])
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Slet spot?')) return
+    if (!confirm(t('spots.deleteConfirm'))) return
     try {
       await api.spots.delete(id)
-      toast('Spot slettet')
+      toast(t('spots.deleted'))
       loadLocal()
     } catch {
-      toast('Sletning mislykkedes', 'error')
+      toast(t('spots.deleteFailed'), 'error')
     }
   }
 
+  const localHeaders = [t('spots.callsign'), t('spots.frequencyMhz'), t('spots.band'), t('spots.mode'), t('spots.comment'), t('spots.spotter'), t('spots.time'), '', '']
+  const clusterHeaders = [t('spots.callsign'), t('spots.frequencyKhz'), t('spots.mode'), t('spots.info'), t('spots.spotter'), t('spots.source'), t('spots.time')]
+  const totalPages = Math.ceil(spots.length / PAGE_SIZE)
+
   return (
     <div className={pageShellClass}>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-white">DX Spots</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-white">{t('spots.title')}</h1>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Auto-opdaterer
+          <span className="flex items-center gap-1 text-xs text-gray-500">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500" />
+            {t('spots.autoRefresh')}
           </span>
-          {isAuthenticated && <Link href="/spots/new"><Button>+ Nyt spot</Button></Link>}
+          {isAuthenticated && <Link href="/spots/new"><Button>+ {t('spots.new')}</Button></Link>}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-700">
-        {(['local', 'cluster'] as const).map(t => (
+      <div className="mb-4 flex gap-1 border-b border-gray-700">
+        {(['local', 'cluster'] as const).map(tabId => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === t ? 'border-blue-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
+            key={tabId}
+            onClick={() => setTab(tabId)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${tab === tabId ? 'border-blue-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
           >
-            {t === 'local' ? 'HamHub spots' : 'DX Cluster (live)'}
+            {tabId === 'local' ? t('spots.hamHub') : t('spots.cluster')}
           </button>
         ))}
       </div>
@@ -126,41 +130,37 @@ export default function SpotsPage() {
       {tab === 'local' && (
         <Card>
           <CardContent className="p-0">
-            {loading ? <p className="p-6 text-gray-400">Indlæser...</p> : (
+            {loading ? <p className="p-6 text-gray-400">{t('common.loading')}</p> : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-800/50">
-                    <tr>
-                      {['Kaldesignal', 'Freq (MHz)', 'Band', 'Mode', 'Kommentar', 'Spotter', 'Tid', '', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
-                      ))}
-                    </tr>
+                    <tr>{localHeaders.map(header => <th key={header} className="px-4 py-3 text-left font-medium text-gray-400">{header}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
-                    {spots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(s => (
-                      <tr key={s.id} className="hover:bg-gray-800/30 transition-colors">
+                    {spots.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(spot => (
+                      <tr key={spot.id} className="transition-colors hover:bg-gray-800/30">
                         <td className="px-4 py-3 font-mono font-bold text-white">
-                          {s.callsign}
-                          {isAuthenticated && workedCallsigns.has(s.callsign.toUpperCase()) && (
-                            <span className="ml-2 text-xs bg-green-800 text-green-300 border border-green-700 px-1.5 py-0.5 rounded" title="Du har arbejdet denne station">✓ Worked</span>
+                          {spot.callsign}
+                          {isAuthenticated && workedCallsigns.has(spot.callsign.toUpperCase()) && (
+                            <span className="ml-2 rounded border border-green-700 bg-green-800 px-1.5 py-0.5 text-xs text-green-300" title={t('spots.workedTitle')}>{t('spots.worked')}</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-300">{s.frequency.toFixed(3)}</td>
-                        <td className="px-4 py-3"><Badge variant="info">{BandLabels[s.band]}</Badge></td>
-                        <td className="px-4 py-3"><Badge>{ModeLabels[s.mode]}</Badge></td>
-                        <td className="px-4 py-3 text-gray-400 max-w-xs truncate">{s.comment || '—'}</td>
-                        <td className="px-4 py-3 text-gray-400 font-mono">{s.spotterCallsign}</td>
-                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatDate(s.spottedAt)}</td>
+                        <td className="px-4 py-3 text-gray-300">{spot.frequency.toFixed(3)}</td>
+                        <td className="px-4 py-3"><Badge variant="info">{BandLabels[spot.band]}</Badge></td>
+                        <td className="px-4 py-3"><Badge>{ModeLabels[spot.mode]}</Badge></td>
+                        <td className="max-w-xs truncate px-4 py-3 text-gray-400">{spot.comment || '-'}</td>
+                        <td className="px-4 py-3 font-mono text-gray-400">{spot.spotterCallsign}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{formatDate(spot.spottedAt)}</td>
                         <td className="px-4 py-3">
-                          {isAuthenticated && s.userId === user?.id && (
-                            <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:text-red-400 text-xs">Slet</button>
+                          {isAuthenticated && spot.userId === user?.id && (
+                            <button onClick={() => handleDelete(spot.id)} className="text-xs text-red-500 hover:text-red-400">{t('common.delete')}</button>
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {spots.length === 0 && <p className="p-6 text-gray-400">Ingen spots endnu.</p>}
+                {spots.length === 0 && <p className="p-6 text-gray-400">{t('spots.noLocal')}</p>}
               </div>
             )}
           </CardContent>
@@ -170,34 +170,30 @@ export default function SpotsPage() {
       {tab === 'cluster' && (
         <Card>
           <CardContent className="p-0">
-            {clusterLoading && clusterSpots.length === 0 ? <p className="p-6 text-gray-400">Henter DX Cluster...</p> : (
+            {clusterLoading && clusterSpots.length === 0 ? <p className="p-6 text-gray-400">{t('spots.loadingCluster')}</p> : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-800/50">
-                    <tr>
-                      {['Kaldesignal', 'Freq (kHz)', 'Mode', 'Info', 'Spotter', 'Kilde', 'Tid'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-gray-400 font-medium">{h}</th>
-                      ))}
-                    </tr>
+                    <tr>{clusterHeaders.map(header => <th key={header} className="px-4 py-3 text-left font-medium text-gray-400">{header}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
-                    {clusterSpots.map((s, i) => (
-                      <tr key={i} className="hover:bg-gray-800/30 transition-colors">
-                        <td className="px-4 py-3 font-mono font-bold text-white">{s.callsign}</td>
-                        <td className="px-4 py-3 text-gray-300">{Number(s.frequencyKhz ?? s.frequency).toFixed(1)}</td>
-                        <td className="px-4 py-3"><Badge>{s.mode || '—'}</Badge></td>
-                        <td className="px-4 py-3 text-gray-400 max-w-xs truncate">{s.info || '—'}</td>
-                        <td className="px-4 py-3 text-gray-400 font-mono">{s.spotter}</td>
-                        <td className="px-4 py-3"><Badge variant="info">{s.source || 'DX Cluster'}</Badge></td>
-                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.time}</td>
+                    {clusterSpots.map((spot, index) => (
+                      <tr key={index} className="transition-colors hover:bg-gray-800/30">
+                        <td className="px-4 py-3 font-mono font-bold text-white">{spot.callsign}</td>
+                        <td className="px-4 py-3 text-gray-300">{Number(spot.frequencyKhz ?? spot.frequency).toFixed(1)}</td>
+                        <td className="px-4 py-3"><Badge>{spot.mode || '-'}</Badge></td>
+                        <td className="max-w-xs truncate px-4 py-3 text-gray-400">{spot.info || '-'}</td>
+                        <td className="px-4 py-3 font-mono text-gray-400">{spot.spotter}</td>
+                        <td className="px-4 py-3"><Badge variant="info">{spot.source || 'DX Cluster'}</Badge></td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{spot.time}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {clusterSpots.length === 0 && !clusterLoading && (
                   <div className="p-6 text-center">
-                    <p className="text-gray-400 mb-3">Ingen cluster spots tilgængeligt.</p>
-                    <Button variant="secondary" onClick={loadCluster}>Prøv igen</Button>
+                    <p className="mb-3 text-gray-400">{t('spots.noCluster')}</p>
+                    <Button variant="secondary" onClick={loadCluster}>{t('spots.tryAgain')}</Button>
                   </div>
                 )}
               </div>
@@ -207,10 +203,10 @@ export default function SpotsPage() {
       )}
 
       {tab === 'local' && spots.length > PAGE_SIZE && (
-        <div className="flex justify-end gap-2 items-center mt-3">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">←</button>
-          <span className="text-gray-400 text-sm">Side {page} / {Math.ceil(spots.length / PAGE_SIZE)}</span>
-          <button onClick={() => setPage(p => Math.min(Math.ceil(spots.length / PAGE_SIZE), p + 1))} disabled={page >= Math.ceil(spots.length / PAGE_SIZE)} className="px-3 py-1 text-sm rounded bg-gray-700 text-gray-300 disabled:opacity-40">→</button>
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <button onClick={() => setPage(current => Math.max(1, current - 1))} disabled={page === 1} className="rounded bg-gray-700 px-3 py-1 text-sm text-gray-300 disabled:opacity-40">{'<'}</button>
+          <span className="text-sm text-gray-400">{t('spots.page', { page, total: totalPages })}</span>
+          <button onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={page >= totalPages} className="rounded bg-gray-700 px-3 py-1 text-sm text-gray-300 disabled:opacity-40">{'>'}</button>
         </div>
       )}
     </div>

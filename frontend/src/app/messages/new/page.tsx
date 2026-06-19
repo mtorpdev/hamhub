@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { type Friendship } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { pageShellClass } from '@/lib/layout'
 
 function NewMessageForm() {
@@ -15,6 +16,7 @@ function NewMessageForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [form, setForm] = useState({
     recipientId: searchParams.get('to') || '',
     subject: decodeURIComponent(searchParams.get('subject') || ''),
@@ -49,10 +51,10 @@ function NewMessageForm() {
     setSending(true)
     try {
       await api.messages.send(form)
-      toast('Besked sendt!')
+      toast(t('messages.sentToast'))
       router.push('/messages')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fejl')
+      setError(err instanceof Error ? err.message : t('messages.error'))
     } finally {
       setSending(false)
     }
@@ -60,37 +62,32 @@ function NewMessageForm() {
 
   return (
     <div className={pageShellClass}>
-      <h1 className="text-3xl font-bold text-white mb-8">Ny besked</h1>
+      <h1 className="mb-8 text-3xl font-bold text-white">{t('messages.new')}</h1>
       <Card>
         <CardContent className="py-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Til *</label>
-              <select
-                value={form.recipientId}
-                onChange={e => setForm(f => ({ ...f, recipientId: e.target.value }))}
-                required
-                className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm"
-              >
-                <option value="" disabled>Vælg en ven</option>
+              <label className="text-sm font-medium text-gray-300">{`${t('messages.to')} *`}</label>
+              <select value={form.recipientId} onChange={e => setForm(f => ({ ...f, recipientId: e.target.value }))} required className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
+                <option value="" disabled>{t('messages.selectFriend')}</option>
                 {friends.map(friend => (
                   <option key={friend.id} value={friend.otherUserId}>
-                    {friend.otherCallsign || friend.otherEmail || friend.otherName || 'Ukendt'}
+                    {friend.otherCallsign || friend.otherEmail || friend.otherName || t('messages.unknown')}
                   </option>
                 ))}
               </select>
               {recipientLabel && <p className="text-xs text-green-400">{recipientLabel}</p>}
-              {friends.length === 0 && <p className="text-xs text-gray-500">Du skal være venner med en bruger, før du kan sende private beskeder.</p>}
+              {friends.length === 0 && <p className="text-xs text-gray-500">{t('messages.mustBeFriends')}</p>}
             </div>
-            <Input label="Emne *" value={form.subject} onChange={set('subject')} required />
+            <Input label={`${t('messages.subject')} *`} value={form.subject} onChange={set('subject')} required />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Besked *</label>
-              <textarea rows={6} value={form.body} onChange={set('body')} required placeholder="Skriv din besked..." className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
+              <label className="text-sm font-medium text-gray-300">{`${t('messages.message')} *`}</label>
+              <textarea rows={6} value={form.body} onChange={set('body')} required placeholder={t('messages.bodyPlaceholder')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white" />
             </div>
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <div className="flex gap-3">
-              <Button type="submit" disabled={sending || friends.length === 0}>{sending ? 'Sender...' : 'Send besked'}</Button>
-              <Button type="button" variant="secondary" onClick={() => router.push('/messages')}>Annuller</Button>
+              <Button type="submit" disabled={sending || friends.length === 0}>{sending ? t('common.saving') : t('messages.sendPrivate')}</Button>
+              <Button type="button" variant="secondary" onClick={() => router.push('/messages')}>{t('common.cancel')}</Button>
             </div>
           </form>
         </CardContent>

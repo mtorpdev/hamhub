@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -6,19 +6,19 @@ import { api } from '@/lib/api'
 import { Band, BandLabels, Mode, ModeLabels, type AwardBackfillResult, type AwardDataQuality, type AwardDetailResponse, type AwardEntityProgress, type AwardFilters, type AwardProgress, type AwardStatus, type AwardSummaryResponse } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { awardEntityHref } from './awardLinks'
-import { awardEntitySectionLabel, awardStatusClass, awardStatusLabel, buildAwardGroups, buildAwardWorkflowStats, nextThresholdText, progressPercent } from './awardSummary'
+import { awardStatusClass, buildAwardGroups, buildAwardWorkflowStats, progressPercent } from './awardSummary'
 import { pageShellClass } from '@/lib/layout'
-
-const STATUS_OPTIONS: Array<{ value: AwardStatus | ''; label: string }> = [
-  { value: '', label: 'Alle statusser' },
-  { value: 'active', label: 'Aktiv' },
-  { value: 'missing-data', label: 'Mangler data' },
-  { value: 'coming-next', label: 'Kommer næste' },
-]
-
 export default function AwardsPage() {
   useRequireAuth()
+  const { t } = useLanguage()
+  const statusOptions: Array<{ value: AwardStatus | ''; label: string }> = [
+    { value: '', label: t('awards.allStatuses') },
+    { value: 'active', label: t('awards.status.active') },
+    { value: 'missing-data', label: t('awards.status.missingData') },
+    { value: 'coming-next', label: t('awards.status.comingNext') },
+  ]
   const [summary, setSummary] = useState<AwardSummaryResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +38,7 @@ export default function AwardsPage() {
         setError(null)
       })
       .catch(err => {
-        setError(err instanceof Error ? err.message : 'Kunne ikke hente awards')
+        setError(err instanceof Error ? err.message : t('awards.loadFailed'))
       })
       .finally(() => {
         setLoading(false)
@@ -55,7 +55,7 @@ export default function AwardsPage() {
         }
       })
       .catch(err => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Kunne ikke hente awards')
+        if (!cancelled) setError(err instanceof Error ? err.message : t('awards.loadFailed'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -76,7 +76,7 @@ export default function AwardsPage() {
         }
       })
       .catch(err => {
-        if (!cancelled) setDetailError(err instanceof Error ? err.message : 'Kunne ikke hente award detaljer')
+        if (!cancelled) setDetailError(err instanceof Error ? err.message : t('awards.detailLoadFailed'))
       })
       .finally(() => {
         if (!cancelled) setDetailLoading(false)
@@ -124,7 +124,7 @@ export default function AwardsPage() {
       setBackfillResult(result)
       await loadSummary()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kunne ikke køre award backfill')
+      setError(err instanceof Error ? err.message : t('awards.backfillFailed'))
     } finally {
       setBackfillLoading(false)
     }
@@ -135,30 +135,30 @@ export default function AwardsPage() {
       <div className={`${pageShellClass} space-y-6 py-6`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Awards</h1>
-            <p className="mt-1 text-sm text-gray-400">Worked, confirmed og missing progress fra din HamHub logbog.</p>
+            <h1 className="text-2xl font-semibold text-white">{t('awards.title')}</h1>
+            <p className="mt-1 text-sm text-gray-400">{t('awards.description')}</p>
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
             <input
               value={filters.callsign ?? ''}
               onChange={event => setFilter('callsign', event.target.value.toUpperCase())}
-              placeholder="Eget call"
+              placeholder={t('awards.ownCall')}
               className="h-10 border border-gray-800 bg-gray-900 px-3 text-sm text-white outline-none focus:border-cyan-700"
             />
             <select value={filters.band ?? ''} onChange={event => setFilter('band', event.target.value ? Number(event.target.value) as Band : '')} className="h-10 border border-gray-800 bg-gray-900 px-3 text-sm text-white outline-none focus:border-cyan-700">
-              <option value="">Alle band</option>
+              <option value="">{t('awards.allBands')}</option>
               {Object.entries(BandLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
             <select value={filters.mode ?? ''} onChange={event => setFilter('mode', event.target.value ? Number(event.target.value) as Mode : '')} className="h-10 border border-gray-800 bg-gray-900 px-3 text-sm text-white outline-none focus:border-cyan-700">
-              <option value="">Alle modes</option>
+              <option value="">{t('awards.allModes')}</option>
               {Object.entries(ModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
             <select value={filters.sponsor ?? ''} onChange={event => setFilter('sponsor', event.target.value)} className="h-10 border border-gray-800 bg-gray-900 px-3 text-sm text-white outline-none focus:border-cyan-700">
-              <option value="">Alle sponsorer</option>
+              <option value="">{t('awards.allSponsors')}</option>
               {sponsors.map(sponsor => <option key={sponsor} value={sponsor}>{sponsor}</option>)}
             </select>
             <select value={filters.status ?? ''} onChange={event => setFilter('status', event.target.value as AwardStatus | '')} className="h-10 border border-gray-800 bg-gray-900 px-3 text-sm text-white outline-none focus:border-cyan-700">
-              {STATUS_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
         </div>
@@ -166,11 +166,11 @@ export default function AwardsPage() {
         {error && <div className="border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-100">{error}</div>}
 
         <section className="grid gap-3 md:grid-cols-5">
-          <WorkflowStat label="QSOer" value={summary?.qsoCount ?? 0} tone="text-white" />
-          <WorkflowStat label="QSL bekræftet" value={summary?.confirmedQsoCount ?? 0} tone="text-emerald-200" />
-          <WorkflowStat label="Award slots" value={workflowStats.worked} tone="text-cyan-200" />
-          <WorkflowStat label="Needs QSL" value={workflowStats.needsQsl} tone="text-amber-200" />
-          <WorkflowStat label="Missing" value={workflowStats.missing} tone="text-gray-200" />
+          <WorkflowStat label={t('awards.qsos')} value={summary?.qsoCount ?? 0} tone="text-white" />
+          <WorkflowStat label={t('awards.qslConfirmed')} value={summary?.confirmedQsoCount ?? 0} tone="text-emerald-200" />
+          <WorkflowStat label={t('awards.awardSlots')} value={workflowStats.worked} tone="text-cyan-200" />
+          <WorkflowStat label={t('awards.needsQsl')} value={workflowStats.needsQsl} tone="text-amber-200" />
+          <WorkflowStat label={t('awards.missing')} value={workflowStats.missing} tone="text-gray-200" />
         </section>
 
         {summary && (
@@ -184,7 +184,7 @@ export default function AwardsPage() {
 
         <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
           {loading && activeAwards.length === 0 ? (
-            <div className="border border-gray-800 bg-gray-900 px-4 py-8 text-sm text-gray-400">Henter awards...</div>
+            <div className="border border-gray-800 bg-gray-900 px-4 py-8 text-sm text-gray-400">{t('awards.loading')}</div>
           ) : activeAwards.map(award => (
             <AwardCard key={award.id} award={award} selected={selectedAwardId === award.id} onSelect={() => selectAward(award.id)} />
           ))}
@@ -212,11 +212,11 @@ export default function AwardsPage() {
                 <span className="font-mono text-xs text-gray-500">{group.awards.length}</span>
               </div>
               <div className="grid grid-cols-[1fr_96px_96px_96px_110px] border-b border-gray-800 px-4 py-2 text-xs font-semibold uppercase text-gray-500">
-                <span>Award</span>
-                <span>Status</span>
-                <span>Worked</span>
-                <span>Confirmed</span>
-                <span>Needs QSL</span>
+                <span>{t('awards.award')}</span>
+                <span>{t('awards.status')}</span>
+                <span>{t('awards.worked')}</span>
+                <span>{t('awards.confirmed')}</span>
+                <span>{t('awards.needsQsl')}</span>
               </div>
               {group.awards.map(award => (
                 <button
@@ -227,7 +227,7 @@ export default function AwardsPage() {
                 >
                   <div className="min-w-0">
                     <span className="font-semibold text-white">{award.name}</span>
-                    <p className="mt-1 truncate text-xs text-gray-400">{award.description}</p>
+                    <p className="mt-1 truncate text-xs text-gray-400">{awardDescription(award, t)}</p>
                   </div>
                   <StatusPill status={award.status} />
                   <span className="font-mono text-gray-100">{award.workedCount}</span>
@@ -237,12 +237,12 @@ export default function AwardsPage() {
               ))}
             </div>
           ))}
-          {!loading && awards.length === 0 && <div className="px-4 py-10 text-center text-sm text-gray-500">Ingen awards matcher filtrene.</div>}
+          {!loading && awards.length === 0 && <div className="px-4 py-10 text-center text-sm text-gray-500">{t('awards.noMatches')}</div>}
         </section>
 
         {(selectedAwardId || detailLoading || detailError) && (
           <section className="border border-gray-800 bg-gray-900">
-            {detailLoading && <div className="px-4 py-8 text-sm text-gray-400">Henter award detaljer...</div>}
+            {detailLoading && <div className="px-4 py-8 text-sm text-gray-400">{t('awards.loadingDetails')}</div>}
             {detailError && <div className="px-4 py-4 text-sm text-red-200">{detailError}</div>}
             {detail && !detailLoading && (
               <AwardDetailPanel award={detail.award} onClose={closeDetail} />
@@ -255,7 +255,11 @@ export default function AwardsPage() {
 }
 
 function AwardCard({ award, selected, onSelect }: { award: AwardProgress; selected: boolean; onSelect: () => void }) {
+  const { t } = useLanguage()
   const percent = progressPercent(award)
+  const nextText = !award.nextThreshold || award.workedCount >= award.nextThreshold
+    ? t('awards.nextLevelReached')
+    : t('awards.toNextLevel', { count: award.nextThreshold - award.workedCount })
 
   return (
     <Card className={`border-gray-800 bg-gray-900 ${selected ? 'ring-1 ring-cyan-500' : ''}`}>
@@ -268,15 +272,15 @@ function AwardCard({ award, selected, onSelect }: { award: AwardProgress; select
           <StatusPill status={award.status} />
         </button>
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Stat label="Worked" value={award.workedCount} />
-          <Stat label="Confirmed" value={award.confirmedCount} />
-          <Stat label="Missing" value={award.missingCount} />
+          <Stat label={t('awards.worked')} value={award.workedCount} />
+          <Stat label={t('awards.confirmed')} value={award.confirmedCount} />
+          <Stat label={t('awards.missing')} value={award.missingCount} />
         </div>
         <div>
           <div className="h-2 bg-gray-800">
             <div className="h-2 bg-cyan-500" style={{ width: `${percent}%` }} />
           </div>
-          <p className="mt-2 text-xs text-gray-400">{nextThresholdText(award)}</p>
+          <p className="mt-2 text-xs text-gray-400">{nextText}</p>
         </div>
       </CardContent>
     </Card>
@@ -294,6 +298,7 @@ function AwardDataQualityPanel({
   backfillResult: AwardBackfillResult | null
   onBackfill: () => void
 }) {
+  const { t } = useLanguage()
   const qsoRows = dataQuality.qsos.slice(0, 12)
   const issueRows = dataQuality.issues.slice(0, 8)
 
@@ -301,11 +306,11 @@ function AwardDataQualityPanel({
     <section className="border border-gray-800 bg-gray-900">
       <div className="flex flex-col gap-1 border-b border-gray-800 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">Award datakvalitet</h2>
-          <p className="text-xs text-gray-500">{dataQuality.issueQsoCount} QSOer mangler data til mindst et award-spor.</p>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-300">{t('awards.dataQuality')}</h2>
+          <p className="text-xs text-gray-500">{t('awards.issueSummary', { count: dataQuality.issueQsoCount })}</p>
           {backfillResult && (
             <p className="mt-1 text-xs text-cyan-200">
-              Backfill scannede {backfillResult.scanned} QSOer og opdaterede {backfillResult.updated}.
+              {t('awards.backfillSummary', { scanned: backfillResult.scanned, updated: backfillResult.updated })}
             </p>
           )}
         </div>
@@ -319,13 +324,13 @@ function AwardDataQualityPanel({
             disabled={backfillLoading}
             className="h-9 border border-cyan-800 bg-cyan-950/40 px-3 text-sm font-semibold text-cyan-100 hover:border-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {backfillLoading ? 'Opdaterer...' : 'Kør backfill'}
+            {backfillLoading ? t('awards.updating') : t('awards.runBackfill')}
           </button>
         </div>
       </div>
 
       {dataQuality.issueQsoCount === 0 ? (
-        <p className="px-4 py-6 text-sm text-emerald-200">Alle QSOer har de centrale award-felter udfyldt.</p>
+        <p className="px-4 py-6 text-sm text-emerald-200">{t('awards.allFieldsComplete')}</p>
       ) : (
         <div className="grid gap-4 p-4 lg:grid-cols-[320px_1fr]">
           <div className="space-y-2">
@@ -342,10 +347,10 @@ function AwardDataQualityPanel({
 
           <div className="overflow-hidden border border-gray-800 bg-gray-950">
             <div className="grid grid-cols-[110px_1fr_90px_1.5fr_80px] border-b border-gray-800 px-3 py-2 text-xs font-semibold uppercase text-gray-500">
-              <span>Tid</span>
-              <span>Call</span>
-              <span>Band/mode</span>
-              <span>Mangler</span>
+              <span>{t('awards.time')}</span>
+              <span>{t('awards.call')}</span>
+              <span>{t('awards.bandMode')}</span>
+              <span>{t('awards.missingFields')}</span>
               <span></span>
             </div>
             {qsoRows.map(qso => (
@@ -360,11 +365,11 @@ function AwardDataQualityPanel({
                     </span>
                   ))}
                 </span>
-                <Link href={`/logbook/${qso.qsoId}`} className="text-xs text-cyan-300 hover:text-cyan-100">Ret QSO</Link>
+                <Link href={`/logbook/${qso.qsoId}`} className="text-xs text-cyan-300 hover:text-cyan-100">{t('awards.editQso')}</Link>
               </div>
             ))}
             {dataQuality.qsos.length > qsoRows.length && (
-              <p className="px-3 py-2 text-xs text-gray-500">Viser {qsoRows.length} af {dataQuality.qsos.length} seneste QSOer med mangler.</p>
+              <p className="px-3 py-2 text-xs text-gray-500">{t('awards.showingRecentMissing', { visible: qsoRows.length, total: dataQuality.qsos.length })}</p>
             )}
           </div>
         </div>
@@ -374,6 +379,7 @@ function AwardDataQualityPanel({
 }
 
 function AwardDetailPanel({ award, onClose }: { award: AwardProgress; onClose: () => void }) {
+  const { t } = useLanguage()
   const confirmed = award.entities.filter(entity => entity.status === 'confirmed')
 
   return (
@@ -384,23 +390,24 @@ function AwardDetailPanel({ award, onClose }: { award: AwardProgress; onClose: (
             <h2 className="text-lg font-semibold text-white">{award.name}</h2>
             <StatusPill status={award.status} />
           </div>
-          <p className="mt-1 text-sm text-gray-400">{award.description}</p>
+          <p className="mt-1 text-sm text-gray-400">{awardDescription(award, t)}</p>
           {award.warnings.length > 0 && <p className="mt-2 text-sm text-amber-200">{award.warnings[0]}</p>}
         </div>
         <button type="button" onClick={onClose} className="h-9 border border-gray-700 px-3 text-sm text-gray-200 hover:border-gray-500">
-          Luk
+          {t('common.close')}
         </button>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
-        <EntityList title={awardEntitySectionLabel('worked')} entities={award.unconfirmedEntities} emptyText="Ingen worked entities der mangler QSL." tone="needs" />
-        <EntityList title={awardEntitySectionLabel('missing')} entities={award.missingEntities} emptyText="Ingen missing entities." limit={80} tone="missing" />
-        <EntityList title={awardEntitySectionLabel('confirmed')} entities={confirmed} emptyText="Ingen confirmed entities endnu." tone="confirmed" />
+        <EntityList title={t('awards.sections.worked')} entities={award.unconfirmedEntities} emptyText={t('awards.empty.worked')} tone="needs" />
+        <EntityList title={t('awards.sections.missing')} entities={award.missingEntities} emptyText={t('awards.empty.missing')} limit={80} tone="missing" />
+        <EntityList title={t('awards.sections.confirmed')} entities={confirmed} emptyText={t('awards.empty.confirmed')} tone="confirmed" />
       </div>
     </div>
   )
 }
 
 function EntityList({ title, entities, emptyText, limit = 40, tone = 'default' }: { title: string; entities: AwardEntityProgress[]; emptyText: string; limit?: number; tone?: 'default' | 'needs' | 'missing' | 'confirmed' }) {
+  const { t } = useLanguage()
   const visible = entities.slice(0, limit)
   const headerClass = tone === 'needs'
     ? 'text-amber-300'
@@ -421,7 +428,7 @@ function EntityList({ title, entities, emptyText, limit = 40, tone = 'default' }
           <div className="flex flex-wrap gap-2">
             {visible.map(entity => <EntityBadge key={entity.key} entity={entity} />)}
           </div>
-          {entities.length > visible.length && <p className="mt-3 text-xs text-gray-500">Viser {visible.length} af {entities.length}.</p>}
+          {entities.length > visible.length && <p className="mt-3 text-xs text-gray-500">{t('awards.showing', { visible: visible.length, total: entities.length })}</p>}
         </div>
       ) : (
         <p className="px-3 py-6 text-sm text-gray-500">{emptyText}</p>
@@ -431,6 +438,7 @@ function EntityList({ title, entities, emptyText, limit = 40, tone = 'default' }
 }
 
 function EntityBadge({ entity }: { entity: AwardEntityProgress }) {
+  const { t } = useLanguage()
   const href = awardEntityHref(entity)
   const className = 'inline-flex items-center gap-1 border border-gray-800 bg-gray-900 px-2 py-1 font-mono text-xs text-gray-200 hover:border-cyan-700 hover:text-white'
   const content = (
@@ -445,7 +453,7 @@ function EntityBadge({ entity }: { entity: AwardEntityProgress }) {
   )
 
   return href ? (
-    <Link href={href} className={className} title="Ã…bn QSO i logbogen">
+    <Link href={href} className={className} title={t('awards.openQso')}>
       {content}
     </Link>
   ) : (
@@ -456,11 +464,36 @@ function EntityBadge({ entity }: { entity: AwardEntityProgress }) {
 }
 
 function StatusPill({ status }: { status: AwardStatus }) {
+  const { t } = useLanguage()
+  const label = status === 'active'
+    ? t('awards.status.active')
+    : status === 'missing-data'
+    ? t('awards.status.missingData')
+    : t('awards.status.comingNext')
   return (
     <span className={`inline-flex h-7 items-center justify-center border px-2 text-xs font-semibold ${awardStatusClass(status)}`}>
-      {awardStatusLabel(status)}
+      {label}
     </span>
   )
+}
+
+function awardDescription(award: AwardProgress, t: ReturnType<typeof useLanguage>['t']) {
+  if (award.id === 'dxcc') return t('awards.catalog.dxcc.description')
+  if (award.id === 'dxcc-band') return t('awards.catalog.dxccBand.description')
+  if (award.id === 'dxcc-mode') return t('awards.catalog.dxccMode.description')
+  if (award.id === 'confirmed-dxcc') return t('awards.catalog.confirmedDxcc.description')
+  if (award.id === 'wac') return t('awards.catalog.wac.description')
+  if (award.id === 'wpx') return t('awards.catalog.wpx.description')
+  if (award.id === 'grid') return t('awards.catalog.grid.description')
+  if (award.id === 'waz') return t('awards.catalog.waz.description')
+  if (award.id === 'itu-zones') return t('awards.catalog.ituZones.description')
+  if (award.id === 'was') return t('awards.catalog.was.description')
+  if (award.id === 'canada-provinces') return t('awards.catalog.canadaProvinces.description')
+  if (award.id === 'counties') return t('awards.catalog.counties.description')
+  if (award.id === 'iota') return t('awards.catalog.iota.description')
+  if (award.id === 'pota') return t('awards.catalog.pota.description')
+  if (award.id === 'sota') return t('awards.catalog.sota.description')
+  return award.description
 }
 
 function WorkflowStat({ label, value, tone }: { label: string; value: number; tone: string }) {

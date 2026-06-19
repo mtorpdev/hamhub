@@ -10,7 +10,7 @@ import {
 import { type CommunityContact, type CommunityGroupInvitation, type CommunityGroupMember, type CommunityRoom } from '@/lib/types'
 
 const groups: CommunityRoom[] = [
-  { id: 1, name: 'Alle grupper', slug: 'alle', description: null, sortOrder: 0, isSystem: true, membershipStatus: 3, memberCount: 0 },
+  { id: 1, name: 'All groups', slug: 'alle', description: null, sortOrder: 0, isSystem: true, membershipStatus: 3, memberCount: 0 },
   { id: 2, name: 'OZ Club', slug: 'oz-club', description: 'Local club', sortOrder: 10, isSystem: false, membershipStatus: 1, memberCount: 4 },
   { id: 3, name: 'POTA Hunters', slug: 'pota-hunters', description: 'Parks', sortOrder: 20, isSystem: false, membershipStatus: 0, memberCount: 12 },
   { id: 4, name: 'DX', slug: 'dx', description: 'DX spots', sortOrder: 30, isSystem: true, membershipStatus: 3, memberCount: 0 },
@@ -58,13 +58,13 @@ test('labels group access and management permissions', () => {
   assert.equal(canManageCommunityGroup({ ...groups[1], membershipStatus: 3 }), false)
 
   assert.deepEqual(buildGroupAccessSummary({ ...groups[1], membershipStatus: 1 }), {
-    label: 'Ejer',
-    description: 'Du ejer gruppen og kan administrere medlemmer, ansøgninger og indstillinger.',
+    label: 'Owner',
+    description: 'You own this group and can manage members, requests and settings.',
     tone: 'owner',
   })
   assert.deepEqual(buildGroupAccessSummary({ ...groups[2], membershipStatus: 4 }), {
-    label: 'Ansøgning sendt',
-    description: 'Din ansøgning afventer godkendelse fra gruppens administratorer.',
+    label: 'Request sent',
+    description: 'Your request is waiting for approval from the group administrators.',
     tone: 'pending',
   })
 })

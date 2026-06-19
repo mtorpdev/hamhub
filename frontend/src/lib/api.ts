@@ -45,6 +45,8 @@ export const api = {
     getById: (id: string) => request<import('./types').User>(`/api/users/${id}`),
     updateMe: (data: Partial<import('./types').User>) =>
       request<import('./types').User>('/api/users/me', { method: 'PUT', body: JSON.stringify(data) }),
+    saveLanguage: (preferredLanguage: 'en' | 'da' | null) =>
+      request<import('./types').User>('/api/users/me/language', { method: 'PUT', body: JSON.stringify({ preferredLanguage }) }),
     changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
       request<void>('/api/users/me/password', { method: 'PUT', body: JSON.stringify(data) }),
     getAll: () => request<import('./types').User[]>('/api/users'),

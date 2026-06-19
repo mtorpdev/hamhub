@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import { type NotificationItem } from '@/lib/types'
 import { formatUtcDate } from '@/lib/utils'
+import { useLanguage } from '@/i18n/LanguageContext'
+import type { TranslationKey } from '@/i18n/translations'
 
 export type NotificationAction = 'primary' | 'secondary'
 
@@ -12,26 +14,28 @@ interface NotificationListProps {
   onAction?: (item: NotificationItem, action: NotificationAction) => void
 }
 
-function typeLabel(type: string) {
+function typeLabel(type: string): TranslationKey {
   switch (type) {
     case 'message':
-      return 'Besked'
+      return 'notifications.type.message'
     case 'friend-request':
-      return 'Venner'
+      return 'notifications.type.friendRequest'
     case 'group-invitation':
-      return 'Gruppe'
+      return 'notifications.type.groupInvitation'
     case 'group-join-request':
-      return 'Join request'
+      return 'notifications.type.groupJoinRequest'
     default:
-      return 'Notifikation'
+      return 'notifications.type.default'
   }
 }
 
 export function NotificationList({ items, compact = false, busyItemId, onAction }: NotificationListProps) {
+  const { t } = useLanguage()
+
   if (items.length === 0) {
     return (
       <div className={compact ? 'px-4 py-6 text-center text-sm text-gray-400' : 'rounded-md border border-gray-800 bg-gray-900 px-4 py-8 text-center text-sm text-gray-400'}>
-        Ingen nye notifikationer.
+        {t('notifications.empty')}
       </div>
     )
   }
@@ -46,7 +50,7 @@ export function NotificationList({ items, compact = false, busyItemId, onAction 
               <div className="min-w-0">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   <span className="rounded bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-300">
-                    {typeLabel(item.type)}
+                    {t(typeLabel(item.type))}
                   </span>
                   <span className="text-xs text-gray-500">{formatUtcDate(item.createdAt)}</span>
                 </div>
@@ -68,7 +72,7 @@ export function NotificationList({ items, compact = false, busyItemId, onAction 
                     onClick={() => onAction(item, 'primary')}
                     className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {busy ? 'Gemmer...' : item.primaryAction}
+                    {busy ? t('common.saving') : item.primaryAction}
                   </button>
                 )}
                 {item.secondaryAction && (

@@ -59,7 +59,14 @@ test('formats successful command results from the agent', () => {
 })
 
 test('formats failed command results from the agent', () => {
-  assert.equal(commandResultMessage({ success: false, message: 'WSJT-X kontrol Stop Tx er ikke aktiv.' }), 'Fejl fra WSJT-X agent: WSJT-X kontrol Stop Tx er ikke aktiv.')
+  assert.equal(commandResultMessage({ success: false, message: 'WSJT-X control Stop Tx is not active.' }), 'WSJT-X agent error: WSJT-X control Stop Tx is not active.')
+})
+
+test('formats failed command results with localized labels', () => {
+  assert.equal(
+    commandResultMessage({ success: false, message: 'WSJT-X kontrol Stop Tx er ikke aktiv.' }, 'Fejl fra WSJT-X agent', 'Kommandoen fejlede.'),
+    'Fejl fra WSJT-X agent: WSJT-X kontrol Stop Tx er ikke aktiv.',
+  )
 })
 
 test('uses latest calling-me decode as command target even when another message is newer', () => {

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { type Listing } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { formatUtcDate } from '@/lib/utils'
 import { pageShellClass } from '@/lib/layout'
 
@@ -19,6 +20,7 @@ export default function ListingPage() {
   const router = useRouter()
   const { user, isAuthenticated } = useAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeImg, setActiveImg] = useState(0)
@@ -36,102 +38,106 @@ export default function ListingPage() {
   }
 
   const handleMarkSold = async () => {
-    if (!listing || !confirm('Markér som solgt?')) return
+    if (!listing || !confirm(t('market.markSoldConfirm'))) return
     try {
       await api.listings.markSold(listing.id)
-      toast('Markeret som solgt')
+      toast(t('market.markedSold'))
       setListing(l => l ? { ...l, isSold: true } : l)
-    } catch { toast('Fejl', 'error') }
+    } catch {
+      toast(t('qso.error'), 'error')
+    }
   }
 
   const handleDelete = async () => {
-    if (!listing || !confirm('Slet annonce?')) return
+    if (!listing || !confirm(t('market.deleteConfirm'))) return
     try {
       await api.listings.delete(listing.id)
-      toast('Annonce slettet')
+      toast(t('market.deleted'))
       router.push('/marketplace/my')
-    } catch { toast('Fejl', 'error') }
+    } catch {
+      toast(t('qso.error'), 'error')
+    }
   }
 
-  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>{t('common.loading')}</div>
   if (!listing) return null
 
   const isOwner = user?.id === listing.userId
 
   return (
     <div className={pageShellClass}>
-      <Link href="/marketplace" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til marked</Link>
+      <Link href="/marketplace" className="mb-6 inline-block text-sm text-blue-400 hover:text-blue-300">
+        {`<- ${t('market.backToMarket')}`}
+      </Link>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Images */}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         <div>
-          <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden mb-3">
+          <div className="mb-3 aspect-video overflow-hidden rounded-lg bg-gray-800">
             {listing.images.length > 0 ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={`${API_URL}${listing.images[activeImg]?.url}`}
                 alt={listing.title}
-                className="w-full h-full object-cover"
+                className="h-full w-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-600 text-6xl">📻</div>
+              <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">{t('market.noImage')}</div>
             )}
           </div>
           {listing.images.length > 1 && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               {listing.images.map((img, i) => (
                 <button
                   key={img.id}
+                  type="button"
                   onClick={() => setActiveImg(i)}
-                  className={`w-16 h-16 rounded overflow-hidden border-2 transition-colors ${i === activeImg ? 'border-blue-500' : 'border-gray-700'}`}
+                  className={`h-16 w-16 overflow-hidden rounded border-2 transition-colors ${i === activeImg ? 'border-blue-500' : 'border-gray-700'}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${API_URL}${img.url}`} alt="" className="w-full h-full object-cover" />
+                  <img src={`${API_URL}${img.url}`} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Details */}
         <div className="flex flex-col gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              {listing.isSold && <Badge variant="warning">Solgt</Badge>}
+            <div className="mb-1 flex items-center gap-2">
+              {listing.isSold && <Badge variant="warning">{t('market.sold')}</Badge>}
               <Badge variant="info">{listing.categoryName}</Badge>
               <Badge>{listing.conditionName}</Badge>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">{listing.title}</h1>
+            <h1 className="mb-2 text-2xl font-bold text-white">{listing.title}</h1>
             <p className="text-3xl font-bold text-green-400">{listing.price.toLocaleString('da-DK')} {listing.currency}</p>
           </div>
 
           <Card>
             <CardContent className="py-4">
-              <p className="text-xs text-gray-500 mb-1">Sælger</p>
-              <p className="text-white font-mono font-bold">{listing.sellerCallsign || listing.sellerEmail}</p>
-              <p className="text-gray-500 text-xs mt-1">Oprettet {formatUtcDate(listing.createdAt)}</p>
+              <p className="mb-1 text-xs text-gray-500">{t('market.seller')}</p>
+              <p className="font-mono font-bold text-white">{listing.sellerCallsign || listing.sellerEmail}</p>
+              <p className="mt-1 text-xs text-gray-500">{t('market.createdAt', { date: formatUtcDate(listing.createdAt) })}</p>
             </CardContent>
           </Card>
 
           {isOwner ? (
-            <div className="flex gap-2 flex-wrap">
-              <Link href={`/marketplace/${listing.id}/edit`}><Button variant="secondary">Rediger</Button></Link>
-              {!listing.isSold && <Button variant="secondary" onClick={handleMarkSold}>Markér som solgt</Button>}
-              <Button variant="ghost" onClick={handleDelete} className="text-red-400 hover:text-red-300">Slet</Button>
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/marketplace/${listing.id}/edit`}><Button variant="secondary">{t('common.edit')}</Button></Link>
+              {!listing.isSold && <Button variant="secondary" onClick={handleMarkSold}>{t('market.markSold')}</Button>}
+              <Button variant="ghost" onClick={handleDelete} className="text-red-400 hover:text-red-300">{t('common.delete')}</Button>
             </div>
           ) : isAuthenticated ? (
-            <Button onClick={handleContact}>Kontakt sælger</Button>
+            <Button onClick={handleContact}>{t('market.contactSeller')}</Button>
           ) : (
-            <Link href="/login"><Button>Log ind for at kontakte sælger</Button></Link>
+            <Link href="/login"><Button>{t('market.loginToContact')}</Button></Link>
           )}
         </div>
       </div>
 
-      {/* Description */}
       <Card className="mt-8">
         <CardContent className="py-6">
-          <h2 className="text-white font-semibold mb-3">Beskrivelse</h2>
-          <p className="text-gray-300 whitespace-pre-wrap">{listing.description}</p>
+          <h2 className="mb-3 font-semibold text-white">{t('market.descriptionLabel')}</h2>
+          <p className="whitespace-pre-wrap text-gray-300">{listing.description}</p>
         </CardContent>
       </Card>
     </div>

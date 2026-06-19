@@ -106,12 +106,35 @@ public class UsersController : ControllerBase
         }
 
         user.DefaultStationId = dto.DefaultStationId;
+        if (dto.PreferredLanguage != null)
+        {
+            var preferredLanguage = NormalizePreferredLanguage(dto.PreferredLanguage);
+            if (preferredLanguage == "invalid") return BadRequest("Preferred language must be 'en', 'da' or null.");
+            user.PreferredLanguage = preferredLanguage;
+        }
         user.LicenseClass = dto.LicenseClass;
         user.ProfileDescription = dto.ProfileDescription;
         user.ProfileImageUrl = dto.ProfileImageUrl;
         user.Visibility = dto.Visibility;
 
         await _context.SaveChangesAsync();
+        return Ok(_mapper.Map<UserDto>(user));
+    }
+
+    [HttpPut("me/language")]
+    [Authorize]
+    public async Task<IActionResult> SavePreferredLanguage([FromBody] SavePreferredLanguageDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return NotFound();
+
+        var preferredLanguage = NormalizePreferredLanguage(dto.PreferredLanguage);
+        if (preferredLanguage == "invalid") return BadRequest("Preferred language must be 'en', 'da' or null.");
+
+        user.PreferredLanguage = preferredLanguage;
+        await _context.SaveChangesAsync();
+
         return Ok(_mapper.Map<UserDto>(user));
     }
 
@@ -254,6 +277,13 @@ public class UsersController : ControllerBase
 
         return Ok(new { callsign = user.Callsign });
     }
+
+    private static string? NormalizePreferredLanguage(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language)) return null;
+        var normalized = language.Trim().ToLowerInvariant();
+        return normalized is "en" or "da" ? normalized : "invalid";
+    }
 }
 
 public record SaveQrzKeyDto(string? ApiKey);
@@ -261,3 +291,4 @@ public record SaveQrzCredentialsDto(string? Username, string? Password);
 public record SaveEqslCredentialsDto(string? Username, string? Password, string? QthNickname);
 public record SaveLotwCredentialsDto(string? Username, string? Password);
 public record ChangePasswordDto(string? CurrentPassword, string? NewPassword, string? ConfirmPassword);
+public record SavePreferredLanguageDto(string? PreferredLanguage);

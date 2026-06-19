@@ -195,6 +195,7 @@ using (var scope = app.Services.CreateScope())
     await TryEnsureSchemaAsync("notifications", () => EnsureNotificationSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("station media", () => EnsureStationMediaSchemaAsync(context), app.Logger);
     await TryEnsureSchemaAsync("default station", () => EnsureDefaultStationSchemaAsync(context), app.Logger);
+    await TryEnsureSchemaAsync("preferred language", () => EnsurePreferredLanguageSchemaAsync(context), app.Logger);
     await DataSeeder.SeedAsync(context, userManager, roleManager);
     await TryRunStartupTaskAsync("QSO award enrichment backfill", async () =>
     {
@@ -699,5 +700,13 @@ static async Task EnsureDefaultStationSchemaAsync(ApplicationDbContext context)
 
         CREATE INDEX IF NOT EXISTS "IX_AspNetUsers_DefaultStationId"
             ON "AspNetUsers" ("DefaultStationId");
+        """);
+}
+
+static async Task EnsurePreferredLanguageSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync("""
+        ALTER TABLE "AspNetUsers"
+        ADD COLUMN IF NOT EXISTS "PreferredLanguage" character varying(5);
         """);
 }

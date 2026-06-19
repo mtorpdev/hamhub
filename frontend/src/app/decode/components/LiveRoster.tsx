@@ -4,8 +4,9 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import Link from 'next/link'
 import { type WsjtxStatus } from '@/lib/types'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { bandModeLabel, formatTime, snrText } from '../decodeFormatters'
-import { type LiveRosterEntry, type RosterFilters } from '../decodeScoring'
+import { type LiveRosterEntry, type RosterBadgeKey, type RosterFilters } from '../decodeScoring'
 
 type LiveRosterProps = {
   entries: LiveRosterEntry[]
@@ -38,8 +39,9 @@ export default function LiveRoster({
   pendingCommand,
   ownCallsign,
 }: LiveRosterProps) {
+  const { t, language } = useLanguage()
   const wsjtxLabel = !agentConnected
-    ? 'Ingen status'
+    ? t('decode.wsjtx.noStatus')
     : wsjtxStatus?.transmitting
       ? 'TX'
       : wsjtxStatus?.decoding
@@ -55,24 +57,24 @@ export default function LiveRoster({
       <CardContent className="space-y-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-white">Live Roster</h1>
-            <p className="mt-1 text-sm text-gray-400">Prioriteret efter call, awards og logbog</p>
+            <h1 className="text-xl font-bold text-white">{t('decode.roster.title')}</h1>
+            <p className="mt-1 text-sm text-gray-400">{t('decode.roster.description')}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="flex items-center gap-1 border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
               <span className={`inline-block h-2 w-2 rounded-full ${connected ? 'animate-pulse bg-green-500' : 'bg-red-500'}`} />
-              Stream: {connected ? 'Live' : 'Genopretter'}
+              {t('decode.stream')}: {connected ? t('decode.stream.live') : t('decode.stream.reconnecting')}
             </span>
             <span className="flex items-center gap-1 border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
               <span className={`inline-block h-2 w-2 rounded-full ${agentConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-              Lokal agent: {agentConnected ? 'Tilsluttet' : 'Ikke tilsluttet'}
+              {t('decode.localAgent')}: {agentConnected ? t('decode.connected') : t('decode.disconnected')}
             </span>
             <span className="border border-gray-800 bg-gray-950 px-2 py-1 text-xs text-gray-400">
               WSJT-X: {wsjtxLabel}
             </span>
             {!agentConnected && (
               <Link href="/profile?tab=agent" className="border border-cyan-800 bg-cyan-950 px-2 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-900">
-                Hent lokal agent
+                {t('decode.downloadAgent')}
               </Link>
             )}
             <Badge variant="info">{entries.length}/{totalDecodes}</Badge>
@@ -88,7 +90,7 @@ export default function LiveRoster({
                 onClick={() => setFilter('messageFilter', value)}
                 className={`border px-3 py-2 text-xs font-semibold transition-colors ${filters.messageFilter === value ? 'border-cyan-600 bg-cyan-950 text-cyan-100' : 'border-gray-800 bg-gray-950 text-gray-400 hover:border-gray-600 hover:text-gray-200'}`}
               >
-                {value === 'all' ? 'Alle' : value === 'me' ? `Kalder ${ownCallsign || 'mig'}` : value}
+                {value === 'all' ? t('decode.filters.all') : value === 'me' ? t('decode.filters.callingMe', { callsign: ownCallsign || t('decode.filters.me') }) : value}
               </button>
             ))}
           </div>
@@ -96,7 +98,7 @@ export default function LiveRoster({
             <input
               value={filters.search}
               onChange={event => setFilter('search', event.target.value)}
-              placeholder="Søg call, grid, land..."
+              placeholder={t('decode.filters.searchPlaceholder')}
               className="min-w-0 flex-1 border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
             />
             <label className="flex items-center gap-2 text-sm text-gray-300">
@@ -133,7 +135,7 @@ export default function LiveRoster({
               onClick={() => onFiltersChange({ messageFilter: 'all', search: '', onlyNeeded: false, onlyWithGrid: false, onlyUnconfirmed: false })}
               className="border border-gray-700 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-gray-500 hover:text-white"
             >
-              Ryd filtre
+              {t('decode.filters.clear')}
             </button>
             <button
               type="button"
@@ -148,7 +150,7 @@ export default function LiveRoster({
               disabled={pendingCommand}
               className="ml-auto border border-red-800 bg-red-950 px-3 py-2 text-xs font-semibold text-red-100 hover:bg-red-900 disabled:border-gray-700 disabled:bg-gray-800 disabled:text-gray-500"
             >
-              Stop kald
+              {t('decode.stopCall')}
             </button>
           </div>
         </div>
@@ -171,30 +173,34 @@ export default function LiveRoster({
                   <div className="flex flex-wrap gap-1">
                     {entry.badges.slice(0, 4).map(badge => (
                       <span key={badge.key} className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>
-                        {badge.label}
+                        {rosterBadgeLabel(badge.key, t)}
                       </span>
                     ))}
                   </div>
                   <p className="mt-1 truncate font-mono text-xs text-gray-300">{entry.latest.message}</p>
                   <p className="mt-1 truncate text-xs text-gray-500">
-                    {entry.latest.country || '-'} {entry.latest.continent ? `/ ${entry.latest.continent}` : ''} · {entry.latest.dxGrid ?? '-'} · {bandModeLabel(entry.latest)}
+                    {entry.latest.country || '-'} {entry.latest.continent ? `/ ${entry.latest.continent}` : ''} - {entry.latest.dxGrid ?? '-'} - {bandModeLabel(entry.latest)}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className={`font-mono text-sm font-bold ${entry.latest.snr >= 0 ? 'text-green-300' : entry.latest.snr >= -10 ? 'text-yellow-300' : 'text-red-300'}`}>
                     {snrText(entry.latest.snr)}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">{entry.latest.distanceKm ? `${entry.latest.distanceKm.toLocaleString('da-DK')} km` : '-'}</p>
+                  <p className="mt-1 text-xs text-gray-500">{entry.latest.distanceKm ? `${entry.latest.distanceKm.toLocaleString(language)} km` : '-'}</p>
                 </div>
               </button>
             )
           }) : (
             <div className="px-4 py-12 text-center text-sm text-gray-500">
-              Ingen live stationer matcher filtrene.
+              {t('decode.roster.noMatches')}
             </div>
           )}
         </div>
       </CardContent>
     </Card>
   )
+}
+
+function rosterBadgeLabel(key: RosterBadgeKey, t: ReturnType<typeof useLanguage>['t']) {
+  return t(`decode.badge.${key}`)
 }

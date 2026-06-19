@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/Input'
 import { ListingCategoryLabels, type Listing } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageShellClass } from '@/lib/layout'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 export default function MarketplacePage() {
   const { isAuthenticated } = useAuth()
+  const { t } = useLanguage()
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -34,13 +36,13 @@ export default function MarketplacePage() {
     <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Marked</h1>
-          <p className="text-gray-400 mt-1">Køb og sælg radioamatørudstyr</p>
+          <h1 className="text-3xl font-bold text-white">{t('market.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('market.description')}</p>
         </div>
         {isAuthenticated && (
           <div className="flex gap-2">
-            <Link href="/marketplace/my"><Button variant="secondary">Mine annoncer</Button></Link>
-            <Link href="/marketplace/new"><Button>+ Opret annonce</Button></Link>
+            <Link href="/marketplace/my"><Button variant="secondary">{t('market.myListings')}</Button></Link>
+            <Link href="/marketplace/new"><Button>+ {t('market.createListing')}</Button></Link>
           </div>
         )}
       </div>
@@ -48,7 +50,7 @@ export default function MarketplacePage() {
       <div className="flex flex-wrap gap-3 mb-6">
         <Input
           className="max-w-sm"
-          placeholder="Søg udstyr..."
+          placeholder={t('market.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && load(search, category)}
@@ -62,23 +64,23 @@ export default function MarketplacePage() {
           }}
           className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm"
         >
-          <option value="">Alle kategorier</option>
+          <option value="">{t('market.allCategories')}</option>
           {Object.entries(ListingCategoryLabels).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
-        <Button variant="secondary" onClick={() => load(search, category)}>Søg</Button>
+        <Button variant="secondary" onClick={() => load(search, category)}>{t('common.search')}</Button>
         {(search || category) && (
-          <Button variant="ghost" onClick={() => { setSearch(''); setCategory(undefined); load() }}>Ryd</Button>
+          <Button variant="ghost" onClick={() => { setSearch(''); setCategory(undefined); load() }}>{t('logbook.clear')}</Button>
         )}
       </div>
 
       {loading ? (
-        <p className="text-gray-400">Indlæser...</p>
+        <p className="text-gray-400">{t('common.loading')}</p>
       ) : listings.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
-          <p className="text-gray-400 mb-4">Ingen annoncer fundet.</p>
-          {isAuthenticated && <Link href="/marketplace/new"><Button>Opret den første annonce</Button></Link>}
+          <p className="text-gray-400 mb-4">{t('market.noListings')}</p>
+          {isAuthenticated && <Link href="/marketplace/new"><Button>{t('market.createFirst')}</Button></Link>}
         </CardContent></Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -100,7 +102,7 @@ export default function MarketplacePage() {
                 <CardContent className="py-4">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h2 className="text-white font-semibold line-clamp-2 group-hover:text-blue-400 transition-colors">{l.title}</h2>
-                    {l.isSold && <Badge variant="warning">Solgt</Badge>}
+                    {l.isSold && <Badge variant="warning">{t('market.sold')}</Badge>}
                   </div>
                   <p className="text-2xl font-bold text-green-400 mb-2">{l.price.toLocaleString('da-DK')} {l.currency}</p>
                   <div className="flex gap-2 flex-wrap">

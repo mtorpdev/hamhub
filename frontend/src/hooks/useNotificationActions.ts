@@ -4,9 +4,11 @@ import { api } from '@/lib/api'
 import { type NotificationItem } from '@/lib/types'
 import { type NotificationAction } from '@/components/notifications/NotificationList'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 export function useNotificationActions(onDone?: () => Promise<void> | void) {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [busyItemId, setBusyItemId] = useState<string | null>(null)
 
   const runAction = async (item: NotificationItem, action: NotificationAction) => {
@@ -16,26 +18,26 @@ export function useNotificationActions(onDone?: () => Promise<void> | void) {
       if (item.type === 'friend-request') {
         if (action === 'primary') {
           await api.friends.accept(item.relatedId)
-          toast('Venneanmodning accepteret')
+          toast(t('notifications.friendRequestAccepted'))
         } else {
           await api.friends.decline(item.relatedId)
-          toast('Venneanmodning afvist')
+          toast(t('notifications.friendRequestDeclined'))
         }
       } else if (item.type === 'group-invitation') {
         if (action === 'primary') {
           await api.community.acceptGroupInvitation(item.relatedId)
-          toast('Gruppeinvitation accepteret')
+          toast(t('notifications.groupInvitationAccepted'))
         } else {
           await api.community.declineGroupInvitation(item.relatedId)
-          toast('Gruppeinvitation afvist')
+          toast(t('notifications.groupInvitationDeclined'))
         }
       } else if (item.type === 'group-join-request' && item.groupId != null) {
         if (action === 'primary') {
           await api.community.approveGroupJoinRequest(item.groupId, item.relatedId)
-          toast('Join request accepteret')
+          toast(t('notifications.groupJoinRequestAccepted'))
         } else {
           await api.community.rejectGroupJoinRequest(item.groupId, item.relatedId)
-          toast('Join request afvist')
+          toast(t('notifications.groupJoinRequestDeclined'))
         }
       }
       await api.notifications.markActionHandled({
@@ -45,7 +47,7 @@ export function useNotificationActions(onDone?: () => Promise<void> | void) {
       })
       await onDone?.()
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Kunne ikke behandle notifikationen', 'error')
+      toast(err instanceof Error ? err.message : t('notifications.actionFailed'), 'error')
     } finally {
       setBusyItemId(null)
     }

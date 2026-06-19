@@ -8,7 +8,11 @@ export function selectedCallsignForCommand(currentCallsign: string, decode: Deco
   return decode.dxCallsign?.trim().toUpperCase() || currentCallsign
 }
 
-export function commandResultMessage(result: { success: boolean; message: string }) {
+export function commandResultMessage(
+  result: { success: boolean; message: string },
+  errorPrefix = 'WSJT-X agent error',
+  fallback = 'Command failed.',
+) {
   if (result.success) return result.message
-  return `Fejl fra WSJT-X agent: ${result.message || 'Kommandoen fejlede.'}`
+  return `${errorPrefix}: ${result.message || fallback}`
 }

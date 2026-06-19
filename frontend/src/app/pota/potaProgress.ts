@@ -49,7 +49,12 @@ export function potaSpotStatus(spot: PotaSpot, progress: PotaProgress): PotaPark
   return ref.status
 }
 
-export function enrichPotaMarkers(markers: MapMarker[], spots: PotaSpot[], progress: PotaProgress): MapMarker[] {
+export function enrichPotaMarkers(
+  markers: MapMarker[],
+  spots: PotaSpot[],
+  progress: PotaProgress,
+  statusLabel: (status: PotaParkStatus) => string = potaStatusLabel,
+): MapMarker[] {
   const spotById = new Map(spots.map(spot => [String(spot.spotId), spot]))
   return markers.map(marker => {
     const spot = marker.id ? spotById.get(marker.id) : undefined
@@ -58,7 +63,7 @@ export function enrichPotaMarkers(markers: MapMarker[], spots: PotaSpot[], progr
     return {
       ...marker,
       variant: status === 'confirmed' ? 'worked' : status === 'need-qsl' ? 'unknown' : 'new-station',
-      popup: `${marker.popup ?? marker.label}<br/><span>${potaStatusLabel(status)}</span>`,
+      popup: `${marker.popup ?? marker.label}<br/><span>${statusLabel(status)}</span>`,
     }
   })
 }

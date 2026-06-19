@@ -10,12 +10,14 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { formatUtcDate } from '@/lib/utils'
 import { pageShellClass } from '@/lib/layout'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 
 export default function MyListingsPage() {
   useRequireAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -33,33 +35,33 @@ export default function MyListingsPage() {
   const handleMarkSold = async (id: number) => {
     try {
       await api.listings.markSold(id)
-      toast('Markeret som solgt')
+      toast(t('market.markedSold'))
       load()
-    } catch { toast('Fejl', 'error') }
+    } catch { toast(t('qso.error'), 'error') }
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Slet annonce?')) return
+    if (!confirm(t('market.deleteConfirm'))) return
     try {
       await api.listings.delete(id)
-      toast('Annonce slettet')
+      toast(t('market.deleted'))
       load()
-    } catch { toast('Fejl', 'error') }
+    } catch { toast(t('qso.error'), 'error') }
   }
 
   return (
     <div className={pageShellClass}>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-white">Mine annoncer</h1>
-        <Link href="/marketplace/new"><Button>+ Ny annonce</Button></Link>
+        <h1 className="text-3xl font-bold text-white">{t('market.myListings')}</h1>
+        <Link href="/marketplace/new"><Button>+ {t('market.newListing')}</Button></Link>
       </div>
 
       {loading ? (
-        <p className="text-gray-400">Indlæser...</p>
+        <p className="text-gray-400">{t('common.loading')}</p>
       ) : listings.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
-          <p className="text-gray-400 mb-4">Du har ingen aktive annoncer.</p>
-          <Link href="/marketplace/new"><Button>Opret din første annonce</Button></Link>
+          <p className="text-gray-400 mb-4">{t('market.noActiveListings')}</p>
+          <Link href="/marketplace/new"><Button>{t('market.createFirst')}</Button></Link>
         </CardContent></Card>
       ) : (
         <div className="flex flex-col gap-4">
@@ -78,15 +80,15 @@ export default function MyListingsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Link href={`/marketplace/${l.id}`} className="text-white font-semibold hover:text-blue-400 truncate">{l.title}</Link>
-                      {l.isSold && <Badge variant="warning">Solgt</Badge>}
+                      {l.isSold && <Badge variant="warning">{t('market.sold')}</Badge>}
                     </div>
                     <p className="text-green-400 font-bold">{l.price.toLocaleString('da-DK')} {l.currency}</p>
                     <p className="text-gray-500 text-xs">{l.categoryName} · {l.conditionName} · {formatUtcDate(l.createdAt)}</p>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <Link href={`/marketplace/${l.id}/edit`}><Button variant="secondary" size="sm">Rediger</Button></Link>
-                    {!l.isSold && <Button variant="secondary" size="sm" onClick={() => handleMarkSold(l.id)}>Solgt</Button>}
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(l.id)} className="text-red-400">Slet</Button>
+                    <Link href={`/marketplace/${l.id}/edit`}><Button variant="secondary" size="sm">{t('common.edit')}</Button></Link>
+                    {!l.isSold && <Button variant="secondary" size="sm" onClick={() => handleMarkSold(l.id)}>{t('market.markSold')}</Button>}
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(l.id)} className="text-red-400">{t('common.delete')}</Button>
                   </div>
                 </div>
               </CardContent>

@@ -205,6 +205,12 @@ public static class DataSeeder
         - Stationsprofiler og callsign search
         - Admin moderation, brugerstyring og rapporter
 
+        Faste udviklingsregler:
+        - Alle nye UI-features og ændringer skal tænkes med to sproglag fra start: engelsk som default og dansk som alternativ.
+        - En UI-ændring er først færdig, når både en og da oversættelser er opdateret for sider, undersider, popups, modals, toast-beskeder, confirm-dialoger, beskedbokse, notifikationstekster, tomme states, formularlabels, knapper, tabs og genbrugskomponenter.
+        - Verifikation af UI-ændringer skal fremover indeholde mindst ét engelsk og ét dansk smoke check af det ændrede flow.
+        - Brugerindhold, kaldesignaler, QSO-data, forumindlæg, beskeder, artikelindhold, eksterne API-svar og radioforkortelser oversættes ikke automatisk.
+
         Planlagte/åbne forumspor:
         - Feature requests
         - Bug reports

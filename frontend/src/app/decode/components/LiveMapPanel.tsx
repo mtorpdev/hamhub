@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/Card'
 import LeafletMap, { type MapMarker } from '@/components/ui/Map'
 import { gridToLatLng } from '@/lib/maidenhead'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { snrText } from '../decodeFormatters'
 import { type LiveRosterEntry } from '../decodeScoring'
 
@@ -17,6 +18,7 @@ type LiveMapPanelProps = {
 }
 
 export default function LiveMapPanel({ entries, onSelectCallsign }: LiveMapPanelProps) {
+  const { t, language } = useLanguage()
   const markers = useMemo<RosterMapMarker[]>(() => entries.flatMap(entry => {
     const position = gridToLatLng(entry.latest.dxGrid)
     if (!position) return []
@@ -28,32 +30,32 @@ export default function LiveMapPanel({ entries, onSelectCallsign }: LiveMapPanel
       lng: position.lng,
       label: entry.callsign,
       variant: entry.latest.callsMe ? 'calling-me' : entry.latest.logStatus,
-      actionLabel: 'Vælg',
+      actionLabel: t('common.select'),
       tooltip: [
         entry.callsign,
         entry.latest.dxGrid ? `Grid ${entry.latest.dxGrid}` : null,
         entry.latest.country !== '-' ? entry.latest.country : null,
-        entry.latest.distanceKm ? `${entry.latest.distanceKm.toLocaleString('da-DK')} km` : null,
+        entry.latest.distanceKm ? `${entry.latest.distanceKm.toLocaleString(language)} km` : null,
         `SNR ${snrText(entry.latest.snr)}`,
-      ].filter(Boolean).join(' · '),
+      ].filter(Boolean).join(' - '),
       popup: `<b>${entry.callsign}</b><br/>${entry.latest.dxGrid ?? '-'}<br/>${entry.latest.country}<br/>SNR ${snrText(entry.latest.snr)}`,
     }]
-  }), [entries])
+  }), [entries, language, t])
 
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-white">Kort</h2>
-            <p className="mt-1 text-xs text-gray-500">{markers.length} roster stationer med grid</p>
+            <h2 className="text-sm font-semibold text-white">{t('decode.map.title')}</h2>
+            <p className="mt-1 text-xs text-gray-500">{t('decode.map.count', { count: markers.length })}</p>
           </div>
         </div>
         {markers.length > 0 ? (
           <LeafletMap markers={markers} height="360px" onMarkerAction={marker => onSelectCallsign((marker as RosterMapMarker).callsign)} />
         ) : (
           <div className="flex h-[360px] items-center justify-center border border-gray-800 bg-gray-950 text-sm text-gray-500">
-            Ingen roster stationer med gyldigt grid endnu.
+            {t('decode.map.empty')}
           </div>
         )}
       </CardContent>

@@ -47,6 +47,7 @@ export interface User {
   country: string | null
   gridLocator: string | null
   defaultStationId: number | null
+  preferredLanguage: 'en' | 'da' | null
   licenseClass: LicenseClass | null
   profileDescription: string | null
   profileImageUrl: string | null

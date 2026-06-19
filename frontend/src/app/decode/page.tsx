@@ -27,6 +27,7 @@ import { syncLoggedQsoPopupSnapshot } from './loggedQsoPopup'
 import { applyPotaSuggestionToForm, findPotaSuggestionForQso } from './potaQsoSuggestion'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
 import { defaultStation, stationById, stationGrid } from '@/app/logbook/stationGrid'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const MAX_ROWS = 200
@@ -42,6 +43,7 @@ const DEFAULT_ROSTER_FILTERS: RosterFilters = {
 export default function DecodePage() {
   const { isLoading } = useRequireAuth()
   const { isAuthenticated, user } = useAuth()
+  const { t } = useLanguage()
   const ownCallsign = user?.callsign?.toUpperCase() ?? ''
 
   const [decodes, setDecodes] = useState<WsjtxDecodeItem[]>([])
@@ -166,7 +168,7 @@ export default function DecodePage() {
         const latest = results[0]
         if (!latest || cancelled || latest.id === latestCommandResultIdRef.current) return
         latestCommandResultIdRef.current = latest.id
-        setCommandStatus(commandResultMessage(latest))
+        setCommandStatus(commandResultMessage(latest, t('decode.command.agentError'), t('decode.command.failed')))
       } catch {
         // Command result polling is advisory; status polling and live decodes should keep running.
       }
@@ -213,7 +215,7 @@ export default function DecodePage() {
     )
     : EMPTY_QSO_FORM
   const qsoSaveStatus = popupLoggedQso
-    ? qsoSaveStatuses[popupLoggedQso.id] ?? 'QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.'
+    ? qsoSaveStatuses[popupLoggedQso.id] ?? t('qso.saveDraftStatus')
     : null
 
   const wsjtxStatusCall = wsjtxStatus?.dxCall?.toUpperCase() ?? ''
@@ -306,11 +308,11 @@ export default function DecodePage() {
         setTxCountByCall(current => ({ ...current, [call]: 0 }))
         lastTxRef.current = { call, transmitting: false }
       }
-      setCommandStatus(`${decode.callsMe ? 'Svarer' : 'Kalder'} ${decode.dxCallsign ?? decode.message}...`)
+      setCommandStatus(`${decode.callsMe ? t('decode.command.replying') : t('decode.command.calling')} ${decode.dxCallsign ?? decode.message}...`)
       await api.wsjtx.callDecode(decode)
-      setCommandStatus(`Reply sendt til WSJT-X: ${decode.dxCallsign ?? decode.message}`)
+      setCommandStatus(t('decode.command.replySent', { target: decode.dxCallsign ?? decode.message }))
     } catch (err) {
-      setCommandStatus(err instanceof Error ? err.message : 'Kunne ikke sende kald til WSJT-X')
+      setCommandStatus(err instanceof Error ? err.message : t('decode.command.callFailed'))
     } finally {
       setPendingCommand(false)
     }
@@ -320,11 +322,11 @@ export default function DecodePage() {
     if (pendingCommand) return
     try {
       setPendingCommand(true)
-      setCommandStatus('Stopper kald i WSJT-X...')
+      setCommandStatus(t('decode.command.stopping'))
       await api.wsjtx.stopTx()
-      setCommandStatus('Stop Tx sendt til WSJT-X')
+      setCommandStatus(t('decode.command.stopSent'))
     } catch (err) {
-      setCommandStatus(err instanceof Error ? err.message : 'Kunne ikke stoppe kald')
+      setCommandStatus(err instanceof Error ? err.message : t('decode.command.stopFailed'))
     } finally {
       setPendingCommand(false)
     }
@@ -368,7 +370,7 @@ export default function DecodePage() {
     if (!popupLoggedQso || qsoSaving) return
     try {
       setQsoSaving(true)
-      setQsoSaveStatuses(current => ({ ...current, [popupLoggedQso.id]: 'Gemmer QSO...' }))
+      setQsoSaveStatuses(current => ({ ...current, [popupLoggedQso.id]: t('qso.savingQso') }))
       const updated = await api.qsos.update(popupLoggedQso.id, qsoFormPayload(qsoForm))
       setQsos(current => mergeQsos(current, [updated]))
       setQsoDrafts(current => {
@@ -381,7 +383,7 @@ export default function DecodePage() {
     } catch (err) {
       setQsoSaveStatuses(current => ({
         ...current,
-        [popupLoggedQso.id]: err instanceof Error ? err.message : 'Kunne ikke gemme QSO',
+        [popupLoggedQso.id]: err instanceof Error ? err.message : t('qso.saveFailed'),
       }))
     } finally {
       setQsoSaving(false)

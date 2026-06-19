@@ -11,11 +11,13 @@ import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { pageShellClass } from '@/lib/layout'
 import { defaultStation, stationById, stationGrid, stationOptionLabel } from '../stationGrid'
+import { useLanguage } from '@/i18n/LanguageContext'
 
 export default function NewQsoPage() {
   const { user } = useAuth()
   useRequireAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const router = useRouter()
   const now = new Date().toISOString().slice(0, 16)
   const [form, setForm] = useState({
@@ -70,10 +72,10 @@ export default function NewQsoPage() {
         dateUtc: new Date(form.dateUtc).toISOString(),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
       })
-      toast('QSO logget!')
+      toast(t('qso.logged'))
       router.push('/logbook')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fejl')
+      setError(err instanceof Error ? err.message : t('qso.error'))
     } finally {
       setLoading(false)
     }
@@ -81,57 +83,57 @@ export default function NewQsoPage() {
 
   return (
     <div className={pageShellClass}>
-      <h1 className="text-3xl font-bold text-white mb-8">Log ny QSO</h1>
+      <h1 className="text-3xl font-bold text-white mb-8">{t('logbook.logNewQso')}</h1>
       <Card>
         <CardContent className="py-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Dato/tid UTC *" type="datetime-local" value={form.dateUtc} onChange={set('dateUtc')} required />
-              <Input label="Eget kaldesignal *" value={form.ownCallsign} onChange={set('ownCallsign')} required />
+              <Input label={`${t('qso.dateTimeUtc')} *`} type="datetime-local" value={form.dateUtc} onChange={set('dateUtc')} required />
+              <Input label={`${t('qso.ownCallsign')} *`} value={form.ownCallsign} onChange={set('ownCallsign')} required />
             </div>
-            <Input label="Kontaktens kaldesignal *" value={form.workedCallsign} onChange={set('workedCallsign')} required placeholder="DL1ABC" />
+            <Input label={`${t('qso.workedCallsign')} *`} value={form.workedCallsign} onChange={set('workedCallsign')} required placeholder="DL1ABC" />
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Band</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.band')}</label>
                 <select value={form.band} onChange={set('band')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
                   {Object.entries(BandLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Mode</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.mode')}</label>
                 <select value={form.mode} onChange={set('mode')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
                   {Object.entries(ModeLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Input label="Frekvens (MHz)" type="number" step="0.001" value={form.frequency} onChange={set('frequency')} />
-              <Input label="RST Sendt" value={form.rstSent} onChange={set('rstSent')} />
-              <Input label="RST Modtaget" value={form.rstReceived} onChange={set('rstReceived')} />
+              <Input label={t('qso.frequencyMhz')} type="number" step="0.001" value={form.frequency} onChange={set('frequency')} />
+              <Input label={t('qso.rstSent')} value={form.rstSent} onChange={set('rstSent')} />
+              <Input label={t('qso.rstReceived')} value={form.rstReceived} onChange={set('rstReceived')} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
-              <Input label="Land" value={form.country} onChange={set('country')} />
+              <Input label={t('qso.gridLocator')} value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
+              <Input label={t('qso.country')} value={form.country} onChange={set('country')} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-300">Min station / rig</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.myStationRig')}</label>
                 <select value={form.stationId} onChange={setStation} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
-                  <option value="">VÃ¦lg station</option>
+                  <option value="">{t('qso.selectStation')}</option>
                   {stations.map(station => (
                     <option key={station.id} value={station.id}>{stationOptionLabel(station)}</option>
                   ))}
                 </select>
               </div>
-              <Input label="Mit grid" value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
+              <Input label={t('qso.myGrid')} value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
             </div>
-            <Input label="POTA refs" value={form.potaRefs} onChange={set('potaRefs')} placeholder="US-0001" />
+            <Input label={t('qso.potaRefs')} value={form.potaRefs} onChange={set('potaRefs')} placeholder="US-0001" />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-300">Noter</label>
+                <label className="text-sm font-medium text-gray-300">{t('qso.notes')}</label>
               <textarea rows={2} value={form.comment} onChange={set('comment')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
-            <Button type="submit" disabled={loading}>{loading ? 'Logger...' : 'Log QSO'}</Button>
+            <Button type="submit" disabled={loading}>{loading ? t('qso.logging') : t('qso.log')}</Button>
           </form>
         </CardContent>
       </Card>

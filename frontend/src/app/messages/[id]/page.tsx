@@ -9,6 +9,7 @@ import { type Message } from '@/lib/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
+import { useLanguage } from '@/i18n/LanguageContext'
 import { formatUtcDate } from '@/lib/utils'
 import { pageShellClass } from '@/lib/layout'
 
@@ -18,6 +19,7 @@ export default function MessagePage() {
   const router = useRouter()
   const { user } = useAuth()
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [message, setMessage] = useState<Message | null>(null)
   const [loading, setLoading] = useState(true)
   const [replyBody, setReplyBody] = useState('')
@@ -41,56 +43,49 @@ export default function MessagePage() {
         subject: message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`,
         body: replyBody,
       })
-      toast('Svar sendt!')
+      toast(t('messages.replySent'))
       setReplyBody('')
       router.push('/messages')
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Fejl', 'error')
+      toast(err instanceof Error ? err.message : t('messages.error'), 'error')
     } finally {
       setSending(false)
     }
   }
 
-  if (loading) return <div className={`${pageShellClass} text-gray-400`}>Indlæser...</div>
+  if (loading) return <div className={`${pageShellClass} text-gray-400`}>{t('messages.loading')}</div>
   if (!message) return null
 
   const otherParty = message.senderId === user?.id ? message.recipientCallsign : message.senderCallsign
 
   return (
     <div className={pageShellClass}>
-      <Link href="/messages" className="text-blue-400 hover:text-blue-300 text-sm mb-6 inline-block">← Tilbage til beskeder</Link>
+      <Link href="/messages" className="mb-6 inline-block text-sm text-blue-400 hover:text-blue-300">{`<- ${t('messages.back')}`}</Link>
 
       <Card className="mb-4">
         <CardContent className="py-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-white">{message.subject}</h1>
-              <p className="text-gray-400 text-sm mt-1">
-                {message.senderId === user?.id ? `Til: ${message.recipientCallsign}` : `Fra: ${message.senderCallsign}`}
-                {' · '}{formatUtcDate(message.createdAt)}
+              <p className="mt-1 text-sm text-gray-400">
+                {message.senderId === user?.id ? `${t('messages.to')}: ${message.recipientCallsign}` : `${t('messages.from')}: ${message.senderCallsign}`}
+                {' - '}{formatUtcDate(message.createdAt)}
               </p>
             </div>
           </div>
-          <p className="text-gray-300 whitespace-pre-wrap">{message.body}</p>
+          <p className="whitespace-pre-wrap text-gray-300">{message.body}</p>
         </CardContent>
       </Card>
 
       {message.senderId !== user?.id && (
         <Card>
           <CardContent className="py-5">
-            <h2 className="text-white font-medium mb-3">Svar til {otherParty}</h2>
+            <h2 className="mb-3 font-medium text-white">{t('messages.replyTo', { name: otherParty || t('messages.unknown') })}</h2>
             <form onSubmit={handleReply} className="flex flex-col gap-3">
-              <textarea
-                rows={4}
-                value={replyBody}
-                onChange={e => setReplyBody(e.target.value)}
-                placeholder="Skriv dit svar..."
-                required
-                className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm"
-              />
+              <textarea rows={4} value={replyBody} onChange={e => setReplyBody(e.target.value)} placeholder={t('messages.replyPlaceholder')} required className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white" />
               <div className="flex gap-3">
-                <Button type="submit" disabled={sending}>{sending ? 'Sender...' : 'Send svar'}</Button>
-                <Button type="button" variant="secondary" onClick={() => router.push('/messages')}>Annuller</Button>
+                <Button type="submit" disabled={sending}>{sending ? t('common.saving') : t('messages.sendReply')}</Button>
+                <Button type="button" variant="secondary" onClick={() => router.push('/messages')}>{t('common.cancel')}</Button>
               </div>
             </form>
           </CardContent>

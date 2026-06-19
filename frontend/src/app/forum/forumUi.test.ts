@@ -7,6 +7,6 @@ test('normalizes forum tags for display and submission', () => {
 })
 
 test('labels solved forum threads', () => {
-  assert.equal(forumStatusLabel(true), 'Løst')
-  assert.equal(forumStatusLabel(false), 'Åben')
+  assert.equal(forumStatusLabel(true), 'Solved')
+  assert.equal(forumStatusLabel(false), 'Open')
 })
