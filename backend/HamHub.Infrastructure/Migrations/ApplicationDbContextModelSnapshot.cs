@@ -45,6 +45,9 @@ namespace HamHub.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("DefaultStationId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -149,6 +152,8 @@ namespace HamHub.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Callsign");
+
+                    b.HasIndex("DefaultStationId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");

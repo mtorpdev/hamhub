@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { useAuth } from '@/contexts/AuthContext'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { api } from '@/lib/api'
-import { type PotaSpot, type Qso, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
+import { type PotaSpot, type Qso, type Station, type WsjtxDecodeItem, type WsjtxStatus } from '@/lib/types'
 import AwardProgressPanel from './components/AwardProgressPanel'
 import LoggedQsoPopup from './components/LoggedQsoPopup'
 import LiveMapPanel from './components/LiveMapPanel'
@@ -26,6 +26,7 @@ import { commandResultMessage, selectedCallsignForCommand } from './decodeUiStat
 import { syncLoggedQsoPopupSnapshot } from './loggedQsoPopup'
 import { applyPotaSuggestionToForm, findPotaSuggestionForQso } from './potaQsoSuggestion'
 import { EMPTY_QSO_FORM, qsoFormPayload, qsoToEditForm, type QsoEditForm } from './qsoEdit'
+import { defaultStation, stationById, stationGrid } from '@/app/logbook/stationGrid'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.hamhub.dk'
 const MAX_ROWS = 200
@@ -62,6 +63,7 @@ export default function DecodePage() {
   const [rawOpen, setRawOpen] = useState(false)
   const [lotwActivity, setLotwActivity] = useState<Record<string, string>>({})
   const [potaSpots, setPotaSpots] = useState<PotaSpot[]>([])
+  const [stations, setStations] = useState<Station[]>([])
   const lastTxRef = useRef({ call: '', transmitting: false })
   const latestCommandResultIdRef = useRef('')
   const previousQsosRef = useRef<Qso[] | null>(null)
@@ -75,6 +77,9 @@ export default function DecodePage() {
           setQsos(items)
           setQsosLoaded(true)
         })
+        .catch(() => {})
+      api.stations.getMine()
+        .then(items => setStations(items))
         .catch(() => {})
     }
   }, [isAuthenticated])
@@ -201,7 +206,11 @@ export default function DecodePage() {
     return popupLoggedQso ? findPotaSuggestionForQso(popupLoggedQso, potaSpots) : null
   }, [popupLoggedQso, potaSpots])
   const qsoForm = popupLoggedQso
-    ? qsoDrafts[popupLoggedQso.id] ?? applyPotaSuggestionToForm(qsoToEditForm(popupLoggedQso), potaSuggestion)
+    ? qsoDrafts[popupLoggedQso.id] ?? withDefaultStationGrid(
+      applyPotaSuggestionToForm(qsoToEditForm(popupLoggedQso), potaSuggestion),
+      stations,
+      user,
+    )
     : EMPTY_QSO_FORM
   const qsoSaveStatus = popupLoggedQso
     ? qsoSaveStatuses[popupLoggedQso.id] ?? 'QSO modtaget fra WSJT-X. Gennemse og gem eventuelle rettelser.'
@@ -333,6 +342,20 @@ export default function DecodePage() {
     }))
   }
 
+  const setQsoStation = (event: ChangeEvent<HTMLSelectElement>) => {
+    if (!popupLoggedQso) return
+    const station = stationById(stations, event.target.value)
+    setQsoDrafts(current => ({
+      ...current,
+      [popupLoggedQso.id]: {
+        ...(current[popupLoggedQso.id] ?? qsoForm),
+        stationId: event.target.value,
+        myGridsquare: stationGrid(station),
+        ownCallsign: station?.callsign || qsoForm.ownCallsign,
+      },
+    }))
+  }
+
   const closeLoggedQsoPopup = () => {
     if (loggedQsoPopupId) {
       setDismissedLoggedQsoIds(current => new Set(current).add(loggedQsoPopupId))
@@ -424,7 +447,9 @@ export default function DecodePage() {
           qsoSaving={qsoSaving}
           qsoSaveStatus={qsoSaveStatus}
           potaSuggestion={potaSuggestion}
+          stations={stations}
           onQsoFieldChange={setQsoField}
+          onStationChange={setQsoStation}
           onSaveLoggedQso={handleSaveLoggedQso}
           onClose={closeLoggedQsoPopup}
         />
@@ -437,4 +462,20 @@ function mergeQsos(current: Qso[], incoming: Qso[]) {
   const byId = new Map(current.map(qso => [qso.id, qso]))
   for (const qso of incoming) byId.set(qso.id, qso)
   return Array.from(byId.values()).sort((a, b) => new Date(b.dateUtc).getTime() - new Date(a.dateUtc).getTime())
+}
+
+function withDefaultStationGrid(
+  form: QsoEditForm,
+  stations: Station[],
+  user: { defaultStationId: number | null } | null,
+) {
+  if (form.myGridsquare) return form
+  const station = defaultStation(stations, user)
+  if (!station) return form
+  return {
+    ...form,
+    stationId: station.id.toString(),
+    myGridsquare: stationGrid(station),
+    ownCallsign: form.ownCallsign || station.callsign || '',
+  }
 }

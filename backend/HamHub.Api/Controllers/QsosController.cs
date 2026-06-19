@@ -248,6 +248,7 @@ public class QsosController : ControllerBase
         qso.OwnCallsign = qso.OwnCallsign.Trim().ToUpperInvariant();
         qso.WorkedCallsign = qso.WorkedCallsign.Trim().ToUpperInvariant();
         qso.Band = NormalizeBand(qso.Band, qso.Frequency);
+        await ApplyDefaultStationGridAsync(userId, qso);
         _awardEnrichment.Enrich(qso);
         qso.UpdatedAt = DateTime.UtcNow;
 
@@ -532,6 +533,30 @@ public class QsosController : ControllerBase
         _ => band.ToString()
     };
 
+    private async Task ApplyDefaultStationGridAsync(string userId, QsoEntry qso, CancellationToken ct = default)
+    {
+        if (!string.IsNullOrWhiteSpace(qso.MyGridsquare)) return;
+
+        var defaultGrid = await _context.Users
+            .Where(u => u.Id == userId && u.DefaultStationId != null)
+            .Join(
+                _context.StationProfiles,
+                user => user.DefaultStationId,
+                station => station.Id,
+                (user, station) => new { station.UserId, station.GridLocator })
+            .Where(station => station.UserId == userId && station.GridLocator != null && station.GridLocator != "")
+            .Select(station => station.GridLocator)
+            .FirstOrDefaultAsync(ct);
+
+        qso.MyGridsquare = NormalizeGrid(defaultGrid);
+    }
+
+    private static string? NormalizeGrid(string? grid)
+    {
+        var normalized = grid?.Trim().ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
     private static void MergeQsoFields(QsoEntry target, QsoEntry incoming)
     {
         target.Band = NormalizeBand(target.Band, target.Frequency) is var normalizedTarget && (int)normalizedTarget != 0
@@ -675,6 +700,7 @@ public class QsosController : ControllerBase
                 MyGridsquare = GetField(rec, "MY_GRIDSQUARE"),
                 Comment = GetField(rec, "COMMENT") ?? GetField(rec, "NOTES"),
             };
+            await ApplyDefaultStationGridAsync(userId, qso);
 
             var duplicate = await FindDuplicateQsoAsync(userId, qso);
             if (duplicate != null)

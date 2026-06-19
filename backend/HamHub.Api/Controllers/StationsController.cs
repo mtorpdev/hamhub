@@ -116,6 +116,12 @@ public class StationsController : ControllerBase
         if (station.UserId != userId && !User.IsInRole("Admin")) return Forbid();
 
         foreach (var image in station.Images) DeleteImageFile(image.FileName);
+        var usersWithDefaultStation = await _context.Users
+            .Where(u => u.DefaultStationId == station.Id)
+            .ToListAsync();
+        foreach (var user in usersWithDefaultStation)
+            user.DefaultStationId = null;
+
         _context.StationProfiles.Remove(station);
         await _context.SaveChangesAsync();
         return NoContent();

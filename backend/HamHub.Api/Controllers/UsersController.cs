@@ -98,6 +98,14 @@ public class UsersController : ControllerBase
         user.LastName = dto.LastName;
         user.Country = dto.Country;
         user.GridLocator = dto.GridLocator;
+        if (dto.DefaultStationId.HasValue)
+        {
+            var ownsStation = await _context.StationProfiles
+                .AnyAsync(s => s.Id == dto.DefaultStationId.Value && s.UserId == userId);
+            if (!ownsStation) return BadRequest("Default station skal vÃ¦re en af dine egne stationer.");
+        }
+
+        user.DefaultStationId = dto.DefaultStationId;
         user.LicenseClass = dto.LicenseClass;
         user.ProfileDescription = dto.ProfileDescription;
         user.ProfileImageUrl = dto.ProfileImageUrl;

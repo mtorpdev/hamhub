@@ -10,6 +10,7 @@ public class ApplicationUser : IdentityUser
     public string? LastName { get; set; }
     public string? Country { get; set; }
     public string? GridLocator { get; set; }
+    public int? DefaultStationId { get; set; }
     public LicenseClass? LicenseClass { get; set; }
     public string? ProfileDescription { get; set; }
     public string? ProfileImageUrl { get; set; }

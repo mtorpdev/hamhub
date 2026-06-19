@@ -10,6 +10,7 @@ public record UserDto(
     string? LastName,
     string? Country,
     string? GridLocator,
+    int? DefaultStationId,
     LicenseClass? LicenseClass,
     string? ProfileDescription,
     string? ProfileImageUrl,

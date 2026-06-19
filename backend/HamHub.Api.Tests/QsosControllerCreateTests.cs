@@ -5,6 +5,7 @@ using HamHub.Api.Controllers;
 using HamHub.Api.Services;
 using HamHub.Application.Common.Mappings;
 using HamHub.Application.QsoEntries.DTOs;
+using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
 using HamHub.Infrastructure.Services;
@@ -68,6 +69,46 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         Assert.Equal("XX", qso.Continent);
         Assert.Equal(1, qso.CqZone);
         Assert.Equal(2, qso.ItuZone);
+    }
+
+    [Fact]
+    public async Task CreateUsesDefaultStationGridWhenMyGridsquareIsMissing()
+    {
+        await using var context = CreateContext();
+        using var cty = new TemporaryCtyDirectory("""
+Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
+    5P,5Q,OU,OV,OW,OX,OY,OZ;
+""");
+        context.Users.Add(new ApplicationUser { Id = "user-1", DefaultStationId = 7 });
+        context.StationProfiles.Add(new StationProfile { Id = 7, UserId = "user-1", Name = "Home", GridLocator = " jo65dq " });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, "user-1", cty.Lookup);
+
+        var result = await controller.Create(Dto(workedCallsign: "OZ1AAA"));
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        var qso = Assert.Single(context.QsoEntries);
+        Assert.Equal("JO65DQ", qso.MyGridsquare);
+    }
+
+    [Fact]
+    public async Task CreateKeepsExplicitMyGridsquareOverDefaultStationGrid()
+    {
+        await using var context = CreateContext();
+        using var cty = new TemporaryCtyDirectory("""
+Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
+    5P,5Q,OU,OV,OW,OX,OY,OZ;
+""");
+        context.Users.Add(new ApplicationUser { Id = "user-1", DefaultStationId = 7 });
+        context.StationProfiles.Add(new StationProfile { Id = 7, UserId = "user-1", Name = "Home", GridLocator = "JO65DQ" });
+        await context.SaveChangesAsync();
+        var controller = CreateController(context, "user-1", cty.Lookup);
+
+        var result = await controller.Create(Dto(workedCallsign: "OZ1AAA", myGridsquare: "JO55WM"));
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        var qso = Assert.Single(context.QsoEntries);
+        Assert.Equal("JO55WM", qso.MyGridsquare);
     }
 
     [Fact]
@@ -145,7 +186,8 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         int? dxcc = null,
         string? continent = null,
         int? cqZone = null,
-        int? ituZone = null) => new(
+        int? ituZone = null,
+        string? myGridsquare = null) => new(
             DateUtc: dateUtc ?? new DateTime(2026, 6, 17, 12, 0, 0, DateTimeKind.Utc),
             OwnCallsign: "OZ1ME",
             WorkedCallsign: workedCallsign,
@@ -156,7 +198,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
             RstReceived: "-08",
             Submode: null,
             Locator: "JO55",
-            MyGridsquare: null,
+            MyGridsquare: myGridsquare,
             Country: country,
             Dxcc: dxcc,
             Continent: continent,

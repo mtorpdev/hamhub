@@ -8,6 +8,7 @@ public record UpdateUserDto(
     string? LastName,
     string? Country,
     string? GridLocator,
+    int? DefaultStationId,
     LicenseClass? LicenseClass,
     string? ProfileDescription,
     string? ProfileImageUrl,

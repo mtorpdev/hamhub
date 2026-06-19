@@ -9,6 +9,7 @@ export type QsoEditForm = {
   mode: Mode | string
   rstSent: string
   rstReceived: string
+  stationId: string
   submode: string
   locator: string
   myGridsquare: string
@@ -33,6 +34,7 @@ export const EMPTY_QSO_FORM: QsoEditForm = {
   mode: Mode.FT8,
   rstSent: '',
   rstReceived: '',
+  stationId: '',
   submode: '',
   locator: '',
   myGridsquare: '',
@@ -58,6 +60,7 @@ export function qsoToEditForm(qso: Qso): QsoEditForm {
     mode: qso.mode,
     rstSent: qso.rstSent ?? '',
     rstReceived: qso.rstReceived ?? '',
+    stationId: '',
     submode: qso.submode ?? '',
     locator: qso.locator ?? '',
     myGridsquare: qso.myGridsquare ?? '',
@@ -75,8 +78,10 @@ export function qsoToEditForm(qso: Qso): QsoEditForm {
 }
 
 export function qsoFormPayload(form: QsoEditForm) {
+  const { stationId, ...payload } = form
+  void stationId
   return {
-    ...form,
+    ...payload,
     dateUtc: new Date(form.dateUtc).toISOString(),
     band: Number(form.band),
     mode: Number(form.mode),

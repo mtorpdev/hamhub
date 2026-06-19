@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus, type Station } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
 import { externalPrimaryAction } from '../qsoExternalActions'
 import { pageShellClass } from '@/lib/layout'
+import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 
@@ -23,7 +24,7 @@ export default function EditQsoPage() {
   const [form, setForm] = useState({
     dateUtc: '', ownCallsign: '', workedCallsign: '',
     band: Band.M20, frequency: '', mode: Mode.SSB,
-    rstSent: '', rstReceived: '',
+    rstSent: '', rstReceived: '', stationId: '',
     submode: '', locator: '', myGridsquare: '',
     country: '', dxcc: '', continent: '', state: '', cqZone: '', ituZone: '', county: '',
     myState: '', myCounty: '', iota: '', potaRefs: '', sotaRefs: '', awardRefs: '',
@@ -39,6 +40,7 @@ export default function EditQsoPage() {
   const [conditions, setConditions] = useState<QsoConditions | null>(null)
   const [conditionsLoading, setConditionsLoading] = useState(false)
   const [conditionsError, setConditionsError] = useState('')
+  const [stations, setStations] = useState<Station[]>([])
 
   const applyQsoToForm = (q: Qso) => {
     setForm({
@@ -49,6 +51,7 @@ export default function EditQsoPage() {
       frequency: q.frequency?.toString() ?? '',
       mode: q.mode,
       rstSent: q.rstSent ?? '',
+      stationId: '',
       rstReceived: q.rstReceived ?? '',
       submode: q.submode ?? '',
       locator: q.locator ?? '',
@@ -79,6 +82,9 @@ export default function EditQsoPage() {
     let cancelled = false
 
     api.qsos.getById(qsoId).then(applyQsoToForm).catch(() => router.replace('/logbook')).finally(() => setLoading(false))
+    api.stations.getMine().then(items => {
+      if (!cancelled) setStations(items)
+    }).catch(() => {})
 
     async function loadExternalStatus() {
       setExternalLoading(true)
@@ -99,13 +105,25 @@ export default function EditQsoPage() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
+  const setStation = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const station = stationById(stations, e.target.value)
+    setForm(f => ({
+      ...f,
+      stationId: e.target.value,
+      myGridsquare: stationGrid(station),
+      ownCallsign: station?.callsign || f.ownCallsign,
+    }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSaving(true)
     try {
+      const { stationId, ...payload } = form
+      void stationId
       await api.qsos.update(Number(id), {
-        ...form,
+        ...payload,
         dateUtc: new Date(form.dateUtc).toISOString(),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
         dxcc: form.dxcc ? parseInt(form.dxcc) : undefined,
@@ -413,6 +431,15 @@ export default function EditQsoPage() {
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Kontaktens Grid Locator" value={form.locator} onChange={set('locator')} placeholder="JO55WM" />
                 <Input label="Mit Grid Locator" value={form.myGridsquare} onChange={set('myGridsquare')} placeholder="JO65DQ" />
+              </div>
+              <div className="mt-3 flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-300">Min station / rig</label>
+                <select value={form.stationId} onChange={setStation} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
+                  <option value="">VÃ¦lg station</option>
+                  {stations.map(station => (
+                    <option key={station.id} value={station.id}>{stationOptionLabel(station)}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

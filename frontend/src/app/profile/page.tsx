@@ -5,10 +5,11 @@ import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type LotwStatus, type QrzStatus } from '@/lib/types'
+import { ProfileVisibility, type BlockedUser, type EqslStatus, type Friendship, type LotwStatus, type QrzStatus, type Station } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { pageShellClass } from '@/lib/layout'
+import { stationOptionLabel } from '@/app/logbook/stationGrid'
 
 export default function ProfilePage() {
   const { user } = useAuth()
@@ -19,8 +20,9 @@ export default function ProfilePage() {
     const tab = new URLSearchParams(window.location.search).get('tab')
     return tab === 'agent' || tab === 'apps' ? 'agent' : 'profile'
   })
-  const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', profileDescription: '', visibility: ProfileVisibility.Public })
+  const [form, setForm] = useState({ callsign: '', firstName: '', lastName: '', country: '', gridLocator: '', defaultStationId: '', profileDescription: '', visibility: ProfileVisibility.Public })
   const [loading, setLoading] = useState(false)
+  const [stations, setStations] = useState<Station[]>([])
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [qrzKey, setQrzKey] = useState('')
@@ -82,6 +84,7 @@ export default function ProfilePage() {
         lastName: user.lastName || '',
         country: user.country || '',
         gridLocator: user.gridLocator || '',
+        defaultStationId: user.defaultStationId?.toString() ?? '',
         profileDescription: user.profileDescription || '',
         visibility: user.visibility,
       })
@@ -101,6 +104,9 @@ export default function ProfilePage() {
       api.safety.getBlockedUsers().then(items => {
         if (!cancelled) setBlockedUsers(items)
       }).catch(() => {})
+      api.stations.getMine().then(items => {
+        if (!cancelled) setStations(items)
+      }).catch(() => {})
     }
 
     loadProfileState()
@@ -117,7 +123,11 @@ export default function ProfilePage() {
     e.preventDefault()
     setLoading(true)
     try {
-      await api.users.updateMe(form as never)
+      await api.users.updateMe({
+        ...form,
+        visibility: Number(form.visibility),
+        defaultStationId: form.defaultStationId ? Number(form.defaultStationId) : null,
+      } as never)
       toast('Profil gemt!')
     } finally {
       setLoading(false)
@@ -319,6 +329,20 @@ export default function ProfilePage() {
                 </div>
                 <Input label="Land" value={form.country} onChange={set('country')} />
                 <Input label="Grid Locator" value={form.gridLocator} onChange={set('gridLocator')} placeholder="JO55WM" />
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-300">Default station til QSO grid</label>
+                  <select value={form.defaultStationId} onChange={set('defaultStationId')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm">
+                    <option value="">Ingen default station</option>
+                    {stations.map(station => (
+                      <option key={station.id} value={station.id}>
+                        {stationOptionLabel(station)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Bruges til automatisk at sÃ¦tte Mit grid pÃ¥ nye og automatisk loggede QSOer.
+                  </p>
+                </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-gray-300">Om mig</label>
                   <textarea rows={3} value={form.profileDescription} onChange={set('profileDescription')} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white text-sm" />

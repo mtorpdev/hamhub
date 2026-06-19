@@ -3,7 +3,8 @@
 import { type ChangeEventHandler, type FormEventHandler } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { BandLabels, ModeLabels, type Qso } from '@/lib/types'
+import { BandLabels, ModeLabels, type Qso, type Station } from '@/lib/types'
+import { stationOptionLabel } from '@/app/logbook/stationGrid'
 import { formatTime } from '../decodeFormatters'
 import { type PotaQsoSuggestion } from '../potaQsoSuggestion'
 import { type QsoEditForm } from '../qsoEdit'
@@ -14,7 +15,9 @@ type LoggedQsoPopupProps = {
   qsoSaving: boolean
   qsoSaveStatus: string | null
   potaSuggestion: PotaQsoSuggestion | null
+  stations: Station[]
   onQsoFieldChange: (key: keyof QsoEditForm) => ChangeEventHandler<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  onStationChange: ChangeEventHandler<HTMLSelectElement>
   onSaveLoggedQso: FormEventHandler<HTMLFormElement>
   onClose: () => void
 }
@@ -25,7 +28,9 @@ export default function LoggedQsoPopup({
   qsoSaving,
   qsoSaveStatus,
   potaSuggestion,
+  stations,
   onQsoFieldChange,
+  onStationChange,
   onSaveLoggedQso,
   onClose,
 }: LoggedQsoPopupProps) {
@@ -74,6 +79,16 @@ export default function LoggedQsoPopup({
             <Input label="Kontaktens grid" value={qsoForm.locator} onChange={onQsoFieldChange('locator')} />
             <Input label="Mit grid" value={qsoForm.myGridsquare} onChange={onQsoFieldChange('myGridsquare')} />
             <Input label="Land" value={qsoForm.country} onChange={onQsoFieldChange('country')} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-300">Min station / rig</label>
+            <select value={qsoForm.stationId} onChange={onStationChange} className="rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white">
+              <option value="">VÃ¦lg station</option>
+              {stations.map(station => (
+                <option key={station.id} value={station.id}>{stationOptionLabel(station)}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
