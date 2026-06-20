@@ -59,7 +59,7 @@ public class LotwSyncService
         }
 
         var previousLastSyncedAt = user.LotwLastSyncedAt;
-        var isFullReport = true;
+        var isAuthoritativeMissingReport = false;
         var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, sinceUtc: null, ct);
         var confirmed = 0;
         var unmatched = 0;
@@ -96,7 +96,7 @@ public class LotwSyncService
             confirmed++;
         }
 
-        if (ShouldMarkNotFound(previousLastSyncedAt, isFullReport))
+        if (ShouldMarkNotFound(previousLastSyncedAt, isAuthoritativeMissingReport))
         {
             var notConfirmed = await _db.QsoEntries
                 .Where(q =>
@@ -149,9 +149,9 @@ public class LotwSyncService
         return true;
     }
 
-    internal static bool ShouldMarkNotFound(DateTime? previousLastSyncedAt, bool isFullReport)
+    internal static bool ShouldMarkNotFound(DateTime? previousLastSyncedAt, bool isAuthoritativeMissingReport)
     {
-        return isFullReport || previousLastSyncedAt == null;
+        return isAuthoritativeMissingReport && previousLastSyncedAt == null;
     }
 
     internal static bool IsLotwMatch(QsoEntry qso, string userId, LotwQslRecord record, Band band, Mode mode)

@@ -44,7 +44,6 @@ export function eqslTitle(qso: Qso, labels?: QslProviderLabels) {
 
 export function lotwTone(qso: Qso): QslBadgeTone {
   if (qso.lotwConfirmedAt || qso.lotwQslDate) return 'confirmed'
-  if (isLotwUpdated(qso.lotwLastResult)) return 'missing'
   if (isLotwUpdateFailure(qso.lotwLastResult)) return 'missing'
   return 'pending'
 }

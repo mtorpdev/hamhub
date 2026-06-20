@@ -73,9 +73,10 @@ public class LotwSyncServiceTests
     [Fact]
     public void ShouldMarkNotFoundOnlyForFullReport()
     {
-        Assert.True(LotwSyncService.ShouldMarkNotFound(previousLastSyncedAt: null, isFullReport: true));
-        Assert.True(LotwSyncService.ShouldMarkNotFound(new DateTime(2026, 6, 18, 3, 28, 16, DateTimeKind.Utc), isFullReport: true));
-        Assert.False(LotwSyncService.ShouldMarkNotFound(new DateTime(2026, 6, 18, 3, 28, 16, DateTimeKind.Utc), isFullReport: false));
+        Assert.True(LotwSyncService.ShouldMarkNotFound(previousLastSyncedAt: null, isAuthoritativeMissingReport: true));
+        Assert.False(LotwSyncService.ShouldMarkNotFound(new DateTime(2026, 6, 18, 3, 28, 16, DateTimeKind.Utc), isAuthoritativeMissingReport: true));
+        Assert.False(LotwSyncService.ShouldMarkNotFound(previousLastSyncedAt: null, isAuthoritativeMissingReport: false));
+        Assert.False(LotwSyncService.ShouldMarkNotFound(new DateTime(2026, 6, 18, 3, 28, 16, DateTimeKind.Utc), isAuthoritativeMissingReport: false));
     }
 
     [Fact]

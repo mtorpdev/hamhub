@@ -57,10 +57,10 @@ test('marks LoTW as confirmed when a confirmation date exists', () => {
   assert.equal(lotwTitle(qso({ lotwConfirmedAt: '2026-06-17T08:10:11Z' }), daLotwLabels), 'LoTW bekræftet af modparten')
 })
 
-test('marks LoTW as missing when it was checked but not confirmed', () => {
+test('keeps LoTW checked-but-unconfirmed status pending instead of showing it as an error', () => {
   const checked = qso({ lotwLastResult: 'LoTW status opdateret: ikke fundet' })
 
-  assert.equal(lotwTone(checked), 'missing')
+  assert.equal(lotwTone(checked), 'pending')
   assert.equal(lotwTitle(checked), 'LoTW checked, but QSO is not confirmed yet')
 })
 
