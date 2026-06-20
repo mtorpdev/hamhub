@@ -80,6 +80,12 @@ public class LotwSyncServiceTests
     }
 
     [Fact]
+    public void FullReportSinceUtcOverridesLotwDefaultLastQslCursor()
+    {
+        Assert.Equal(new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc), LotwSyncService.FullReportSinceUtc);
+    }
+
+    [Fact]
     public void IsLotwMatchAllowsKnownLocalTimeOffset()
     {
         var qso = new QsoEntry

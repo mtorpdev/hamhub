@@ -12,6 +12,8 @@ public record LotwSyncResult(int Confirmed, int Unmatched, int CheckedNotFound, 
 
 public class LotwSyncService
 {
+    internal static readonly DateTime FullReportSinceUtc = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     private readonly ApplicationDbContext _db;
     private readonly LotwReportClient _client;
     private readonly IDataProtector _protector;
@@ -60,7 +62,7 @@ public class LotwSyncService
 
         var previousLastSyncedAt = user.LotwLastSyncedAt;
         var isAuthoritativeMissingReport = false;
-        var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, sinceUtc: null, ct);
+        var records = await _client.FetchConfirmedQsosAsync(user.LotwUsername, password, FullReportSinceUtc, ct);
         var confirmed = 0;
         var unmatched = 0;
         var checkedNotFound = 0;
