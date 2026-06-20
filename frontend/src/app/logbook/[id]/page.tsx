@@ -14,6 +14,7 @@ import { externalActionLabel, externalLastResult, externalPrimaryAction, externa
 import { pageShellClass } from '@/lib/layout'
 import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 import { useLanguage } from '@/i18n/LanguageContext'
+import { dateTimeLocalUtcToIso, toUtcDateTimeLocal } from '@/lib/utcDate'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 const PROPAGATION_RATING_GOOD = 'G' + 'od'
@@ -48,7 +49,7 @@ export default function EditQsoPage() {
 
   const applyQsoToForm = (q: Qso) => {
     setForm({
-      dateUtc: new Date(q.dateUtc).toISOString().slice(0, 16),
+      dateUtc: toUtcDateTimeLocal(q.dateUtc),
       ownCallsign: q.ownCallsign,
       workedCallsign: q.workedCallsign,
       band: q.band,
@@ -128,7 +129,7 @@ export default function EditQsoPage() {
       void stationId
       await api.qsos.update(Number(id), {
         ...payload,
-        dateUtc: new Date(form.dateUtc).toISOString(),
+        dateUtc: dateTimeLocalUtcToIso(form.dateUtc),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
         dxcc: form.dxcc ? parseInt(form.dxcc) : undefined,
         cqZone: form.cqZone ? parseInt(form.cqZone) : undefined,

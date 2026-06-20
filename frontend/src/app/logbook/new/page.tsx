@@ -12,6 +12,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { pageShellClass } from '@/lib/layout'
 import { defaultStation, stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 import { useLanguage } from '@/i18n/LanguageContext'
+import { dateTimeLocalUtcToIso, nowUtcDateTimeLocal } from '@/lib/utcDate'
 
 export default function NewQsoPage() {
   const { user } = useAuth()
@@ -19,7 +20,7 @@ export default function NewQsoPage() {
   const { toast } = useToast()
   const { t } = useLanguage()
   const router = useRouter()
-  const now = new Date().toISOString().slice(0, 16)
+  const now = nowUtcDateTimeLocal()
   const [form, setForm] = useState({
     dateUtc: now, ownCallsign: user?.callsign || '', workedCallsign: '',
     band: Band.M20, frequency: '', mode: Mode.SSB,
@@ -69,7 +70,7 @@ export default function NewQsoPage() {
       void stationId
       await api.qsos.create({
         ...payload,
-        dateUtc: new Date(form.dateUtc).toISOString(),
+        dateUtc: dateTimeLocalUtcToIso(form.dateUtc),
         frequency: form.frequency ? parseFloat(form.frequency) : undefined,
       })
       toast(t('qso.logged'))

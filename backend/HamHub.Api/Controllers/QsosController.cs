@@ -245,6 +245,7 @@ public class QsosController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var qso = _mapper.Map<QsoEntry>(dto);
         qso.UserId = userId;
+        qso.DateUtc = QsoTime.NormalizeUtc(qso.DateUtc);
         qso.OwnCallsign = qso.OwnCallsign.Trim().ToUpperInvariant();
         qso.WorkedCallsign = qso.WorkedCallsign.Trim().ToUpperInvariant();
         qso.Band = NormalizeBand(qso.Band, qso.Frequency);
@@ -383,7 +384,7 @@ public class QsosController : ControllerBase
         if (qso == null) return NotFound();
         if (qso.UserId != userId) return Forbid();
 
-        qso.DateUtc = dto.DateUtc;
+        qso.DateUtc = QsoTime.NormalizeUtc(dto.DateUtc);
         qso.OwnCallsign = dto.OwnCallsign;
         qso.WorkedCallsign = dto.WorkedCallsign;
         qso.Band = NormalizeBand(dto.Band, dto.Frequency);
@@ -673,7 +674,7 @@ public class QsosController : ControllerBase
                 WorkedCallsign = call.ToUpper(),
                 Band = band,
                 Mode = mode,
-                DateUtc = dt,
+                DateUtc = QsoTime.NormalizeUtc(dt),
                 Frequency = double.TryParse(GetField(rec, "FREQ"), System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture, out var freq) ? freq : null,
                 RstSent = GetField(rec, "RST_SENT"),

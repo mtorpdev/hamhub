@@ -251,7 +251,7 @@ public class QrzSyncService : BackgroundService
             UserId = userId,
             WorkedCallsign = qrzQso.Call,
             OwnCallsign = ownCallsign,
-            DateUtc = qrzQso.TimeOn,
+            DateUtc = QsoTime.NormalizeUtc(qrzQso.TimeOn),
             Band = band,
             Mode = mode,
             RstSent = qrzQso.RstSent,
@@ -283,7 +283,7 @@ public class QrzSyncService : BackgroundService
 
     internal static void ApplyQrzTime(QsoEntry qso, AdifQso qrzQso)
     {
-        qso.DateUtc = qrzQso.TimeOn;
+        qso.DateUtc = QsoTime.NormalizeUtc(qrzQso.TimeOn);
         qso.QrzId = qrzQso.LogId ?? qso.QrzId;
         qso.RstSent = qrzQso.RstSent ?? qso.RstSent;
         qso.RstReceived = qrzQso.RstReceived ?? qso.RstReceived;

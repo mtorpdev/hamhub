@@ -1,4 +1,5 @@
 import { Band, Mode, type Qso } from '@/lib/types'
+import { dateTimeLocalUtcToIso, toUtcDateTimeLocal } from '@/lib/utcDate'
 
 export type QsoEditForm = {
   dateUtc: string
@@ -52,7 +53,7 @@ export const EMPTY_QSO_FORM: QsoEditForm = {
 
 export function qsoToEditForm(qso: Qso): QsoEditForm {
   return {
-    dateUtc: new Date(qso.dateUtc).toISOString().slice(0, 16),
+    dateUtc: toUtcDateTimeLocal(qso.dateUtc),
     ownCallsign: qso.ownCallsign,
     workedCallsign: qso.workedCallsign,
     band: qso.band,
@@ -82,7 +83,7 @@ export function qsoFormPayload(form: QsoEditForm) {
   void stationId
   return {
     ...payload,
-    dateUtc: new Date(form.dateUtc).toISOString(),
+    dateUtc: dateTimeLocalUtcToIso(form.dateUtc),
     band: Number(form.band),
     mode: Number(form.mode),
     frequency: form.frequency ? parseFloat(form.frequency) : undefined,

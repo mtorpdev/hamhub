@@ -144,6 +144,25 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
         Assert.Equal("-08", qso.RstReceived);
     }
 
+    [Fact]
+    public async Task CreateStoresUnspecifiedDateUtcAsUtcWithoutLocalTimezoneConversion()
+    {
+        await using var context = CreateContext();
+        using var cty = new TemporaryCtyDirectory("""
+Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
+    5P,5Q,OU,OV,OW,OX,OY,OZ;
+""");
+        var controller = CreateController(context, "user-1", cty.Lookup);
+        var wallTimeUtc = new DateTime(2026, 6, 20, 12, 34, 0, DateTimeKind.Unspecified);
+
+        var result = await controller.Create(Dto(workedCallsign: "K1UTC", dateUtc: wallTimeUtc));
+
+        Assert.IsType<CreatedAtActionResult>(result);
+        var qso = Assert.Single(context.QsoEntries);
+        Assert.Equal(new DateTime(2026, 6, 20, 12, 34, 0, DateTimeKind.Utc), qso.DateUtc);
+        Assert.Equal(DateTimeKind.Utc, qso.DateUtc.Kind);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
