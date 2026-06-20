@@ -83,7 +83,7 @@ public class LotwReportClient
             var date = GetField(record, "QSO_DATE");
             var time = GetField(record, "TIME_ON") ?? "0000";
             var band = GetField(record, "BAND");
-            var mode = GetField(record, "MODE") ?? GetField(record, "APP_LoTW_MODE");
+            var mode = NormalizeMode(GetField(record, "MODE"), GetField(record, "SUBMODE"), GetField(record, "APP_LoTW_MODE"));
 
             if (call is null || date is null || band is null || mode is null) continue;
             if (!TryParseQsoTime(date, time, out var timeOn)) continue;
@@ -106,6 +106,29 @@ public class LotwReportClient
         }
 
         return result;
+    }
+
+    private static string? NormalizeMode(string? mode, string? submode, string? appLotwMode)
+    {
+        var normalizedMode = NormalizeAwardText(mode)?.ToUpperInvariant();
+        var normalizedSubmode = NormalizeAwardText(submode)?.ToUpperInvariant();
+        var normalizedAppMode = NormalizeAwardText(appLotwMode)?.ToUpperInvariant();
+
+        var modeIsGenericDigital =
+            string.Equals(normalizedMode, "MFSK", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedMode, "DATA", StringComparison.OrdinalIgnoreCase);
+
+        if (modeIsGenericDigital && !string.IsNullOrWhiteSpace(normalizedSubmode))
+        {
+            return normalizedSubmode;
+        }
+
+        if (modeIsGenericDigital && !string.IsNullOrWhiteSpace(normalizedAppMode))
+        {
+            return normalizedAppMode;
+        }
+
+        return normalizedMode ?? normalizedAppMode ?? normalizedSubmode;
     }
 
     private static bool TryParseQsoTime(string date, string time, out DateTime timeOn)

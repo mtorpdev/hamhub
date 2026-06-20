@@ -13,6 +13,10 @@ export function externalPrimaryAction(status: QsoExternalLogStatus): ExternalPri
     return { kind: 'setup', disabled: false }
   }
 
+  if (status.provider.toLowerCase() === 'eqsl' && status.canSend) {
+    return { kind: 'send', disabled: false }
+  }
+
   if (status.canFetch) {
     return { kind: 'fetch', disabled: false }
   }

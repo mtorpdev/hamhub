@@ -36,6 +36,34 @@ public class LotwReportClientTests
     }
 
     [Fact]
+    public void ParseAdifPrefersDigitalSubmodeForLotwMfskRecords()
+    {
+        var adif = """
+            <PROGRAMID:4>LoTW
+            <EOH>
+            <CALL:6>OZ1ABC<BAND:3>20M<MODE:4>MFSK<SUBMODE:3>FT8<QSO_DATE:8>20260616<TIME_ON:6>123000<QSL_RCVD:1>Y<EOR>
+            """;
+
+        var qso = Assert.Single(LotwReportClient.ParseAdif(adif));
+
+        Assert.Equal("FT8", qso.Mode);
+    }
+
+    [Fact]
+    public void ParseAdifUsesLotwAppModeForGenericDigitalMode()
+    {
+        var adif = """
+            <PROGRAMID:4>LoTW
+            <EOH>
+            <CALL:6>OZ1ABC<BAND:3>20M<MODE:4>MFSK<APP_LoTW_MODE:3>FT4<QSO_DATE:8>20260616<TIME_ON:6>123000<QSL_RCVD:1>Y<EOR>
+            """;
+
+        var qso = Assert.Single(LotwReportClient.ParseAdif(adif));
+
+        Assert.Equal("FT4", qso.Mode);
+    }
+
+    [Fact]
     public void ParseAdifThrowsWhenLotwReturnsHtmlError()
     {
         var ex = Assert.Throws<LotwApiException>(() => LotwReportClient.ParseAdif("<html>invalid password</html>"));
