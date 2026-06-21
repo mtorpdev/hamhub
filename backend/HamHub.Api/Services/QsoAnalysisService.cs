@@ -2,7 +2,9 @@ using System.Text.Json;
 using HamHub.Api.Services.Awards;
 using HamHub.Domain.Entities;
 using HamHub.Infrastructure.Persistence;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace HamHub.Api.Services;
 
@@ -14,11 +16,29 @@ public class QsoAnalysisService
 
     private readonly ApplicationDbContext _context;
     private readonly AwardEngine _awardEngine;
+    private readonly OpenMeteoWeatherService _weatherService;
+    private readonly NoaaSwpcPropagationService _propagationService;
+    private readonly Kc2gMufFof2Service _mufFof2Service;
+    private readonly IDataProtector _qrzProtector;
+    private readonly IDataProtector _eqslProtector;
+    private readonly IDataProtector _lotwProtector;
 
-    public QsoAnalysisService(ApplicationDbContext context, AwardEngine awardEngine)
+    public QsoAnalysisService(
+        ApplicationDbContext context,
+        AwardEngine awardEngine,
+        OpenMeteoWeatherService weatherService,
+        NoaaSwpcPropagationService propagationService,
+        Kc2gMufFof2Service mufFof2Service,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _context = context;
         _awardEngine = awardEngine;
+        _weatherService = weatherService;
+        _propagationService = propagationService;
+        _mufFof2Service = mufFof2Service;
+        _qrzProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
+        _eqslProtector = dataProtectionProvider.CreateProtector("EqslPassword");
+        _lotwProtector = dataProtectionProvider.CreateProtector("LotwPassword");
     }
 
     public async Task<QsoAnalysisResponse> GetOrCreateAsync(int qsoId, string userId, bool isAdmin, CancellationToken ct)
@@ -36,7 +56,16 @@ public class QsoAnalysisService
 
         var duplicateCandidates = await LoadDuplicateCandidatesAsync(qso, ct);
         var duplicateRisk = BuildDuplicateRisk(qso, duplicateCandidates);
-        var inputHash = QsoAnalysisInputHasher.Hash(qso, AnalysisVersion, BuildDuplicateCandidatesHash(duplicateCandidates));
+        var qrzReadable = CanUnprotect(qso.User.QrzApiKey, _qrzProtector);
+        var eqslReadable = CanUnprotect(qso.User.EqslPassword, _eqslProtector);
+        var lotwReadable = CanUnprotect(qso.User.LotwPassword, _lotwProtector);
+        var inputHash = QsoAnalysisInputHasher.Hash(
+            qso,
+            AnalysisVersion,
+            BuildDuplicateCandidatesHash(duplicateCandidates),
+            qrzReadable,
+            eqslReadable,
+            lotwReadable);
         if (qso.Analysis is not null &&
             qso.Analysis.AnalysisVersion == AnalysisVersion &&
             string.Equals(qso.Analysis.InputHash, inputHash, StringComparison.Ordinal))
@@ -45,8 +74,8 @@ public class QsoAnalysisService
         }
 
         var generatedAtUtc = DateTime.UtcNow;
-        var conditions = QsoConditionsBuilder.Build(qso);
-        var qsl = BuildQsl(qso);
+        var conditions = await BuildConditionsAsync(qso, ct);
+        var qsl = BuildQsl(qso, qso.User, qrzReadable, eqslReadable, lotwReadable);
         var dataIssues = BuildDataIssues(qso);
         var propagation = BuildPropagation(conditions);
         var sun = BuildSun(conditions);
@@ -93,6 +122,23 @@ public class QsoAnalysisService
         return ToResponse(persistedAnalysis);
     }
 
+    private async Task<QsoConditionsDto> BuildConditionsAsync(QsoEntry qso, CancellationToken ct)
+    {
+        var conditions = QsoConditionsBuilder.Build(qso);
+        var ownWeatherTask = conditions.OwnLocation is null
+            ? Task.FromResult<QsoWeatherDto?>(null)
+            : TryGetWeatherAsync(conditions.OwnLocation.Latitude, conditions.OwnLocation.Longitude, conditions.NearestWeatherHourUtc, ct);
+        var workedWeatherTask = conditions.WorkedLocation is null
+            ? Task.FromResult<QsoWeatherDto?>(null)
+            : TryGetWeatherAsync(conditions.WorkedLocation.Latitude, conditions.WorkedLocation.Longitude, conditions.NearestWeatherHourUtc, ct);
+        await Task.WhenAll(ownWeatherTask, workedWeatherTask);
+
+        conditions = QsoConditionsBuilder.WithWeather(conditions, ownWeatherTask.Result, workedWeatherTask.Result);
+        conditions = QsoConditionsBuilder.WithPropagation(conditions, await TryGetPropagationAsync(conditions.QsoTimeUtc, ct));
+        conditions = QsoConditionsBuilder.WithMufFof2(conditions, await TryGetMufFof2Async(conditions.OwnLocation, conditions.WorkedLocation, ct));
+        return conditions;
+    }
+
     private QsoAnalysisAwardImpactDto BuildAwardImpact(QsoEntry qso, QsoAnalysisQslDto[] qsl, QsoAnalysisDataIssueDto[] issues)
     {
         var summary = _awardEngine.Calculate(new[] { qso }, new AwardQuery());
@@ -120,40 +166,24 @@ public class QsoAnalysisService
         return new QsoAnalysisAwardImpactDto(contributesTo, blockedByMissingFields, confirmationSources);
     }
 
-    private static QsoAnalysisQslDto[] BuildQsl(QsoEntry qso)
+    private static QsoAnalysisQslDto[] BuildQsl(
+        QsoEntry qso,
+        ApplicationUser user,
+        bool? qrzCredentialReadable,
+        bool? eqslCredentialReadable,
+        bool? lotwCredentialReadable)
     {
-        return
-        [
-            BuildQsl(
-                "LoTW",
-                qso.LotwConfirmedAt.HasValue ? "confirmed" : !string.IsNullOrWhiteSpace(qso.LotwLastResult) ? "activity" : "none",
-                "Logbook of The World",
-                qso.LotwConfirmedAt.HasValue ? "Confirmed in LoTW." : string.IsNullOrWhiteSpace(qso.LotwLastResult) ? "No LoTW activity recorded." : qso.LotwLastResult!,
-                qso.LotwConfirmedAt,
-                qso.LotwQslDate),
-            BuildQsl(
-                "eQSL",
-                qso.EqslConfirmedAt.HasValue ? "confirmed" : qso.EqslSentAt.HasValue ? "sent" : "none",
-                "eQSL",
-                qso.EqslConfirmedAt.HasValue ? "Confirmed in eQSL." : qso.EqslSentAt.HasValue ? "Uploaded to eQSL, waiting for confirmation." : "No eQSL activity recorded.",
-                qso.EqslConfirmedAt,
-                qso.EqslSentAt),
-            BuildQsl(
-                "QRZ",
-                qso.QrzConfirmedAt.HasValue || string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase) ? "confirmed" : !string.IsNullOrWhiteSpace(qso.QrzId) ? "logged" : "none",
-                "QRZ Logbook",
-                qso.QrzConfirmedAt.HasValue || string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase)
-                    ? "Confirmed in QRZ."
-                    : !string.IsNullOrWhiteSpace(qso.QrzId)
-                        ? "Present in QRZ logbook."
-                        : "No QRZ logbook activity recorded.",
-                qso.QrzConfirmedAt,
-                qso.QrzQslDate)
-        ];
+        return QsoExternalLogStatusBuilder
+            .Build(qso, user, qrzCredentialReadable, eqslCredentialReadable, lotwCredentialReadable)
+            .Select(item => new QsoAnalysisQslDto(
+                item.Provider,
+                item.Status,
+                item.Label,
+                item.Description,
+                EnsureUtc(ConfirmedAtForProvider(qso, item.Provider)),
+                EnsureUtc(item.LastUpdatedAt)))
+            .ToArray();
     }
-
-    private static QsoAnalysisQslDto BuildQsl(string provider, string status, string label, string description, DateTime? confirmedAt, DateTime? lastUpdatedAt) =>
-        new(provider, status, label, description, EnsureUtc(confirmedAt), EnsureUtc(lastUpdatedAt));
 
     private static QsoAnalysisDataIssueDto[] BuildDataIssues(QsoEntry qso)
     {
@@ -275,7 +305,30 @@ public class QsoAnalysisService
             conditions.DistanceKm,
             conditions.BearingDegrees,
             conditions.Propagation.Path?.Summary ?? "Unknown",
-            facts);
+            facts,
+            conditions.Propagation.Status,
+            conditions.Propagation.Description,
+            conditions.Propagation.Source,
+            EnsureUtc(conditions.Propagation.ObservedAtUtc),
+            conditions.Propagation.KpIndex,
+            conditions.Propagation.GeomagneticScale,
+            conditions.Propagation.RadioBlackoutScale,
+            conditions.Propagation.SolarRadiationScale,
+            conditions.Propagation.SolarWindSpeedKms,
+            conditions.Propagation.SolarWindDensity,
+            conditions.Propagation.InterplanetaryMagneticFieldBz,
+            conditions.Propagation.InterplanetaryMagneticFieldBt,
+            conditions.Propagation.MinutesFromQso,
+            conditions.Propagation.SolarFluxIndex,
+            conditions.Propagation.ForecastApIndex,
+            conditions.Propagation.SunspotNumber,
+            conditions.Propagation.SolarCyclePhase,
+            conditions.Propagation.SolarCycleProgressPercent,
+            conditions.Propagation.XrayClass,
+            conditions.Propagation.XrayFlux,
+            conditions.Propagation.MufStatus,
+            conditions.Propagation.MufSourceUrl,
+            conditions.Propagation.MufFof2);
     }
 
     private static QsoAnalysisSunDto BuildSun(QsoConditionsDto conditions) =>
@@ -365,7 +418,34 @@ public class QsoAnalysisService
             Deserialize(analysis.FlagsJson, Array.Empty<QsoAnalysisFlagDto>()),
             Deserialize(analysis.QslJson, Array.Empty<QsoAnalysisQslDto>()),
             Deserialize(analysis.AwardImpactJson, new QsoAnalysisAwardImpactDto(Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>())),
-            Deserialize(analysis.PropagationJson, new QsoAnalysisPropagationDto(null, null, "Unknown", Array.Empty<string>())),
+            Deserialize(analysis.PropagationJson, new QsoAnalysisPropagationDto(
+                null,
+                null,
+                "Unknown",
+                Array.Empty<string>(),
+                "Ukendt",
+                string.Empty,
+                string.Empty,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                string.Empty,
+                string.Empty,
+                Kc2gMufFof2Service.Unavailable("KC2G MUF/foF2 data er ikke tilgængelig."))),
             Deserialize(analysis.SunJson, new QsoAnalysisSunDto(null, null, null, "Unknown")),
             Deserialize(analysis.WeatherJson, new QsoAnalysisWeatherDto(null, null, string.Empty)),
             Deserialize(analysis.MissingDataJson, Array.Empty<QsoAnalysisDataIssueDto>()),
@@ -390,7 +470,65 @@ public class QsoAnalysisService
 
     private static DateTime? EnsureUtc(DateTime? value) => value.HasValue ? EnsureUtc(value.Value) : null;
 
+    private static DateTime? ConfirmedAtForProvider(QsoEntry qso, string provider) => provider switch
+    {
+        "QRZ" => qso.QrzConfirmedAt ?? (string.Equals(qso.QrzConfirmationStatus, "C", StringComparison.OrdinalIgnoreCase) ? qso.QrzQslDate : null),
+        "LoTW" => qso.LotwConfirmedAt,
+        "eQSL" => qso.EqslConfirmedAt,
+        _ => null
+    };
+
     private static string NormalizeCallsign(string callsign) => callsign.Trim().ToUpperInvariant();
+
+    private async Task<QsoWeatherDto?> TryGetWeatherAsync(double latitude, double longitude, DateTime nearestHourUtc, CancellationToken ct)
+    {
+        try
+        {
+            return await _weatherService.GetHistoricalWeatherAsync(latitude, longitude, nearestHourUtc, ct);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<QsoPropagationDto> TryGetPropagationAsync(DateTime qsoTimeUtc, CancellationToken ct)
+    {
+        try
+        {
+            return await _propagationService.GetPropagationAsync(qsoTimeUtc, ct);
+        }
+        catch
+        {
+            return NoaaSwpcPropagationService.Unavailable("NOAA SWPC data kunne ikke hentes lige nu.");
+        }
+    }
+
+    private async Task<QsoMufFof2Dto> TryGetMufFof2Async(QsoLocationConditionsDto? own, QsoLocationConditionsDto? worked, CancellationToken ct)
+    {
+        try
+        {
+            return await _mufFof2Service.GetSnapshotAsync(own, worked, ct);
+        }
+        catch
+        {
+            return Kc2gMufFof2Service.Unavailable("KC2G MUF/foF2 data kunne ikke hentes lige nu.");
+        }
+    }
+
+    private static bool? CanUnprotect(string? protectedValue, IDataProtector protector)
+    {
+        if (string.IsNullOrWhiteSpace(protectedValue)) return null;
+        try
+        {
+            protector.Unprotect(protectedValue);
+            return true;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
 
     private static void AddMissing(List<QsoAnalysisDataIssueDto> issues, string field, string label, string? value, string severity, string description)
     {

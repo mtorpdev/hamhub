@@ -463,7 +463,8 @@ export default function EditQsoPage() {
 
   const qslBadgeVariant = (status: string): 'default' | 'success' | 'warning' | 'info' => {
     if (status === 'confirmed') return 'success'
-    if (status === 'activity' || status === 'sent' || status === 'logged') return 'warning'
+    if (status === 'activity' || status === 'sent' || status === 'logged' || status === 'synced' || status === 'credential-error') return 'warning'
+    if (status === 'ready') return 'info'
     return 'default'
   }
 
@@ -1154,11 +1155,16 @@ export default function EditQsoPage() {
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.conditions')}</h3>
                     <div className="grid gap-4 xl:grid-cols-3">
                       <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
-                        <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.tabs.propagation')}</p>
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.tabs.propagation')}</p>
+                          <Badge variant="default">{analysis.propagation.source || t('common.unknown')}</Badge>
+                        </div>
                         <div className="mt-3 space-y-2 text-sm text-gray-300">
                           <p>{t('logbook.detail.distance')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.distanceKm, ' km', 1)}</span></p>
                           <p>{t('logbook.detail.bearing')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.bearingDegrees, ' deg')}</span></p>
                           <p>{t('logbook.analysis.path')}: <span className="text-white">{analysis.propagation.pathLight || t('common.unknown')}</span></p>
+                          <p className="text-gray-400">{analysis.propagation.status || t('common.unknown')}</p>
+                          <p className="text-gray-400">{analysis.propagation.description || t('logbook.analysis.partial')}</p>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {analysis.propagation.bandFacts.length ? analysis.propagation.bandFacts.map(fact => (
@@ -1166,6 +1172,37 @@ export default function EditQsoPage() {
                           )) : (
                             <span className="text-sm text-gray-400">{t('logbook.analysis.partial')}</span>
                           )}
+                          <span className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">
+                            {analysis.propagation.kpIndex == null ? t('logbook.detail.kpUnknown') : `Kp ${formatAnalysisNumber(analysis.propagation.kpIndex, '', 2)}`}
+                          </span>
+                          <span className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">
+                            {analysis.propagation.geomagneticScale ?? 'G?'}
+                          </span>
+                          {analysis.propagation.minutesFromQso != null ? (
+                            <span className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">
+                              {t('logbook.detail.minutesFromQso', { minutes: analysis.propagation.minutesFromQso.toFixed(0) })}
+                            </span>
+                          ) : null}
+                          {analysis.propagation.mufFof2.midpointNearestStation?.muf3000Mhz != null ? (
+                            <span className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">
+                              {`MUF ${formatAnalysisNumber(analysis.propagation.mufFof2.midpointNearestStation.muf3000Mhz, ' MHz', 1)}`}
+                            </span>
+                          ) : null}
+                          {analysis.propagation.mufFof2.midpointNearestStation?.fof2Mhz != null ? (
+                            <span className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">
+                              {`foF2 ${formatAnalysisNumber(analysis.propagation.mufFof2.midpointNearestStation.fof2Mhz, ' MHz', 1)}`}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 rounded-md border border-gray-800 bg-gray-950/40 p-3 text-sm text-gray-300">
+                          <p className="text-xs uppercase tracking-wide text-gray-500">KC2G MUF/foF2</p>
+                          <p className="mt-2">{analysis.propagation.mufStatus || t('common.unknown')}</p>
+                          <p className="mt-1 text-gray-400">{analysis.propagation.mufFof2.description || t('logbook.analysis.partial')}</p>
+                          {analysis.propagation.mufFof2.midpointNearestStation ? (
+                            <p className="mt-2 text-xs text-gray-500">
+                              {`${analysis.propagation.mufFof2.midpointNearestStation.name} • ${formatAnalysisNumber(analysis.propagation.mufFof2.midpointNearestStation.distanceKm, ' km')}`}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 

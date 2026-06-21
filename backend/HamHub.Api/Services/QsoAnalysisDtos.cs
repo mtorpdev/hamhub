@@ -21,7 +21,34 @@ public record QsoAnalysisScoresDto(int Overall, int Confirmation, int DataQualit
 public record QsoAnalysisFlagDto(string Key, string Label, string Severity, string Description);
 public record QsoAnalysisQslDto(string Provider, string Status, string Label, string Description, DateTime? ConfirmedAt, DateTime? LastUpdatedAt);
 public record QsoAnalysisAwardImpactDto(string[] ContributesTo, string[] BlockedByMissingFields, string[] ConfirmationSources);
-public record QsoAnalysisPropagationDto(double? DistanceKm, double? BearingDegrees, string PathLight, string[] BandFacts);
+public record QsoAnalysisPropagationDto(
+    double? DistanceKm,
+    double? BearingDegrees,
+    string PathLight,
+    string[] BandFacts,
+    string Status,
+    string Description,
+    string Source,
+    DateTime? ObservedAtUtc,
+    double? KpIndex,
+    string? GeomagneticScale,
+    string? RadioBlackoutScale,
+    string? SolarRadiationScale,
+    double? SolarWindSpeedKms,
+    double? SolarWindDensity,
+    double? InterplanetaryMagneticFieldBz,
+    double? InterplanetaryMagneticFieldBt,
+    double? MinutesFromQso,
+    double? SolarFluxIndex,
+    double? ForecastApIndex,
+    double? SunspotNumber,
+    string? SolarCyclePhase,
+    double? SolarCycleProgressPercent,
+    string? XrayClass,
+    double? XrayFlux,
+    string MufStatus,
+    string MufSourceUrl,
+    QsoMufFof2Dto MufFof2);
 public record QsoAnalysisSunDto(double? OwnElevationDegrees, double? WorkedElevationDegrees, double? MidpointElevationDegrees, string Classification);
 public record QsoAnalysisWeatherDto(QsoWeatherDto? Own, QsoWeatherDto? Worked, string Source);
 public record QsoAnalysisDataIssueDto(string Field, string Label, string Severity, string Description);

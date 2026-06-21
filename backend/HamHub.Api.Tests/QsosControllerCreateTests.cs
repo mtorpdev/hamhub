@@ -176,7 +176,14 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var enrichment = new QsoAwardEnrichmentService(context, lookup);
-        var analysis = new QsoAnalysisService(context, new AwardEngine());
+        var provider = DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}"));
+        var analysis = new QsoAnalysisService(
+            context,
+            new AwardEngine(),
+            new OpenMeteoWeatherService(new HttpClient()),
+            new NoaaSwpcPropagationService(new HttpClient()),
+            new Kc2gMufFof2Service(new HttpClient()),
+            provider);
         var controller = new QsosController(
             context,
             mapper,
@@ -184,7 +191,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
             new EqslClient(new HttpClient()),
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
-            DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
+            provider,
             enrichment,
             analysis);
 

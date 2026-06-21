@@ -34,9 +34,14 @@ export function issueTone(severity: string): AnalysisTone {
 export function qslStatusLabelKey(status: string): string | null {
   if (status === 'confirmed') return 'logbook.analysis.qslStatus.confirmed'
   if (status === 'activity') return 'logbook.analysis.qslStatus.activity'
+  if (status === 'credential-error') return 'logbook.analysis.qslStatus.credentialError'
+  if (status === 'missing') return 'logbook.analysis.qslStatus.missing'
   if (status === 'none') return 'logbook.analysis.qslStatus.none'
+  if (status === 'not-configured') return 'logbook.analysis.qslStatus.notConfigured'
+  if (status === 'ready') return 'logbook.analysis.qslStatus.ready'
   if (status === 'sent') return 'logbook.analysis.qslStatus.sent'
   if (status === 'logged') return 'logbook.analysis.qslStatus.logged'
+  if (status === 'synced') return 'logbook.analysis.qslStatus.synced'
   return null
 }
 

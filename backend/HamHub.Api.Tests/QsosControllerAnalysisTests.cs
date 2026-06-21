@@ -24,12 +24,15 @@ public class QsosControllerAnalysisTests
     public async Task GetAnalysisReturnsOkForOwner()
     {
         await using var context = CreateContext();
+        var provider = DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}"));
         var user = new ApplicationUser
         {
             Id = "user-1",
             Email = "user-1@example.com",
             UserName = "user-1@example.com",
-            Callsign = "OZ1ME"
+            Callsign = "OZ1ME",
+            LotwUsername = "oz1me",
+            LotwPassword = provider.CreateProtector("LotwPassword").Protect("secret")
         };
         var qso = new QsoEntry
         {
@@ -57,7 +60,7 @@ public class QsosControllerAnalysisTests
         context.QsoEntries.Add(qso);
         await context.SaveChangesAsync();
 
-        var controller = CreateController(context, "user-1");
+        var controller = CreateController(context, "user-1", provider);
 
         var result = await controller.GetAnalysis(qso.Id, CancellationToken.None);
 
@@ -86,11 +89,18 @@ public class QsosControllerAnalysisTests
         return new ApplicationDbContext(options);
     }
 
-    private static QsosController CreateController(ApplicationDbContext context, string? userId)
+    private static QsosController CreateController(ApplicationDbContext context, string? userId, IDataProtectionProvider? providerOverride = null)
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var enrichment = new QsoAwardEnrichmentService(context, new DxccLookupService(new TestWebHostEnvironment(), NullLogger<DxccLookupService>.Instance));
-        var analysis = new QsoAnalysisService(context, new AwardEngine());
+        var provider = providerOverride ?? DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}"));
+        var analysis = new QsoAnalysisService(
+            context,
+            new AwardEngine(),
+            new OpenMeteoWeatherService(new HttpClient(new StubHttpMessageHandler())),
+            new NoaaSwpcPropagationService(new HttpClient(new StubHttpMessageHandler())),
+            new Kc2gMufFof2Service(new HttpClient(new StubHttpMessageHandler())),
+            provider);
         var controller = new QsosController(
             context,
             mapper,
@@ -98,7 +108,7 @@ public class QsosControllerAnalysisTests
             new EqslClient(new HttpClient()),
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
-            DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
+            provider,
             enrichment,
             analysis);
 
@@ -136,5 +146,11 @@ public class QsosControllerAnalysisTests
         public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } = null!;
         public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
         public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class StubHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.BadGateway));
     }
 }

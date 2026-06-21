@@ -6,7 +6,13 @@ namespace HamHub.Api.Services;
 
 public static class QsoAnalysisInputHasher
 {
-    public static string Hash(QsoEntry qso, int analysisVersion, string? duplicateCandidatesHash = null)
+    public static string Hash(
+        QsoEntry qso,
+        int analysisVersion,
+        string? duplicateCandidatesHash = null,
+        bool? qrzCredentialReadable = null,
+        bool? eqslCredentialReadable = null,
+        bool? lotwCredentialReadable = null)
     {
         var input = string.Join("|", new object?[]
         {
@@ -43,6 +49,17 @@ public static class QsoAnalysisInputHasher
             qso.LotwQslDate?.ToUniversalTime().ToString("O"),
             qso.LotwLastResult,
             qso.TxPower,
+            qso.User?.QrzApiKey is null ? null : "present",
+            qso.User?.QrzLastSyncedAt?.ToUniversalTime().ToString("O"),
+            qso.User?.EqslUsername,
+            qso.User?.EqslPassword is null ? null : "present",
+            qso.User?.EqslLastSyncedAt?.ToUniversalTime().ToString("O"),
+            qso.User?.LotwUsername,
+            qso.User?.LotwPassword is null ? null : "present",
+            qso.User?.LotwLastSyncedAt?.ToUniversalTime().ToString("O"),
+            qrzCredentialReadable,
+            eqslCredentialReadable,
+            lotwCredentialReadable,
             duplicateCandidatesHash
         });
 

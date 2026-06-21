@@ -193,6 +193,29 @@ export interface QsoAnalysisPropagation {
   bearingDegrees: number | null
   pathLight: string
   bandFacts: string[]
+  status: string
+  description: string
+  source: string
+  observedAtUtc: string | null
+  kpIndex: number | null
+  geomagneticScale: string | null
+  radioBlackoutScale: string | null
+  solarRadiationScale: string | null
+  solarWindSpeedKms: number | null
+  solarWindDensity: number | null
+  interplanetaryMagneticFieldBz: number | null
+  interplanetaryMagneticFieldBt: number | null
+  minutesFromQso: number | null
+  solarFluxIndex: number | null
+  forecastApIndex: number | null
+  sunspotNumber: number | null
+  solarCyclePhase: string | null
+  solarCycleProgressPercent: number | null
+  xrayClass: string | null
+  xrayFlux: number | null
+  mufStatus: string
+  mufSourceUrl: string
+  mufFof2: QsoMufFof2
 }
 
 export interface QsoAnalysisSun {
