@@ -1679,4 +1679,3 @@ namespace HamHub.Infrastructure.Migrations
         }
     }
 }
-
