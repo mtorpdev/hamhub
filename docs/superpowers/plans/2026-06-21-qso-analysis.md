@@ -471,7 +471,10 @@ Create `QsoAnalysisService.cs` with:
 public class QsoAnalysisService
 {
     public const int AnalysisVersion = 1;
-    public Task<QsoAnalysisResponse> GetOrCreateAsync(int qsoId, string userId, bool isAdmin, CancellationToken ct);
+    public async Task<QsoAnalysisResponse> GetOrCreateAsync(int qsoId, string userId, bool isAdmin, CancellationToken ct)
+    {
+        throw new NotImplementedException();
+    }
 }
 ```
 
