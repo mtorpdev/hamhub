@@ -117,6 +117,7 @@ builder.Services.AddSingleton<HamHub.Api.Services.CommunityPresenceTracker>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxClusterSpotService>();
 builder.Services.AddSingleton<HamHub.Api.Services.DxccLookupService>();
 builder.Services.AddScoped<HamHub.Api.Services.Awards.AwardEngine>();
+builder.Services.AddScoped<HamHub.Api.Services.QsoAnalysisService>();
 builder.Services.AddScoped<HamHub.Api.Services.QsoAwardEnrichmentService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.OpenMeteoWeatherService>();
 builder.Services.AddHttpClient<HamHub.Api.Services.NoaaSwpcPropagationService>();

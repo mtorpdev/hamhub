@@ -29,6 +29,7 @@ public class QsosController : ControllerBase
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
     private readonly QsoAwardEnrichmentService _awardEnrichment;
+    private readonly QsoAnalysisService? _analysisService;
 
     public QsosController(
         ApplicationDbContext context,
@@ -38,7 +39,8 @@ public class QsosController : ControllerBase
         OpenMeteoWeatherService weatherService,
         NoaaSwpcPropagationService propagationService,
         IDataProtectionProvider dataProtectionProvider,
-        QsoAwardEnrichmentService awardEnrichment)
+        QsoAwardEnrichmentService awardEnrichment,
+        QsoAnalysisService? analysisService = null)
     {
         _context = context;
         _mapper = mapper;
@@ -50,6 +52,7 @@ public class QsosController : ControllerBase
         _qrzProtector = dataProtectionProvider.CreateProtector("QrzApiKey");
         _lotwProtector = dataProtectionProvider.CreateProtector("LotwPassword");
         _awardEnrichment = awardEnrichment;
+        _analysisService = analysisService;
     }
 
     [HttpGet]
@@ -196,6 +199,28 @@ public class QsosController : ControllerBase
         return Ok(QsoConditionsBuilder.WithPropagation(
             QsoConditionsBuilder.WithWeather(conditions, ownWeather, workedWeather),
             propagation));
+    }
+
+    [HttpGet("{id}/analysis")]
+    public async Task<IActionResult> GetAnalysis(int id, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        if (_analysisService is null) return StatusCode(StatusCodes.Status500InternalServerError);
+
+        try
+        {
+            var analysis = await _analysisService.GetOrCreateAsync(id, userId, User.IsInRole("Admin"), ct);
+            return Ok(analysis);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     [HttpPost("{id}/eqsl/send")]
