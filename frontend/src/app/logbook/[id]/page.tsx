@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent } from '@/components/ui/Card'
-import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus, type Station } from '@/lib/types'
+import { Band, BandLabels, Mode, ModeLabels, type Qso, type QsoAnalysis, type QsoAnalysisQsl, type QsoConditions, type QsoConditionsLocation, type QsoExternalLogStatus, type QsoWeather, type Station } from '@/lib/types'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/contexts/ToastContext'
 import { gridToLatLng } from '@/components/ui/Map'
@@ -15,6 +15,7 @@ import { pageShellClass } from '@/lib/layout'
 import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 import { useLanguage } from '@/i18n/LanguageContext'
 import { dateTimeLocalUtcToIso, toUtcDateTimeLocal } from '@/lib/utcDate'
+import { issueTone, scoreTone, sortIssues, type AnalysisTone } from '../qsoAnalysis'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 const PROPAGATION_RATING_GOOD = 'G' + 'od'
@@ -39,12 +40,15 @@ export default function EditQsoPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<'details' | 'map' | 'conditions' | 'propagation' | 'qsl'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'map' | 'conditions' | 'propagation' | 'qsl' | 'analysis'>('details')
   const [externalStatuses, setExternalStatuses] = useState<QsoExternalLogStatus[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
   const [conditions, setConditions] = useState<QsoConditions | null>(null)
   const [conditionsLoading, setConditionsLoading] = useState(false)
   const [conditionsError, setConditionsError] = useState('')
+  const [analysis, setAnalysis] = useState<QsoAnalysis | null>(null)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisError, setAnalysisError] = useState('')
   const [stations, setStations] = useState<Station[]>([])
 
   const applyQsoToForm = (q: Qso) => {
@@ -85,6 +89,10 @@ export default function EditQsoPage() {
     if (!id) return
     const qsoId = Number(id)
     let cancelled = false
+    setAnalysis(null)
+    setAnalysisError('')
+    setConditions(null)
+    setConditionsError('')
 
     api.qsos.getById(qsoId).then(applyQsoToForm).catch(() => router.replace('/logbook')).finally(() => setLoading(false))
     api.stations.getMine().then(items => {
@@ -106,6 +114,27 @@ export default function EditQsoPage() {
     loadExternalStatus()
     return () => { cancelled = true }
   }, [id, router])
+
+  useEffect(() => {
+    if (activeTab !== 'analysis' || !id || analysis || analysisLoading) return
+    let cancelled = false
+
+    async function loadAnalysis() {
+      setAnalysisLoading(true)
+      setAnalysisError('')
+      try {
+        const nextAnalysis = await api.qsos.getAnalysis(Number(id))
+        if (!cancelled) setAnalysis(nextAnalysis)
+      } catch {
+        if (!cancelled) setAnalysisError(t('logbook.analysis.loadFailed'))
+      } finally {
+        if (!cancelled) setAnalysisLoading(false)
+      }
+    }
+
+    void loadAnalysis()
+    return () => { cancelled = true }
+  }, [activeTab, analysis, analysisLoading, id, t])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -295,6 +324,10 @@ export default function EditQsoPage() {
     if (!conditions && !conditionsLoading) void refreshConditions()
   }
 
+  const openAnalysisTab = () => {
+    setActiveTab('analysis')
+  }
+
   const formatNumber = (value: number | null | undefined, suffix = '', digits = 0) =>
     value == null ? t('common.unknown') : `${value.toFixed(digits)}${suffix}`
 
@@ -403,6 +436,62 @@ export default function EditQsoPage() {
     return t('logbook.detail.bandReason.neutral')
   }
 
+  const analysisBadgeVariant = (tone: AnalysisTone): 'default' | 'success' | 'warning' | 'info' => {
+    if (tone === 'good') return 'success'
+    if (tone === 'warning') return 'warning'
+    if (tone === 'danger') return 'info'
+    return 'default'
+  }
+
+  const formatAnalysisDate = (value: string | null) =>
+    value ? `${new Date(value).toLocaleString(language, { timeZone: 'UTC' })} UTC` : t('common.none')
+
+  const formatAnalysisNumber = (value: number | null | undefined, suffix = '', digits = 0) =>
+    value == null ? t('common.unknown') : `${value.toFixed(digits)}${suffix}`
+
+  const qslBadgeVariant = (status: string): 'default' | 'success' | 'warning' | 'info' => {
+    if (status === 'confirmed' || status === 'synced') return 'success'
+    if (status === 'ready' || status === 'missing') return 'warning'
+    return 'default'
+  }
+
+  const renderWeatherSummary = (title: string, weather: QsoWeather | null) => (
+    <div className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
+      <p className="text-xs uppercase tracking-wide text-gray-500">{title}</p>
+      {weather ? (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-300">
+          <div>
+            <p className="text-xs text-gray-500">{t('logbook.detail.temperature')}</p>
+            <p className="mt-1 text-white">{formatAnalysisNumber(weather.temperatureC, ' C', 1)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">{t('logbook.detail.wind')}</p>
+            <p className="mt-1 text-white">{formatAnalysisNumber(weather.windSpeedKmh, ' km/t', 0)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">{t('logbook.detail.pressure')}</p>
+            <p className="mt-1 text-white">{formatAnalysisNumber(weather.pressureHpa, ' hPa')}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">{t('logbook.detail.cloudCover')}</p>
+            <p className="mt-1 text-white">{formatAnalysisNumber(weather.cloudCoverPercent, '%')}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-gray-400">{t('logbook.analysis.partial')}</p>
+      )}
+    </div>
+  )
+
+  const scoreCards = analysis ? [
+    ['overall', analysis.scores.overall],
+    ['confirmation', analysis.scores.confirmation],
+    ['dataQuality', analysis.scores.dataQuality],
+    ['awardImpact', analysis.scores.awardImpact],
+    ['propagation', analysis.scores.propagation],
+    ['duplicateRisk', analysis.scores.duplicateRisk],
+  ] as const : []
+
   return (
     <div className={pageShellClass}>
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -463,6 +552,15 @@ export default function EditQsoPage() {
               }`}
             >
               {t('logbook.detail.tabs.qsl')}
+            </button>
+            <button
+              type="button"
+              onClick={openAnalysisTab}
+              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'analysis' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {t('logbook.detail.tabs.analysis')}
             </button>
           </div>
 
@@ -895,6 +993,218 @@ export default function EditQsoPage() {
               ) : (
                 <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
                   {t('logbook.detail.reopenPropagation')}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'analysis' ? (
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{t('logbook.analysis.title')}</h2>
+                  <p className="mt-1 text-sm text-gray-400">
+                    {analysis
+                      ? `${new Date(analysis.generatedAtUtc).toLocaleString(language, { timeZone: 'UTC' })} UTC • v${analysis.analysisVersion}`
+                      : t('logbook.analysis.partial')}
+                  </p>
+                </div>
+                {analysis?.flags.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.flags.map(flag => (
+                      <Badge key={flag.key} variant={analysisBadgeVariant(issueTone(flag.severity))}>
+                        {flag.label}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {analysisLoading && !analysis ? (
+                <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
+                  {t('common.loading')}
+                </div>
+              ) : analysisError ? (
+                <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-100">
+                  {analysisError}
+                </div>
+              ) : analysis ? (
+                <>
+                  {analysis.highlights.length > 0 && (
+                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {analysis.highlights.map(highlight => (
+                        <div key={highlight} className="rounded-lg border border-emerald-900/50 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-100">
+                          {highlight}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <section className="flex flex-col gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.scores')}</h3>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {scoreCards.map(([key, value]) => (
+                        <div key={key} className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-sm font-medium text-white">{t(`logbook.analysis.score.${key}` as never)}</p>
+                            <Badge variant={analysisBadgeVariant(scoreTone(value))}>{value}</Badge>
+                          </div>
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-800">
+                            <div
+                              className={`h-full rounded-full ${
+                                scoreTone(value) === 'good' ? 'bg-emerald-500' : scoreTone(value) === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="flex flex-col gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.story')}</h3>
+                    <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4 text-sm leading-6 text-gray-200">
+                      {analysis.storyText || t('logbook.analysis.partial')}
+                    </div>
+                  </section>
+
+                  <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                    <section className="flex flex-col gap-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.qsl')}</h3>
+                      <div className="grid gap-3">
+                        {analysis.qsl.map((item: QsoAnalysisQsl) => (
+                          <div key={item.provider} className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-base font-semibold text-white">{item.provider}</p>
+                                <p className="mt-1 text-sm text-gray-300">{item.label}</p>
+                              </div>
+                              <Badge variant={qslBadgeVariant(item.status)}>{item.status}</Badge>
+                            </div>
+                            <p className="mt-3 text-sm text-gray-400">{item.description}</p>
+                            <div className="mt-3 grid gap-2 text-xs text-gray-500 sm:grid-cols-2">
+                              <p>{t('logbook.confirmed')}: <span className="text-gray-300">{formatAnalysisDate(item.confirmedAt)}</span></p>
+                              <p>{t('logbook.detail.latestActivity')}: <span className="text-gray-300">{formatAnalysisDate(item.lastUpdatedAt)}</span></p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="flex flex-col gap-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.awards')}</h3>
+                      <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          {[
+                            { key: 'contributesTo', labelKey: 'logbook.analysis.contributesTo', items: analysis.awardImpact.contributesTo },
+                            { key: 'confirmationSources', labelKey: 'logbook.analysis.confirmationSources', items: analysis.awardImpact.confirmationSources },
+                            { key: 'blockedByMissingFields', labelKey: 'logbook.analysis.blockedByMissingFields', items: analysis.awardImpact.blockedByMissingFields },
+                          ].map(section => (
+                            <div key={section.key}>
+                              <p className="text-xs uppercase tracking-wide text-gray-500">{t(section.labelKey as never)}</p>
+                              {section.items.length ? (
+                                <ul className="mt-2 space-y-2 text-sm text-gray-300">
+                                  {section.items.map(item => <li key={item}>{item}</li>)}
+                                </ul>
+                              ) : (
+                                <p className="mt-2 text-sm text-gray-400">{t('common.none')}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="flex flex-col gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.conditions')}</h3>
+                    <div className="grid gap-4 xl:grid-cols-3">
+                      <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.detail.tabs.propagation')}</p>
+                        <div className="mt-3 space-y-2 text-sm text-gray-300">
+                          <p>{t('logbook.detail.distance')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.distanceKm, ' km', 1)}</span></p>
+                          <p>{t('logbook.detail.bearing')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.bearingDegrees, ' deg')}</span></p>
+                          <p>Path: <span className="text-white">{analysis.propagation.pathLight || t('common.unknown')}</span></p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {analysis.propagation.bandFacts.length ? analysis.propagation.bandFacts.map(fact => (
+                            <span key={fact} className="rounded-md bg-gray-950/50 px-2 py-1 text-xs text-gray-300">{fact}</span>
+                          )) : (
+                            <span className="text-sm text-gray-400">{t('logbook.analysis.partial')}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.analysis.sun')}</p>
+                        <div className="mt-3 space-y-2 text-sm text-gray-300">
+                          <p>Class: <span className="text-white">{analysis.sun.classification || t('common.unknown')}</span></p>
+                          <p>{t('logbook.detail.myStation')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.ownElevationDegrees, ' deg', 1)}</span></p>
+                          <p>{t('qso.contact')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.workedElevationDegrees, ' deg', 1)}</span></p>
+                          <p>{t('logbook.detail.midpoint')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.midpointElevationDegrees, ' deg', 1)}</span></p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.analysis.weather')}</p>
+                          <Badge variant="default">{analysis.weather.source || t('common.unknown')}</Badge>
+                        </div>
+                        <div className="mt-3 grid gap-3">
+                          {renderWeatherSummary(t('logbook.detail.myStation'), analysis.weather.own)}
+                          {renderWeatherSummary(t('qso.contact'), analysis.weather.worked)}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                    <section className="flex flex-col gap-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.dataQuality')}</h3>
+                      <div className="grid gap-3">
+                        {sortIssues(analysis.dataQuality).length ? sortIssues(analysis.dataQuality).map(issue => (
+                          <div key={`${issue.field}-${issue.label}`} className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-base font-semibold text-white">{issue.label}</p>
+                                <p className="mt-1 font-mono text-xs text-gray-500">{issue.field}</p>
+                              </div>
+                              <Badge variant={analysisBadgeVariant(issueTone(issue.severity))}>{issue.severity}</Badge>
+                            </div>
+                            <p className="mt-3 text-sm text-gray-400">{issue.description}</p>
+                          </div>
+                        )) : (
+                          <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-100">
+                            {t('logbook.analysis.noIssues')}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="flex flex-col gap-3">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{t('logbook.analysis.duplicates')}</h3>
+                      <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.analysis.score.duplicateRisk')}</p>
+                            <p className="mt-1 text-2xl font-semibold text-white">{analysis.duplicateRisk.score}</p>
+                          </div>
+                          <Badge variant={analysisBadgeVariant(scoreTone(analysis.duplicateRisk.score))}>
+                            {scoreTone(analysis.duplicateRisk.score)}
+                          </Badge>
+                        </div>
+                        <div className="mt-4 space-y-2 text-sm text-gray-300">
+                          <p>{t('logbook.analysis.candidateCount')}: <span className="text-white">{analysis.duplicateRisk.candidateCount}</span></p>
+                          <p>{t('logbook.analysis.closestQso')}: <span className="text-white">{analysis.duplicateRisk.closestQsoId ?? t('common.none')}</span></p>
+                          <p>{t('logbook.analysis.timeDelta')}: <span className="text-white">{formatAnalysisNumber(analysis.duplicateRisk.deltaSeconds, ' s', 0)}</span></p>
+                          <p>{t('logbook.analysis.localTimeOffsetRisk')}: <span className="text-white">{analysis.duplicateRisk.localTimeOffsetRisk ? t('common.yes') : t('common.no')}</span></p>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-gray-700 bg-gray-900/40 px-4 py-6 text-sm text-gray-400">
+                  {t('logbook.analysis.partial')}
                 </div>
               )}
             </div>

@@ -139,6 +139,90 @@ export interface QsoExternalLogStatus {
   lastResult: string | null
 }
 
+export interface QsoAnalysis {
+  id: number
+  qsoId: number
+  generatedAtUtc: string
+  analysisVersion: number
+  scores: QsoAnalysisScores
+  highlights: string[]
+  flags: QsoAnalysisFlag[]
+  qsl: QsoAnalysisQsl[]
+  awardImpact: QsoAnalysisAwardImpact
+  propagation: QsoAnalysisPropagation
+  sun: QsoAnalysisSun
+  weather: QsoAnalysisWeather
+  dataQuality: QsoAnalysisDataIssue[]
+  duplicateRisk: QsoAnalysisDuplicateRisk
+  storyText: string
+}
+
+export interface QsoAnalysisScores {
+  overall: number
+  confirmation: number
+  dataQuality: number
+  awardImpact: number
+  propagation: number
+  duplicateRisk: number
+}
+
+export interface QsoAnalysisFlag {
+  key: string
+  label: string
+  severity: string
+  description: string
+}
+
+export interface QsoAnalysisQsl {
+  provider: string
+  status: string
+  label: string
+  description: string
+  confirmedAt: string | null
+  lastUpdatedAt: string | null
+}
+
+export interface QsoAnalysisAwardImpact {
+  contributesTo: string[]
+  blockedByMissingFields: string[]
+  confirmationSources: string[]
+}
+
+export interface QsoAnalysisPropagation {
+  distanceKm: number | null
+  bearingDegrees: number | null
+  pathLight: string
+  bandFacts: string[]
+}
+
+export interface QsoAnalysisSun {
+  ownElevationDegrees: number | null
+  workedElevationDegrees: number | null
+  midpointElevationDegrees: number | null
+  classification: string
+}
+
+export interface QsoAnalysisWeather {
+  own: QsoWeather | null
+  worked: QsoWeather | null
+  source: string
+}
+
+export interface QsoAnalysisDataIssue {
+  field: string
+  label: string
+  severity: string
+  description: string
+}
+
+export interface QsoAnalysisDuplicateRisk {
+  score: number
+  candidateCount: number
+  closestQsoId: number | null
+  deltaSeconds: number | null
+  localTimeOffsetRisk: boolean
+}
+
 export interface QsoDuplicateGroup {
   key: string
   workedCallsign: string

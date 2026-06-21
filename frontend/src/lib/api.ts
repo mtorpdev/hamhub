@@ -84,6 +84,7 @@ export const api = {
     getById: (id: number) => request<import('./types').Qso>(`/api/qsos/${id}`),
     getExternalStatus: (id: number) => request<import('./types').QsoExternalLogStatus[]>(`/api/qsos/${id}/external-status`),
     getConditions: (id: number) => request<import('./types').QsoConditions>(`/api/qsos/${id}/conditions`),
+    getAnalysis: (id: number) => request<import('./types').QsoAnalysis>(`/api/qsos/${id}/analysis`),
     sendToEqsl: (id: number) => request<{ success: boolean; message: string; eqslSentAt: string }>(`/api/qsos/${id}/eqsl/send`, { method: 'POST' }),
     create: (data: Partial<import('./types').Qso>) =>
       request<import('./types').Qso>('/api/qsos', { method: 'POST', body: JSON.stringify(data) }),
