@@ -130,6 +130,34 @@ public class QsoAnalysisServiceTests
     }
 
     [Fact]
+    public async Task AnalysisRegeneratesWhenNearbyDuplicateCandidateDiffersOnlyByCallsignFormatting()
+    {
+        await using var context = CreateContext();
+        var user = User("user-1", "OZ1ME");
+        var qso = Qso(user, "JA1XYZ");
+        context.Users.Add(user);
+        context.QsoEntries.Add(qso);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var first = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var firstHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        var duplicate = Qso(user, "  ja1xyz  ");
+        duplicate.DateUtc = qso.DateUtc.AddSeconds(45);
+        context.QsoEntries.Add(duplicate);
+        await context.SaveChangesAsync();
+
+        var second = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var secondHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        Assert.Equal(0, first.DuplicateRisk.CandidateCount);
+        Assert.Equal(1, second.DuplicateRisk.CandidateCount);
+        Assert.True(second.Scores.DuplicateRisk > 0);
+        Assert.NotEqual(firstHash, secondHash);
+    }
+
+    [Fact]
     public async Task AnalysisRegeneratesWhenQrzQslDateChanges()
     {
         await using var context = CreateContext();

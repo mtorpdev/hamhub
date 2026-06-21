@@ -174,11 +174,12 @@ public class QsoAnalysisService
     {
         var lower = qso.DateUtc.AddHours(-2).AddSeconds(-60);
         var upper = qso.DateUtc.AddHours(2).AddSeconds(60);
+        var normalizedWorkedCallsign = NormalizeCallsign(qso.WorkedCallsign);
         return await _context.QsoEntries
             .Where(existing =>
                 existing.UserId == qso.UserId &&
                 existing.Id != qso.Id &&
-                existing.WorkedCallsign == qso.WorkedCallsign &&
+                existing.WorkedCallsign.Trim().ToUpper() == normalizedWorkedCallsign &&
                 existing.Mode == qso.Mode &&
                 existing.DateUtc >= lower &&
                 existing.DateUtc <= upper)
@@ -234,8 +235,8 @@ public class QsoAnalysisService
                 candidate.Id,
                 EnsureUtc(candidate.DateUtc).ToString("O"),
                 candidate.UpdatedAt.ToUniversalTime().ToString("O"),
-                candidate.OwnCallsign,
-                candidate.WorkedCallsign,
+                NormalizeCallsign(candidate.OwnCallsign),
+                NormalizeCallsign(candidate.WorkedCallsign),
                 candidate.Band,
                 candidate.Mode)));
 
@@ -388,6 +389,8 @@ public class QsoAnalysisService
         value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
     private static DateTime? EnsureUtc(DateTime? value) => value.HasValue ? EnsureUtc(value.Value) : null;
+
+    private static string NormalizeCallsign(string callsign) => callsign.Trim().ToUpperInvariant();
 
     private static void AddMissing(List<QsoAnalysisDataIssueDto> issues, string field, string label, string? value, string severity, string description)
     {
