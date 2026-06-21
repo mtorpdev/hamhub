@@ -48,4 +48,5 @@ public class QsoEntry
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ApplicationUser User { get; set; } = null!;
+    public QsoAnalysis? Analysis { get; set; }
 }

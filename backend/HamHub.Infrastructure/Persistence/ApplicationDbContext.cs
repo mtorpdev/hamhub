@@ -32,6 +32,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<NotificationEvent> NotificationEvents => Set<NotificationEvent>();
+    public DbSet<QsoAnalysis> QsoAnalyses => Set<QsoAnalysis>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
