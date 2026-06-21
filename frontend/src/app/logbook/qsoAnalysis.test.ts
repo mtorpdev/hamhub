@@ -1,8 +1,10 @@
 import { strict as assert } from 'node:assert'
 import test from 'node:test'
 import {
+  analysisBadgeVariant,
   duplicateRiskLevel,
   duplicateRiskTone,
+  flagLabelKey,
   issueSeverityLabelKey,
   issueTone,
   qslStatusLabelKey,
@@ -46,10 +48,27 @@ test('maps duplicate risk score ranges to risk levels', () => {
 
 test('maps analysis qsl statuses and issue severities to translation keys', () => {
   assert.equal(qslStatusLabelKey('confirmed'), 'logbook.analysis.qslStatus.confirmed')
-  assert.equal(qslStatusLabelKey('missing'), 'logbook.analysis.qslStatus.missing')
+  assert.equal(qslStatusLabelKey('activity'), 'logbook.analysis.qslStatus.activity')
+  assert.equal(qslStatusLabelKey('none'), 'logbook.analysis.qslStatus.none')
+  assert.equal(qslStatusLabelKey('sent'), 'logbook.analysis.qslStatus.sent')
+  assert.equal(qslStatusLabelKey('logged'), 'logbook.analysis.qslStatus.logged')
   assert.equal(qslStatusLabelKey('custom'), null)
   assert.equal(issueSeverityLabelKey('critical'), 'logbook.analysis.issueSeverity.critical')
   assert.equal(issueSeverityLabelKey('warning'), 'logbook.analysis.issueSeverity.warning')
   assert.equal(issueSeverityLabelKey('info'), 'logbook.analysis.issueSeverity.info')
   assert.equal(issueSeverityLabelKey('other'), null)
+})
+
+test('maps analysis flag keys to translation keys', () => {
+  assert.equal(flagLabelKey('confirmed'), 'logbook.analysis.flag.confirmed')
+  assert.equal(flagLabelKey('missing-data'), 'logbook.analysis.flag.missingData')
+  assert.equal(flagLabelKey('duplicate-risk'), 'logbook.analysis.flag.duplicateRisk')
+  assert.equal(flagLabelKey('other'), null)
+})
+
+test('maps danger analysis tones to a warning badge instead of info', () => {
+  assert.equal(analysisBadgeVariant('good'), 'success')
+  assert.equal(analysisBadgeVariant('warning'), 'warning')
+  assert.equal(analysisBadgeVariant('danger'), 'warning')
+  assert.equal(analysisBadgeVariant('default'), 'default')
 })

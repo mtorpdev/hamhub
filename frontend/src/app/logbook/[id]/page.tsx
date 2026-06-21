@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
@@ -16,14 +16,15 @@ import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 import { useLanguage } from '@/i18n/LanguageContext'
 import { dateTimeLocalUtcToIso, toUtcDateTimeLocal } from '@/lib/utcDate'
 import {
+  analysisBadgeVariant,
   duplicateRiskLevel,
   duplicateRiskTone,
+  flagLabelKey,
   issueSeverityLabelKey,
   issueTone,
   qslStatusLabelKey,
   scoreTone,
   sortIssues,
-  type AnalysisTone,
 } from '../qsoAnalysis'
 
 const Map = lazy(() => import('@/components/ui/Map'))
@@ -60,6 +61,7 @@ export default function EditQsoPage() {
   const [analysisError, setAnalysisError] = useState('')
   const [analysisAttempted, setAnalysisAttempted] = useState(false)
   const [stations, setStations] = useState<Station[]>([])
+  const analysisRequestRef = useRef({ requestId: 0, qsoId: null as number | null })
 
   const applyQsoToForm = (q: Qso) => {
     setForm({
@@ -99,8 +101,10 @@ export default function EditQsoPage() {
     if (!id) return
     const qsoId = Number(id)
     let cancelled = false
+    analysisRequestRef.current = { requestId: analysisRequestRef.current.requestId + 1, qsoId }
     setAnalysis(null)
     setAnalysisError('')
+    setAnalysisLoading(false)
     setAnalysisAttempted(false)
     setConditions(null)
     setConditionsError('')
@@ -127,14 +131,21 @@ export default function EditQsoPage() {
   }, [id, router])
 
   const refreshAnalysis = useCallback(async () => {
+    const qsoId = Number(id)
+    const requestId = analysisRequestRef.current.requestId + 1
+    analysisRequestRef.current = { requestId, qsoId }
     setAnalysisAttempted(true)
     setAnalysisLoading(true)
     setAnalysisError('')
     try {
-      setAnalysis(await api.qsos.getAnalysis(Number(id)))
+      const nextAnalysis = await api.qsos.getAnalysis(qsoId)
+      if (analysisRequestRef.current.requestId !== requestId || analysisRequestRef.current.qsoId !== qsoId) return
+      setAnalysis(nextAnalysis)
     } catch {
+      if (analysisRequestRef.current.requestId !== requestId || analysisRequestRef.current.qsoId !== qsoId) return
       setAnalysisError(t('logbook.analysis.loadFailed'))
     } finally {
+      if (analysisRequestRef.current.requestId !== requestId || analysisRequestRef.current.qsoId !== qsoId) return
       setAnalysisLoading(false)
     }
   }, [id, t])
@@ -444,13 +455,6 @@ export default function EditQsoPage() {
     return t('logbook.detail.bandReason.neutral')
   }
 
-  const analysisBadgeVariant = (tone: AnalysisTone): 'default' | 'success' | 'warning' | 'info' => {
-    if (tone === 'good') return 'success'
-    if (tone === 'warning') return 'warning'
-    if (tone === 'danger') return 'info'
-    return 'default'
-  }
-
   const formatAnalysisDate = (value: string | null) =>
     value ? `${new Date(value).toLocaleString(language, { timeZone: 'UTC' })} UTC` : t('common.none')
 
@@ -458,14 +462,19 @@ export default function EditQsoPage() {
     value == null ? t('common.unknown') : `${value.toFixed(digits)}${suffix}`
 
   const qslBadgeVariant = (status: string): 'default' | 'success' | 'warning' | 'info' => {
-    if (status === 'confirmed' || status === 'synced') return 'success'
-    if (status === 'ready' || status === 'missing') return 'warning'
+    if (status === 'confirmed') return 'success'
+    if (status === 'activity' || status === 'sent' || status === 'logged') return 'warning'
     return 'default'
   }
 
   const qslStatusLabel = (status: string) => {
     const key = qslStatusLabelKey(status)
     return key ? t(key as never) : status
+  }
+
+  const flagLabel = (key: string, fallback: string) => {
+    const translationKey = flagLabelKey(key)
+    return translationKey ? t(translationKey as never) : fallback
   }
 
   const issueSeverityLabel = (severity: string) => {
@@ -1032,7 +1041,7 @@ export default function EditQsoPage() {
                   <div className="flex flex-wrap gap-2">
                     {analysis.flags.map(flag => (
                       <Badge key={flag.key} variant={analysisBadgeVariant(issueTone(flag.severity))}>
-                        {flag.label}
+                        {flagLabel(flag.key, flag.label)}
                       </Badge>
                     ))}
                   </div>

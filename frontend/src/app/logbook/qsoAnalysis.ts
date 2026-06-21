@@ -1,6 +1,12 @@
 export type AnalysisTone = 'good' | 'warning' | 'danger' | 'default'
 export type DuplicateRiskLevel = 'low' | 'medium' | 'high'
 
+export function analysisBadgeVariant(tone: AnalysisTone): 'default' | 'success' | 'warning' | 'info' {
+  if (tone === 'good') return 'success'
+  if (tone === 'warning' || tone === 'danger') return 'warning'
+  return 'default'
+}
+
 export function scoreTone(score: number): AnalysisTone {
   if (score >= 80) return 'good'
   if (score >= 50) return 'warning'
@@ -27,9 +33,10 @@ export function issueTone(severity: string): AnalysisTone {
 
 export function qslStatusLabelKey(status: string): string | null {
   if (status === 'confirmed') return 'logbook.analysis.qslStatus.confirmed'
-  if (status === 'synced') return 'logbook.analysis.qslStatus.synced'
-  if (status === 'ready') return 'logbook.analysis.qslStatus.ready'
-  if (status === 'missing') return 'logbook.analysis.qslStatus.missing'
+  if (status === 'activity') return 'logbook.analysis.qslStatus.activity'
+  if (status === 'none') return 'logbook.analysis.qslStatus.none'
+  if (status === 'sent') return 'logbook.analysis.qslStatus.sent'
+  if (status === 'logged') return 'logbook.analysis.qslStatus.logged'
   return null
 }
 
@@ -37,6 +44,13 @@ export function issueSeverityLabelKey(severity: string): string | null {
   if (severity === 'critical') return 'logbook.analysis.issueSeverity.critical'
   if (severity === 'warning') return 'logbook.analysis.issueSeverity.warning'
   if (severity === 'info') return 'logbook.analysis.issueSeverity.info'
+  return null
+}
+
+export function flagLabelKey(key: string): string | null {
+  if (key === 'confirmed') return 'logbook.analysis.flag.confirmed'
+  if (key === 'missing-data') return 'logbook.analysis.flag.missingData'
+  if (key === 'duplicate-risk') return 'logbook.analysis.flag.duplicateRisk'
   return null
 }
 
