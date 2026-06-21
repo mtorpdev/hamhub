@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useState, lazy, Suspense } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Input } from '@/components/ui/Input'
@@ -15,7 +15,16 @@ import { pageShellClass } from '@/lib/layout'
 import { stationById, stationGrid, stationOptionLabel } from '../stationGrid'
 import { useLanguage } from '@/i18n/LanguageContext'
 import { dateTimeLocalUtcToIso, toUtcDateTimeLocal } from '@/lib/utcDate'
-import { issueTone, scoreTone, sortIssues, type AnalysisTone } from '../qsoAnalysis'
+import {
+  duplicateRiskLevel,
+  duplicateRiskTone,
+  issueSeverityLabelKey,
+  issueTone,
+  qslStatusLabelKey,
+  scoreTone,
+  sortIssues,
+  type AnalysisTone,
+} from '../qsoAnalysis'
 
 const Map = lazy(() => import('@/components/ui/Map'))
 const PROPAGATION_RATING_GOOD = 'G' + 'od'
@@ -49,6 +58,7 @@ export default function EditQsoPage() {
   const [analysis, setAnalysis] = useState<QsoAnalysis | null>(null)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
+  const [analysisAttempted, setAnalysisAttempted] = useState(false)
   const [stations, setStations] = useState<Station[]>([])
 
   const applyQsoToForm = (q: Qso) => {
@@ -91,6 +101,7 @@ export default function EditQsoPage() {
     let cancelled = false
     setAnalysis(null)
     setAnalysisError('')
+    setAnalysisAttempted(false)
     setConditions(null)
     setConditionsError('')
 
@@ -115,26 +126,23 @@ export default function EditQsoPage() {
     return () => { cancelled = true }
   }, [id, router])
 
-  useEffect(() => {
-    if (activeTab !== 'analysis' || !id || analysis || analysisLoading) return
-    let cancelled = false
-
-    async function loadAnalysis() {
-      setAnalysisLoading(true)
-      setAnalysisError('')
-      try {
-        const nextAnalysis = await api.qsos.getAnalysis(Number(id))
-        if (!cancelled) setAnalysis(nextAnalysis)
-      } catch {
-        if (!cancelled) setAnalysisError(t('logbook.analysis.loadFailed'))
-      } finally {
-        if (!cancelled) setAnalysisLoading(false)
-      }
+  const refreshAnalysis = useCallback(async () => {
+    setAnalysisAttempted(true)
+    setAnalysisLoading(true)
+    setAnalysisError('')
+    try {
+      setAnalysis(await api.qsos.getAnalysis(Number(id)))
+    } catch {
+      setAnalysisError(t('logbook.analysis.loadFailed'))
+    } finally {
+      setAnalysisLoading(false)
     }
+  }, [id, t])
 
-    void loadAnalysis()
-    return () => { cancelled = true }
-  }, [activeTab, analysis, analysisLoading, id, t])
+  useEffect(() => {
+    if (activeTab !== 'analysis' || !id || analysis || analysisLoading || analysisAttempted) return
+    void refreshAnalysis()
+  }, [activeTab, analysis, analysisAttempted, analysisLoading, id, refreshAnalysis])
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -454,6 +462,19 @@ export default function EditQsoPage() {
     if (status === 'ready' || status === 'missing') return 'warning'
     return 'default'
   }
+
+  const qslStatusLabel = (status: string) => {
+    const key = qslStatusLabelKey(status)
+    return key ? t(key as never) : status
+  }
+
+  const issueSeverityLabel = (severity: string) => {
+    const key = issueSeverityLabelKey(severity)
+    return key ? t(key as never) : severity
+  }
+
+  const scoreCardTone = (key: string, value: number) =>
+    key === 'duplicateRisk' ? duplicateRiskTone(value) : scoreTone(value)
 
   const renderWeatherSummary = (title: string, weather: QsoWeather | null) => (
     <div className="rounded-md border border-gray-800 bg-gray-950/40 p-3">
@@ -1024,7 +1045,12 @@ export default function EditQsoPage() {
                 </div>
               ) : analysisError ? (
                 <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-100">
-                  {analysisError}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span>{analysisError}</span>
+                    <Button type="button" size="sm" variant="secondary" onClick={refreshAnalysis} disabled={analysisLoading}>
+                      {t('logbook.analysis.retry')}
+                    </Button>
+                  </div>
                 </div>
               ) : analysis ? (
                 <>
@@ -1045,12 +1071,12 @@ export default function EditQsoPage() {
                         <div key={key} className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
                           <div className="flex items-start justify-between gap-3">
                             <p className="text-sm font-medium text-white">{t(`logbook.analysis.score.${key}` as never)}</p>
-                            <Badge variant={analysisBadgeVariant(scoreTone(value))}>{value}</Badge>
+                            <Badge variant={analysisBadgeVariant(scoreCardTone(key, value))}>{value}</Badge>
                           </div>
                           <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-800">
                             <div
                               className={`h-full rounded-full ${
-                                scoreTone(value) === 'good' ? 'bg-emerald-500' : scoreTone(value) === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                scoreCardTone(key, value) === 'good' ? 'bg-emerald-500' : scoreCardTone(key, value) === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                               }`}
                               style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
                             />
@@ -1078,7 +1104,7 @@ export default function EditQsoPage() {
                                 <p className="text-base font-semibold text-white">{item.provider}</p>
                                 <p className="mt-1 text-sm text-gray-300">{item.label}</p>
                               </div>
-                              <Badge variant={qslBadgeVariant(item.status)}>{item.status}</Badge>
+                              <Badge variant={qslBadgeVariant(item.status)}>{qslStatusLabel(item.status)}</Badge>
                             </div>
                             <p className="mt-3 text-sm text-gray-400">{item.description}</p>
                             <div className="mt-3 grid gap-2 text-xs text-gray-500 sm:grid-cols-2">
@@ -1123,7 +1149,7 @@ export default function EditQsoPage() {
                         <div className="mt-3 space-y-2 text-sm text-gray-300">
                           <p>{t('logbook.detail.distance')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.distanceKm, ' km', 1)}</span></p>
                           <p>{t('logbook.detail.bearing')}: <span className="text-white">{formatAnalysisNumber(analysis.propagation.bearingDegrees, ' deg')}</span></p>
-                          <p>Path: <span className="text-white">{analysis.propagation.pathLight || t('common.unknown')}</span></p>
+                          <p>{t('logbook.analysis.path')}: <span className="text-white">{analysis.propagation.pathLight || t('common.unknown')}</span></p>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {analysis.propagation.bandFacts.length ? analysis.propagation.bandFacts.map(fact => (
@@ -1137,7 +1163,7 @@ export default function EditQsoPage() {
                       <div className="rounded-lg border border-gray-700 bg-gray-900/30 p-4">
                         <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.analysis.sun')}</p>
                         <div className="mt-3 space-y-2 text-sm text-gray-300">
-                          <p>Class: <span className="text-white">{analysis.sun.classification || t('common.unknown')}</span></p>
+                          <p>{t('logbook.analysis.class')}: <span className="text-white">{analysis.sun.classification || t('common.unknown')}</span></p>
                           <p>{t('logbook.detail.myStation')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.ownElevationDegrees, ' deg', 1)}</span></p>
                           <p>{t('qso.contact')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.workedElevationDegrees, ' deg', 1)}</span></p>
                           <p>{t('logbook.detail.midpoint')}: <span className="text-white">{formatAnalysisNumber(analysis.sun.midpointElevationDegrees, ' deg', 1)}</span></p>
@@ -1168,7 +1194,7 @@ export default function EditQsoPage() {
                                 <p className="text-base font-semibold text-white">{issue.label}</p>
                                 <p className="mt-1 font-mono text-xs text-gray-500">{issue.field}</p>
                               </div>
-                              <Badge variant={analysisBadgeVariant(issueTone(issue.severity))}>{issue.severity}</Badge>
+                              <Badge variant={analysisBadgeVariant(issueTone(issue.severity))}>{issueSeverityLabel(issue.severity)}</Badge>
                             </div>
                             <p className="mt-3 text-sm text-gray-400">{issue.description}</p>
                           </div>
@@ -1188,8 +1214,8 @@ export default function EditQsoPage() {
                             <p className="text-xs uppercase tracking-wide text-gray-500">{t('logbook.analysis.score.duplicateRisk')}</p>
                             <p className="mt-1 text-2xl font-semibold text-white">{analysis.duplicateRisk.score}</p>
                           </div>
-                          <Badge variant={analysisBadgeVariant(scoreTone(analysis.duplicateRisk.score))}>
-                            {scoreTone(analysis.duplicateRisk.score)}
+                          <Badge variant={analysisBadgeVariant(duplicateRiskTone(analysis.duplicateRisk.score))}>
+                            {t(`logbook.analysis.riskLevel.${duplicateRiskLevel(analysis.duplicateRisk.score)}` as never)}
                           </Badge>
                         </div>
                         <div className="mt-4 space-y-2 text-sm text-gray-300">
