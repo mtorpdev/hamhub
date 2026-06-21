@@ -362,7 +362,7 @@ public class QsoAnalysisService
     {
         var confirmation = qsl.Any(item => item.Status == "confirmed")
             ? 100
-            : qsl.Any(item => item.Status is "sent" or "logged" or "activity")
+            : qsl.Any(item => item.Status is "sent" or "logged" or "activity" or "synced")
                 ? 60
                 : 0;
         var dataQuality = Math.Max(0, 100 - issues.Length * 10);

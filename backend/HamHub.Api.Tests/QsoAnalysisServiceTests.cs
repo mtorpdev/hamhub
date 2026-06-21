@@ -191,6 +191,28 @@ public class QsoAnalysisServiceTests
     }
 
     [Fact]
+    public async Task AnalysisScoresQrzSyncedQsoAsExternalActivity()
+    {
+        await using var context = CreateContext();
+        var provider = DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-analysis-{Guid.NewGuid():N}"));
+        var user = User("user-1", "OZ1ME");
+        var qso = Qso(user, "JA1XYZ");
+        qso.QrzId = "123";
+        user.QrzApiKey = provider.CreateProtector("QrzApiKey").Protect("api-key");
+        context.Users.Add(user);
+        context.QsoEntries.Add(qso);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, dataProtectionProvider: provider);
+
+        var analysis = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+
+        Assert.Contains(analysis.Qsl, item => item.Provider == "QRZ" && item.Status == "synced");
+        Assert.Equal(60, analysis.Scores.Confirmation);
+        Assert.Contains("external log activity", analysis.StoryText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task AnalysisReturnsPersistedRowWhenConcurrentInsertWins()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
