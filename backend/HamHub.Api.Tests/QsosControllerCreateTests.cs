@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using AutoMapper;
 using HamHub.Api.Controllers;
 using HamHub.Api.Services;
+using HamHub.Api.Services.Awards;
 using HamHub.Application.Common.Mappings;
 using HamHub.Application.QsoEntries.DTOs;
 using HamHub.Domain.Entities;
@@ -175,6 +176,7 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var enrichment = new QsoAwardEnrichmentService(context, lookup);
+        var analysis = new QsoAnalysisService(context, new AwardEngine());
         var controller = new QsosController(
             context,
             mapper,
@@ -183,7 +185,8 @@ Denmark:                  14:  18:  EU:   56.00:   -10.00:    -1.0:  OZ:
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
             DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
-            enrichment);
+            enrichment,
+            analysis);
 
         controller.ControllerContext = new ControllerContext
         {

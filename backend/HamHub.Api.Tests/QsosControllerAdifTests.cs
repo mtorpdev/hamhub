@@ -4,6 +4,7 @@ using System.Text;
 using AutoMapper;
 using HamHub.Api.Controllers;
 using HamHub.Api.Services;
+using HamHub.Api.Services.Awards;
 using HamHub.Application.Common.Mappings;
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
@@ -154,6 +155,7 @@ public class QsosControllerAdifTests
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var lookup = new DxccLookupService(new EmptyWebHostEnvironment(), NullLogger<DxccLookupService>.Instance);
+        var analysis = new QsoAnalysisService(context, new AwardEngine());
         var controller = new QsosController(
             context,
             mapper,
@@ -162,7 +164,8 @@ public class QsosControllerAdifTests
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
             DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
-            new QsoAwardEnrichmentService(context, lookup));
+            new QsoAwardEnrichmentService(context, lookup),
+            analysis);
 
         controller.ControllerContext = new ControllerContext
         {

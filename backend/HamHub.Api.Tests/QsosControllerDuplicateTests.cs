@@ -3,6 +3,7 @@ using System.Security.Claims;
 using AutoMapper;
 using HamHub.Api.Controllers;
 using HamHub.Api.Services;
+using HamHub.Api.Services.Awards;
 using HamHub.Application.Common.Mappings;
 using HamHub.Application.QsoEntries.DTOs;
 using HamHub.Domain.Entities;
@@ -90,6 +91,7 @@ public class QsosControllerDuplicateTests
     {
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var enrichment = new QsoAwardEnrichmentService(context, new DxccLookupService(new TestWebHostEnvironment(), NullLogger<DxccLookupService>.Instance));
+        var analysis = new QsoAnalysisService(context, new AwardEngine());
         var controller = new QsosController(
             context,
             mapper,
@@ -98,7 +100,8 @@ public class QsosControllerDuplicateTests
             new OpenMeteoWeatherService(new HttpClient()),
             new NoaaSwpcPropagationService(new HttpClient()),
             DataProtectionProvider.Create(Path.Combine(Path.GetTempPath(), $"hamhub-tests-{Guid.NewGuid():N}")),
-            enrichment);
+            enrichment,
+            analysis);
 
         controller.ControllerContext = new ControllerContext
         {

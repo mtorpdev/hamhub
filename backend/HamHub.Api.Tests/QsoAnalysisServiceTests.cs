@@ -3,6 +3,7 @@ using HamHub.Api.Services.Awards;
 using HamHub.Domain.Entities;
 using HamHub.Domain.Enums;
 using HamHub.Infrastructure.Persistence;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -101,6 +102,103 @@ public class QsoAnalysisServiceTests
         Assert.Equal(1, storedCountAfterFirst);
     }
 
+    [Fact]
+    public async Task AnalysisRegeneratesWhenNearbyDuplicateCandidateChanges()
+    {
+        await using var context = CreateContext();
+        var user = User("user-1", "OZ1ME");
+        var qso = Qso(user, "JA1XYZ");
+        context.Users.Add(user);
+        context.QsoEntries.Add(qso);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var first = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var firstHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        var duplicate = Qso(user, qso.WorkedCallsign);
+        duplicate.DateUtc = qso.DateUtc.AddSeconds(45);
+        context.QsoEntries.Add(duplicate);
+        await context.SaveChangesAsync();
+
+        var second = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var secondHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        Assert.Equal(0, first.DuplicateRisk.CandidateCount);
+        Assert.Equal(1, second.DuplicateRisk.CandidateCount);
+        Assert.NotEqual(firstHash, secondHash);
+    }
+
+    [Fact]
+    public async Task AnalysisRegeneratesWhenQrzQslDateChanges()
+    {
+        await using var context = CreateContext();
+        var user = User("user-1", "OZ1ME");
+        var qso = Qso(user, "JA1XYZ");
+        qso.QrzId = "123";
+        context.Users.Add(user);
+        context.QsoEntries.Add(qso);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var first = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var firstHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        qso.QrzQslDate = new DateTime(2026, 6, 21, 12, 34, 0, DateTimeKind.Utc);
+        await context.SaveChangesAsync();
+
+        var second = await service.GetOrCreateAsync(qso.Id, user.Id, false, CancellationToken.None);
+        var secondHash = await context.QsoAnalyses.Where(item => item.QsoId == qso.Id).Select(item => item.InputHash).SingleAsync();
+
+        Assert.Null(first.Qsl.Single(item => item.Provider == "QRZ").LastUpdatedAt);
+        Assert.Equal(qso.QrzQslDate, second.Qsl.Single(item => item.Provider == "QRZ").LastUpdatedAt);
+        Assert.NotEqual(firstHash, secondHash);
+    }
+
+    [Fact]
+    public async Task AnalysisReturnsPersistedRowWhenConcurrentInsertWins()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        var qsoId = 0;
+        await using (var setup = new ApplicationDbContext(options))
+        {
+            await setup.Database.EnsureCreatedAsync();
+            var user = User("user-1", "OZ1ME");
+            var qso = Qso(user, "JA1XYZ");
+            setup.Users.Add(user);
+            setup.QsoEntries.Add(qso);
+            await setup.SaveChangesAsync();
+            qsoId = qso.Id;
+        }
+
+        var injected = false;
+        await using var context = new SaveInterceptionContext(
+            options,
+            async cancellationToken =>
+            {
+                if (injected)
+                    return;
+
+                injected = true;
+                await using var competingContext = new ApplicationDbContext(options);
+                var competingService = CreateService(competingContext);
+                await competingService.GetOrCreateAsync(qsoId, "user-1", false, cancellationToken);
+            });
+        var service = CreateService(context);
+
+        var analysis = await service.GetOrCreateAsync(qsoId, "user-1", false, CancellationToken.None);
+
+        await using var verification = new ApplicationDbContext(options);
+        Assert.Equal(1, await verification.QsoAnalyses.CountAsync());
+        Assert.Equal(analysis.QsoId, (await verification.QsoAnalyses.SingleAsync()).QsoId);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -143,4 +241,31 @@ public class QsoAnalysisServiceTests
         CreatedAt = new DateTime(2026, 6, 21, 10, 0, 0, DateTimeKind.Utc),
         UpdatedAt = new DateTime(2026, 6, 21, 10, 0, 0, DateTimeKind.Utc)
     };
+
+    private sealed class SaveInterceptionContext : ApplicationDbContext
+    {
+        private readonly Func<CancellationToken, Task> _beforeSaveAsync;
+        private bool _callbackInvoked;
+
+        public SaveInterceptionContext(
+            DbContextOptions<ApplicationDbContext> options,
+            Func<CancellationToken, Task> beforeSaveAsync)
+            : base(options)
+        {
+            _beforeSaveAsync = beforeSaveAsync;
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            var pendingAnalysisInsert = ChangeTracker.Entries<QsoAnalysis>()
+                .Any(entry => entry.State == EntityState.Added);
+            if (pendingAnalysisInsert && !_callbackInvoked)
+            {
+                _callbackInvoked = true;
+                await _beforeSaveAsync(cancellationToken);
+            }
+
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

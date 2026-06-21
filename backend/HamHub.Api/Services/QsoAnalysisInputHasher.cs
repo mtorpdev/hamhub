@@ -6,7 +6,7 @@ namespace HamHub.Api.Services;
 
 public static class QsoAnalysisInputHasher
 {
-    public static string Hash(QsoEntry qso, int analysisVersion)
+    public static string Hash(QsoEntry qso, int analysisVersion, string? duplicateCandidatesHash = null)
     {
         var input = string.Join("|", new object?[]
         {
@@ -36,12 +36,14 @@ public static class QsoAnalysisInputHasher
             qso.QrzId,
             qso.QrzConfirmationStatus,
             qso.QrzConfirmedAt?.ToUniversalTime().ToString("O"),
+            qso.QrzQslDate?.ToUniversalTime().ToString("O"),
             qso.EqslSentAt?.ToUniversalTime().ToString("O"),
             qso.EqslConfirmedAt?.ToUniversalTime().ToString("O"),
             qso.LotwConfirmedAt?.ToUniversalTime().ToString("O"),
             qso.LotwQslDate?.ToUniversalTime().ToString("O"),
             qso.LotwLastResult,
-            qso.TxPower
+            qso.TxPower,
+            duplicateCandidatesHash
         });
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input)));

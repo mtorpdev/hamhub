@@ -29,7 +29,7 @@ public class QsosController : ControllerBase
     private readonly OpenMeteoWeatherService _weatherService;
     private readonly NoaaSwpcPropagationService _propagationService;
     private readonly QsoAwardEnrichmentService _awardEnrichment;
-    private readonly QsoAnalysisService? _analysisService;
+    private readonly QsoAnalysisService _analysisService;
 
     public QsosController(
         ApplicationDbContext context,
@@ -40,7 +40,7 @@ public class QsosController : ControllerBase
         NoaaSwpcPropagationService propagationService,
         IDataProtectionProvider dataProtectionProvider,
         QsoAwardEnrichmentService awardEnrichment,
-        QsoAnalysisService? analysisService = null)
+        QsoAnalysisService analysisService)
     {
         _context = context;
         _mapper = mapper;
@@ -206,7 +206,6 @@ public class QsosController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
-        if (_analysisService is null) return StatusCode(StatusCodes.Status500InternalServerError);
 
         try
         {

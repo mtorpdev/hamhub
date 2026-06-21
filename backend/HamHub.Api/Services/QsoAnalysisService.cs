@@ -34,7 +34,9 @@ public class QsoAnalysisService
         if (!isAdmin && !string.Equals(qso.UserId, userId, StringComparison.Ordinal))
             throw new UnauthorizedAccessException("You do not have access to this QSO.");
 
-        var inputHash = QsoAnalysisInputHasher.Hash(qso, AnalysisVersion);
+        var duplicateCandidates = await LoadDuplicateCandidatesAsync(qso, ct);
+        var duplicateRisk = BuildDuplicateRisk(qso, duplicateCandidates);
+        var inputHash = QsoAnalysisInputHasher.Hash(qso, AnalysisVersion, BuildDuplicateCandidatesHash(duplicateCandidates));
         if (qso.Analysis is not null &&
             qso.Analysis.AnalysisVersion == AnalysisVersion &&
             string.Equals(qso.Analysis.InputHash, inputHash, StringComparison.Ordinal))
@@ -48,7 +50,6 @@ public class QsoAnalysisService
         var dataIssues = BuildDataIssues(qso);
         var propagation = BuildPropagation(conditions);
         var sun = BuildSun(conditions);
-        var duplicateRisk = await BuildDuplicateRiskAsync(qso, ct);
         var awardImpact = BuildAwardImpact(qso, qsl, dataIssues);
         var flags = BuildFlags(qsl, dataIssues, duplicateRisk);
         var scores = BuildScores(qsl, dataIssues, awardImpact, propagation, duplicateRisk);
@@ -88,8 +89,8 @@ public class QsoAnalysisService
             qso.Analysis = analysis;
         }
 
-        await _context.SaveChangesAsync(ct);
-        return ToResponse(analysis);
+        var persistedAnalysis = await SaveAnalysisAsync(qso, analysis, ct);
+        return ToResponse(persistedAnalysis);
     }
 
     private QsoAnalysisAwardImpactDto BuildAwardImpact(QsoEntry qso, QsoAnalysisQslDto[] qsl, QsoAnalysisDataIssueDto[] issues)
@@ -169,11 +170,11 @@ public class QsoAnalysisService
         return issues.ToArray();
     }
 
-    private async Task<QsoAnalysisDuplicateRiskDto> BuildDuplicateRiskAsync(QsoEntry qso, CancellationToken ct)
+    private async Task<List<QsoEntry>> LoadDuplicateCandidatesAsync(QsoEntry qso, CancellationToken ct)
     {
         var lower = qso.DateUtc.AddHours(-2).AddSeconds(-60);
         var upper = qso.DateUtc.AddHours(2).AddSeconds(60);
-        var candidates = await _context.QsoEntries
+        return await _context.QsoEntries
             .Where(existing =>
                 existing.UserId == qso.UserId &&
                 existing.Id != qso.Id &&
@@ -182,7 +183,10 @@ public class QsoAnalysisService
                 existing.DateUtc >= lower &&
                 existing.DateUtc <= upper)
             .ToListAsync(ct);
+    }
 
+    private static QsoAnalysisDuplicateRiskDto BuildDuplicateRisk(QsoEntry qso, IReadOnlyCollection<QsoEntry> candidates)
+    {
         var matches = candidates
             .Where(existing => QsoIdentity.IsDuplicateCandidate(
                 existing,
@@ -221,6 +225,41 @@ public class QsoAnalysisService
             closest.Qso.Id,
             Math.Round(closest.DeltaSeconds, 1),
             matches.Any(item => item.LocalTimeOffsetRisk));
+    }
+
+    private static string BuildDuplicateCandidatesHash(IEnumerable<QsoEntry> candidates) =>
+        string.Join("|", candidates
+            .OrderBy(candidate => candidate.Id)
+            .Select(candidate => string.Join(":",
+                candidate.Id,
+                EnsureUtc(candidate.DateUtc).ToString("O"),
+                candidate.UpdatedAt.ToUniversalTime().ToString("O"),
+                candidate.OwnCallsign,
+                candidate.WorkedCallsign,
+                candidate.Band,
+                candidate.Mode)));
+
+    private async Task<QsoAnalysis> SaveAnalysisAsync(QsoEntry qso, QsoAnalysis analysis, CancellationToken ct)
+    {
+        var isNewAnalysis = qso.Analysis is not null && ReferenceEquals(qso.Analysis, analysis) && analysis.Id == 0;
+
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+            return analysis;
+        }
+        catch (DbUpdateException) when (isNewAnalysis)
+        {
+            _context.Entry(analysis).State = EntityState.Detached;
+            qso.Analysis = await _context.QsoAnalyses
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.QsoId == qso.Id, ct);
+
+            if (qso.Analysis is not null)
+                return qso.Analysis;
+
+            throw;
+        }
     }
 
     private static QsoAnalysisPropagationDto BuildPropagation(QsoConditionsDto conditions)
